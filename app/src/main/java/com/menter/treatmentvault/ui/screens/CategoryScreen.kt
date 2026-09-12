@@ -2,14 +2,12 @@ package com.menter.treatmentvault.ui.screens
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items as gridItems
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -19,6 +17,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.menter.treatmentvault.TreatmentVaultApplication
 import com.menter.treatmentvault.data.AppDao
@@ -366,7 +365,12 @@ private fun CategoryEditDialog(
                 }
             }
         },
-        confirmButton = { TextButton(onClick = { if (name.isNotBlank()) onSave(name.trim(), icon, keywords.trim()) }, enabled = name.isNotBlank()) { Text("保存") } },
+        confirmButton = {
+            TextButton(
+                onClick = { if (name.isNotBlank()) onSave(name.trim(), icon, keywords.trim()) },
+                enabled = name.isNotBlank(),
+            ) { Text("保存") }
+        },
         dismissButton = { TextButton(onClick = onDismiss) { Text("取消") } },
     )
 }
@@ -378,49 +382,343 @@ fun CustomCategoryScreen(categoryId: String, back: () -> Unit) {
     val category by dao.categories().map { list -> list.firstOrNull { it.key == categoryId } }.collectAsState(initial = null)
     val entries by dao.customEntries(categoryId).collectAsState(initial = emptyList())
     val scope = rememberCoroutineScope()
-    var add by remember { mutableStateOf(false) }
+    val prefs = remember { app.getSharedPreferences("category_view_preferences", 0) }
+
+    var adding by remember { mutableStateOf(false) }
+    var editing by remember { mutableStateOf<CustomEntryEntity?>(null) }
+    var deleting by remember { mutableStateOf<CustomEntryEntity?>(null) }
+    var search by remember { mutableStateOf("") }
+    var viewMode by remember(categoryId) {
+        mutableStateOf(prefs.getString("view_$categoryId", "compact") ?: "compact")
+    }
+
+    val filteredEntries = remember(entries, search) {
+        val q = search.trim()
+        if (q.isBlank()) entries else entries.filter {
+            it.title.contains(q, ignoreCase = true) ||
+                it.content.contains(q, ignoreCase = true) ||
+                it.tags.contains(q, ignoreCase = true) ||
+                it.date.contains(q, ignoreCase = true)
+        }
+    }
+
+    fun setViewMode(mode: String) {
+        viewMode = mode
+        prefs.edit().putString("view_$categoryId", mode).apply()
+    }
 
     Page(category?.name ?: "自定义类目", back) {
-        Button(onClick = { add = true }, modifier = Modifier.fillMaxWidth()) { Text("新增记录") }
-        if (entries.isEmpty()) Text("暂无记录。智能录入识别到这个类目后，也会自动存到这里。")
-        LazyColumn(modifier = Modifier.fillMaxWidth().heightIn(max = 640.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            items(entries, key = { it.id }) { entry ->
-                Card(Modifier.fillMaxWidth()) {
-                    Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text(entry.title.ifBlank { entry.content.take(28) }, style = MaterialTheme.typography.titleMedium)
-                        if (entry.date.isNotBlank()) Text(entry.date, style = MaterialTheme.typography.bodySmall)
-                        Text(entry.content)
-                        if (entry.tags.isNotBlank()) Text("标签：${entry.tags}", style = MaterialTheme.typography.bodySmall)
-                        TextButton(onClick = { scope.launch { dao.deleteCustomEntry(entry) } }) { Text("删除") }
+        Button(onClick = { adding = true }, modifier = Modifier.fillMaxWidth()) {
+            Icon(Icons.Default.Add, contentDescription = null)
+            Text("新增记录")
+        }
+
+        OutlinedTextField(
+            value = search,
+            onValueChange = { search = it },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            label = { Text("搜索当前类目") },
+            leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+            trailingIcon = {
+                if (search.isNotBlank()) {
+                    IconButton(onClick = { search = "" }) {
+                        Icon(Icons.Default.Close, contentDescription = "清空搜索")
+                    }
+                }
+            },
+        )
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            FilterChip(
+                selected = viewMode == "compact",
+                onClick = { setViewMode("compact") },
+                label = { Text("条目") },
+                leadingIcon = { Icon(Icons.Default.ViewList, contentDescription = null) },
+            )
+            FilterChip(
+                selected = viewMode == "grid",
+                onClick = { setViewMode("grid") },
+                label = { Text("宫格") },
+                leadingIcon = { Icon(Icons.Default.GridView, contentDescription = null) },
+            )
+            FilterChip(
+                selected = viewMode == "detail",
+                onClick = { setViewMode("detail") },
+                label = { Text("详情") },
+                leadingIcon = { Icon(Icons.Default.Article, contentDescription = null) },
+            )
+        }
+
+        Text(
+            if (search.isBlank()) "共 ${entries.size} 条" else "找到 ${filteredEntries.size} / ${entries.size} 条",
+            style = MaterialTheme.typography.bodySmall,
+        )
+
+        if (filteredEntries.isEmpty()) {
+            Text(if (entries.isEmpty()) "暂无记录。智能录入识别到这个类目后，也会自动存到这里。" else "没有匹配的记录。")
+        } else {
+            when (viewMode) {
+                "grid" -> {
+                    LazyVerticalGrid(
+                        columns = GridCells.Fixed(2),
+                        modifier = Modifier.fillMaxWidth().heightIn(max = 640.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        gridItems(filteredEntries, key = { it.id }) { entry ->
+                            GridEntryCard(entry, onEdit = { editing = entry }, onDelete = { deleting = entry })
+                        }
+                    }
+                }
+                "detail" -> {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxWidth().heightIn(max = 640.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        items(filteredEntries, key = { it.id }) { entry ->
+                            DetailEntryCard(entry, onEdit = { editing = entry }, onDelete = { deleting = entry })
+                        }
+                    }
+                }
+                else -> {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxWidth().heightIn(max = 640.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp),
+                    ) {
+                        items(filteredEntries, key = { it.id }) { entry ->
+                            CompactEntryCard(entry, onEdit = { editing = entry }, onDelete = { deleting = entry })
+                        }
                     }
                 }
             }
         }
     }
 
-    if (add) {
-        var date by remember { mutableStateOf(SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())) }
-        var title by remember { mutableStateOf("") }
-        var content by remember { mutableStateOf("") }
-        var tags by remember { mutableStateOf("") }
-        AlertDialog(
-            onDismissRequest = { add = false },
-            title = { Text("新增记录") },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedTextField(date, { date = it }, label = { Text("日期") }, modifier = Modifier.fillMaxWidth())
-                    OutlinedTextField(title, { title = it }, label = { Text("标题") }, modifier = Modifier.fillMaxWidth())
-                    OutlinedTextField(content, { content = it }, label = { Text("内容") }, modifier = Modifier.fillMaxWidth(), minLines = 4)
-                    OutlinedTextField(tags, { tags = it }, label = { Text("标签（逗号分隔，预留能力）") }, modifier = Modifier.fillMaxWidth())
-                }
+    if (adding) {
+        CustomEntryEditDialog(
+            title = "新增记录",
+            categoryId = categoryId,
+            initial = null,
+            onDismiss = { adding = false },
+            onSave = { value ->
+                scope.launch { dao.saveCustomEntry(value) }
+                adding = false
             },
-            confirmButton = {
-                TextButton(onClick = {
-                    scope.launch { dao.saveCustomEntry(CustomEntryEntity(categoryId = categoryId, date = date, title = title, content = content, tags = tags)) }
-                    add = false
-                }, enabled = content.isNotBlank() || title.isNotBlank()) { Text("保存") }
-            },
-            dismissButton = { TextButton(onClick = { add = false }) { Text("取消") } },
         )
     }
+
+    editing?.let { entry ->
+        CustomEntryEditDialog(
+            title = "编辑记录",
+            categoryId = categoryId,
+            initial = entry,
+            onDismiss = { editing = null },
+            onSave = { value ->
+                scope.launch { dao.updateCustomEntry(value) }
+                editing = null
+            },
+        )
+    }
+
+    deleting?.let { entry ->
+        AlertDialog(
+            onDismissRequest = { deleting = null },
+            title = { Text("删除这条记录？") },
+            text = { Text(entry.title.ifBlank { entry.content.take(40) }) },
+            confirmButton = {
+                TextButton(onClick = {
+                    scope.launch { dao.deleteCustomEntry(entry) }
+                    deleting = null
+                }) { Text("删除") }
+            },
+            dismissButton = { TextButton(onClick = { deleting = null }) { Text("取消") } },
+        )
+    }
+}
+
+@Composable
+private fun CompactEntryCard(
+    entry: CustomEntryEntity,
+    onEdit: () -> Unit,
+    onDelete: () -> Unit,
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onEdit),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 9.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(
+                    entry.title.ifBlank { entry.content.lineSequence().firstOrNull().orEmpty().take(36) },
+                    style = MaterialTheme.typography.titleSmall,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                if (entry.date.isNotBlank()) Text(entry.date, style = MaterialTheme.typography.labelSmall)
+                if (entry.content.isNotBlank()) {
+                    Text(
+                        entry.content,
+                        style = MaterialTheme.typography.bodySmall,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                if (entry.tags.isNotBlank()) {
+                    Text("# ${entry.tags}", style = MaterialTheme.typography.labelSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+            }
+            EntryActionsMenu(onEdit, onDelete)
+        }
+    }
+}
+
+@Composable
+private fun GridEntryCard(
+    entry: CustomEntryEntity,
+    onEdit: () -> Unit,
+    onDelete: () -> Unit,
+) {
+    Card(modifier = Modifier.fillMaxWidth().clickable(onClick = onEdit)) {
+        Column(
+            modifier = Modifier.padding(10.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            Row(Modifier.fillMaxWidth()) {
+                Text(
+                    entry.title.ifBlank { entry.content.lineSequence().firstOrNull().orEmpty().take(20) },
+                    modifier = Modifier.weight(1f),
+                    style = MaterialTheme.typography.titleSmall,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                EntryActionsMenu(onEdit, onDelete)
+            }
+            if (entry.date.isNotBlank()) Text(entry.date, style = MaterialTheme.typography.labelSmall)
+            if (entry.content.isNotBlank()) {
+                Text(
+                    entry.content,
+                    style = MaterialTheme.typography.bodySmall,
+                    maxLines = 4,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            if (entry.tags.isNotBlank()) {
+                Text("# ${entry.tags}", style = MaterialTheme.typography.labelSmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            }
+        }
+    }
+}
+
+@Composable
+private fun DetailEntryCard(
+    entry: CustomEntryEntity,
+    onEdit: () -> Unit,
+    onDelete: () -> Unit,
+) {
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(
+            modifier = Modifier.padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(5.dp),
+        ) {
+            Row(Modifier.fillMaxWidth()) {
+                Text(
+                    entry.title.ifBlank { entry.content.take(28) },
+                    modifier = Modifier.weight(1f),
+                    style = MaterialTheme.typography.titleMedium,
+                )
+                EntryActionsMenu(onEdit, onDelete)
+            }
+            if (entry.date.isNotBlank()) Text(entry.date, style = MaterialTheme.typography.bodySmall)
+            if (entry.content.isNotBlank()) Text(entry.content)
+            if (entry.tags.isNotBlank()) Text("标签：${entry.tags}", style = MaterialTheme.typography.bodySmall)
+        }
+    }
+}
+
+@Composable
+private fun EntryActionsMenu(onEdit: () -> Unit, onDelete: () -> Unit) {
+    var expanded by remember { mutableStateOf(false) }
+    Column {
+        IconButton(onClick = { expanded = true }, modifier = Modifier.size(36.dp)) {
+            Icon(Icons.Default.MoreVert, contentDescription = "记录操作")
+        }
+        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            DropdownMenuItem(
+                text = { Text("编辑") },
+                leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null) },
+                onClick = {
+                    expanded = false
+                    onEdit()
+                },
+            )
+            DropdownMenuItem(
+                text = { Text("删除") },
+                leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null) },
+                onClick = {
+                    expanded = false
+                    onDelete()
+                },
+            )
+        }
+    }
+}
+
+@Composable
+private fun CustomEntryEditDialog(
+    title: String,
+    categoryId: String,
+    initial: CustomEntryEntity?,
+    onDismiss: () -> Unit,
+    onSave: (CustomEntryEntity) -> Unit,
+) {
+    val today = remember { SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date()) }
+    var date by remember(initial?.id) { mutableStateOf(initial?.date ?: today) }
+    var entryTitle by remember(initial?.id) { mutableStateOf(initial?.title.orEmpty()) }
+    var content by remember(initial?.id) { mutableStateOf(initial?.content.orEmpty()) }
+    var tags by remember(initial?.id) { mutableStateOf(initial?.tags.orEmpty()) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(date, { date = it }, label = { Text("日期") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+                OutlinedTextField(entryTitle, { entryTitle = it }, label = { Text("标题") }, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(
+                    content,
+                    { content = it },
+                    label = { Text("内容") },
+                    modifier = Modifier.fillMaxWidth(),
+                    minLines = 5,
+                    maxLines = 12,
+                )
+                OutlinedTextField(tags, { tags = it }, label = { Text("标签（逗号分隔）") }, modifier = Modifier.fillMaxWidth())
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    onSave(
+                        CustomEntryEntity(
+                            id = initial?.id ?: 0,
+                            categoryId = categoryId,
+                            date = date.trim(),
+                            title = entryTitle.trim(),
+                            content = content.trim(),
+                            tags = tags.trim(),
+                            updatedAt = System.currentTimeMillis(),
+                        )
+                    )
+                },
+                enabled = content.isNotBlank() || entryTitle.isNotBlank(),
+            ) { Text("保存") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("取消") } },
+    )
 }

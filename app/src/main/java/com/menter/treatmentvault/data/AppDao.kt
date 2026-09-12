@@ -62,6 +62,7 @@ interface AppDao {
     @Query("SELECT * FROM CustomEntryEntity WHERE categoryId=:categoryId ORDER BY date DESC,id DESC") fun customEntries(categoryId:String):Flow<List<CustomEntryEntity>>
     @Query("SELECT * FROM CustomEntryEntity") suspend fun allCustomEntries():List<CustomEntryEntity>
     @Insert suspend fun saveCustomEntry(v:CustomEntryEntity):Long
+    @Update suspend fun updateCustomEntry(v:CustomEntryEntity)
     @Delete suspend fun deleteCustomEntry(v:CustomEntryEntity)
     @Query("DELETE FROM CustomEntryEntity WHERE categoryId=:categoryId") suspend fun clearCustomEntriesForCategory(categoryId:String)
     @Query("DELETE FROM CustomEntryEntity") suspend fun clearCustomEntries()
