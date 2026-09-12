@@ -51,6 +51,26 @@ interface AppDao {
     @Query("SELECT * FROM ImportHistoryEntity ORDER BY importedAt DESC") fun importHistory():Flow<List<ImportHistoryEntity>>
     @Insert suspend fun saveImportHistory(v:ImportHistoryEntity):Long
 
+    @Query("SELECT * FROM CategoryEntity ORDER BY sortOrder ASC, name ASC") fun categories():Flow<List<CategoryEntity>>
+    @Query("SELECT * FROM CategoryEntity ORDER BY sortOrder ASC, name ASC") suspend fun allCategories():List<CategoryEntity>
+    @Query("SELECT * FROM CategoryEntity WHERE `key`=:key LIMIT 1") suspend fun categoryByKey(key:String):CategoryEntity?
+    @Insert(onConflict=OnConflictStrategy.REPLACE) suspend fun saveCategory(v:CategoryEntity)
+    @Update suspend fun updateCategory(v:CategoryEntity)
+    @Delete suspend fun deleteCategory(v:CategoryEntity)
+    @Query("DELETE FROM CategoryEntity") suspend fun clearCategories()
+
+    @Query("SELECT * FROM CustomEntryEntity WHERE categoryId=:categoryId ORDER BY date DESC,id DESC") fun customEntries(categoryId:String):Flow<List<CustomEntryEntity>>
+    @Query("SELECT * FROM CustomEntryEntity") suspend fun allCustomEntries():List<CustomEntryEntity>
+    @Insert suspend fun saveCustomEntry(v:CustomEntryEntity):Long
+    @Delete suspend fun deleteCustomEntry(v:CustomEntryEntity)
+    @Query("DELETE FROM CustomEntryEntity WHERE categoryId=:categoryId") suspend fun clearCustomEntriesForCategory(categoryId:String)
+    @Query("DELETE FROM CustomEntryEntity") suspend fun clearCustomEntries()
+
+    @Query("SELECT * FROM TagEntity ORDER BY name") fun tags():Flow<List<TagEntity>>
+    @Query("SELECT * FROM TagEntity") suspend fun allTags():List<TagEntity>
+    @Insert(onConflict=OnConflictStrategy.REPLACE) suspend fun saveTag(v:TagEntity)
+    @Query("DELETE FROM TagEntity") suspend fun clearTags()
+
     @Query("SELECT * FROM SupplyEntity") suspend fun allSupplies():List<SupplyEntity>
     @Query("SELECT * FROM ExamEntity") suspend fun allExams():List<ExamEntity>
     @Query("SELECT * FROM TreatmentPlanEntity") suspend fun allPlans():List<TreatmentPlanEntity>
