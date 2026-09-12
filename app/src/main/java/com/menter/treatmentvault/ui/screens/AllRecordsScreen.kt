@@ -11,6 +11,7 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -66,12 +67,17 @@ fun AllRecordsScreen(back: () -> Unit, go: (String) -> Unit) {
             shelfMatch && (q.isBlank() || listOf(item.title, item.preview, item.section, item.date).any { it.contains(q, true) })
         }.sortedWith(
             compareByDescending<UnifiedRecordItem> { recordStateFor(it, stateMap).pinned && shelf == RecordShelf.ALL }
+                .thenByDescending { isTodo(recordStateFor(it, stateMap)) && !recordStateFor(it, stateMap).completed }
                 .thenByDescending { it.updatedAt }
         )
     }
 
     fun toggle(item: UnifiedRecordItem) {
         selectedKeys = if (item.key in selectedKeys) selectedKeys - item.key else selectedKeys + item.key
+    }
+
+    fun saveState(next: RecordStateEntity) {
+        scope.launch { dao.saveRecordState(next.copy(updatedAt = System.currentTimeMillis())) }
     }
 
     Scaffold(
@@ -124,7 +130,7 @@ fun AllRecordsScreen(back: () -> Unit, go: (String) -> Unit) {
                 }
             }
             if (selectedKeys.isEmpty()) {
-                item { Text("${filtered.size} 条记录 · 长按记录查看归属文件夹", style = MaterialTheme.typography.bodySmall) }
+                item { Text("${filtered.size} 条记录 · 长按查看全部归属文件夹", style = MaterialTheme.typography.bodySmall) }
             }
             if (filtered.isEmpty()) {
                 item {
@@ -150,7 +156,7 @@ fun AllRecordsScreen(back: () -> Unit, go: (String) -> Unit) {
                             else ownershipItem = item
                         },
                         onMoveRequested = { moveKeys = setOf(item.key) },
-                        onStateChange = { next -> scope.launch { dao.saveRecordState(next.copy(updatedAt = System.currentTimeMillis())) } },
+                        onStateChange = ::saveState,
                         onDeleteForever = { scope.launch { permanentlyDeleteRecord(dao, item) } },
                     )
                 }
@@ -163,6 +169,9 @@ fun AllRecordsScreen(back: () -> Unit, go: (String) -> Unit) {
             item = item,
             categories = categories,
             onDismiss = { ownershipItem = null },
+            onFoldersChange = if (shelf == RecordShelf.TRASH) null else { folders ->
+                scope.launch { setUnifiedRecordFolders(dao, item, folders) }
+            },
             onSelectForMove = if (shelf == RecordShelf.TRASH) null else {
                 {
                     toggle(item)
@@ -204,32 +213,40 @@ private fun UnifiedRecordRow(
 ) {
     var menuOpen by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf(false) }
+    val contentColor = recordContentColor(state)
 
     ListItem(
         modifier = Modifier.fillMaxWidth().combinedClickable(
             onClick = onOpen,
             onLongClick = onLongPress,
         ),
+        colors = ListItemDefaults.colors(containerColor = recordBackgroundColor(state)),
         headlineContent = {
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                if (state.pinned && shelf != RecordShelf.TRASH) Icon(Icons.Default.PushPin, contentDescription = null, modifier = Modifier.size(16.dp))
-                Text(item.title, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                if (isTodo(state) && shelf != RecordShelf.TRASH) {
+                    Checkbox(
+                        checked = state.completed,
+                        onCheckedChange = { onStateChange(state.copy(completed = it)) },
+                    )
+                }
+                if (state.pinned && shelf != RecordShelf.TRASH) Icon(Icons.Default.PushPin, contentDescription = null, modifier = Modifier.size(16.dp), tint = contentColor)
+                Text(item.title, maxLines = 1, overflow = TextOverflow.Ellipsis, color = contentColor)
             }
         },
         supportingContent = {
             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(item.section, style = MaterialTheme.typography.labelSmall)
-                if (item.preview.isNotBlank()) Text(item.preview, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                if (item.date.isNotBlank()) Text(item.date, style = MaterialTheme.typography.labelSmall)
+                Text(item.section, style = MaterialTheme.typography.labelSmall, color = contentColor)
+                if (item.preview.isNotBlank()) Text(item.preview, maxLines = 2, overflow = TextOverflow.Ellipsis, color = contentColor)
+                if (item.date.isNotBlank()) Text(item.date, style = MaterialTheme.typography.labelSmall, color = contentColor)
             }
         },
-        leadingContent = { Icon(categoryIcon(item.iconKey), contentDescription = null) },
+        leadingContent = { Icon(categoryIcon(item.iconKey), contentDescription = null, tint = contentColor) },
         trailingContent = {
             if (selectionMode) {
                 Checkbox(checked = selected, onCheckedChange = { onOpen() })
             } else {
                 Box {
-                    IconButton(onClick = { menuOpen = true }) { Icon(Icons.Default.MoreVert, contentDescription = "更多") }
+                    IconButton(onClick = { menuOpen = true }) { Icon(Icons.Default.MoreVert, contentDescription = "更多", tint = contentColor) }
                     DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
                         if (shelf == RecordShelf.TRASH) {
                             DropdownMenuItem(
@@ -243,6 +260,11 @@ private fun UnifiedRecordRow(
                                 onClick = { menuOpen = false; confirmDelete = true },
                             )
                         } else {
+                            DropdownMenuItem(
+                                text = { Text(if (isTodo(state)) "切换为普通条目" else "切换为待办事项") },
+                                leadingIcon = { Icon(if (isTodo(state)) Icons.Default.Notes else Icons.Default.CheckBox, contentDescription = null) },
+                                onClick = { menuOpen = false; onStateChange(toggleTodoDisplay(state)) },
+                            )
                             DropdownMenuItem(
                                 text = { Text("移动到文件夹") },
                                 leadingIcon = { Icon(Icons.Default.FolderOpen, contentDescription = null) },
