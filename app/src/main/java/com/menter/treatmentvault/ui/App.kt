@@ -18,9 +18,10 @@ fun TreatmentVaultApp() {
         NavHost(nav, "home") {
             composable("home") { HomeScreen { nav.navigate(it) } }
             composable("categories") { CategoryManagementScreen { nav.popBackStack() } }
+            composable("structure") { StructureScreen(back = { nav.popBackStack() }, go = { nav.navigate(it) }) }
             composable("update") { UpdateScreen { nav.popBackStack() } }
             composable("custom/{categoryId}") { entry ->
-                CustomCategoryScreen(entry.arguments?.getString("categoryId").orEmpty()) { nav.popBackStack() }
+                NotebookCategoryScreen(entry.arguments?.getString("categoryId").orEmpty()) { nav.popBackStack() }
             }
             composable("smart_input") { SmartInputScreen { nav.popBackStack() } }
             composable("supplies") { SupplyScreen { nav.popBackStack() } }

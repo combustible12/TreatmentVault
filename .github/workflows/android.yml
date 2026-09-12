@@ -64,7 +64,7 @@ jobs:
               "versionName": os.environ["VERSION_NAME"],
               "apkUrl": "https://raw.githubusercontent.com/combustible12/TreatmentVault-Updates/main/TreatmentVault-latest.apk",
               "sha256": os.environ["SHA"],
-              "notes": f"TreatmentVault {os.environ['VERSION_NAME']} 更新"
+              "notes": "记录支持反复编辑和全屏笔记编辑；新增条目/宫格/详情视图与全局资料树。"
           }
           with open("update-repo/update.json", "w", encoding="utf-8") as f:
               json.dump(data, f, ensure_ascii=False, indent=2)

@@ -11,6 +11,7 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccountTree
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.SystemUpdateAlt
 import androidx.compose.material3.Card
@@ -62,9 +63,7 @@ fun HomeScreen(go: (String) -> Unit) {
     var localVisible by remember { mutableStateOf<List<CategoryEntity>>(emptyList()) }
 
     LaunchedEffect(categories, draggingKey) {
-        if (draggingKey == null) {
-            localVisible = categories.filterNot { it.hidden }
-        }
+        if (draggingKey == null) localVisible = categories.filterNot { it.hidden }
     }
     val latestVisible by rememberUpdatedState(localVisible)
     val latestCategories by rememberUpdatedState(categories)
@@ -74,6 +73,9 @@ fun HomeScreen(go: (String) -> Unit) {
             CenterAlignedTopAppBar(
                 title = { Text("治疗资料库") },
                 actions = {
+                    IconButton(onClick = { go("structure") }) {
+                        Icon(Icons.Default.AccountTree, contentDescription = "资料树")
+                    }
                     IconButton(onClick = { go("categories") }) {
                         Icon(Icons.Default.Settings, contentDescription = "类目管理")
                     }
@@ -89,7 +91,7 @@ fun HomeScreen(go: (String) -> Unit) {
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
             Text(
-                "长按卡片即可拖动排序",
+                "长按卡片即可拖动排序；右上角树状图可看全部资料结构",
                 style = MaterialTheme.typography.bodySmall,
                 modifier = Modifier.padding(horizontal = 14.dp),
             )
@@ -125,9 +127,7 @@ fun HomeScreen(go: (String) -> Unit) {
                                         val allSnapshot = latestCategories
                                         draggingKey = null
                                         scope.launch {
-                                            persistVisibleHomeOrder(allSnapshot, visibleSnapshot) {
-                                                dao.updateCategory(it)
-                                            }
+                                            persistVisibleHomeOrder(allSnapshot, visibleSnapshot) { dao.updateCategory(it) }
                                         }
                                     },
                                     onDrag = { change, dragAmount ->
