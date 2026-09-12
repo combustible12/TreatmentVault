@@ -138,7 +138,11 @@ fun RichNoteBodyEditor(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val existingState by produceState<List<AttachmentEntity>?>(initialValue = if (ownerId > 0) null else emptyList(), ownerType, ownerId) {
-        if (ownerId > 0) dao.attachments(ownerType, ownerId).collect { value = it } else value = emptyList()
+        if (ownerId > 0) {
+            dao.attachments(ownerType, ownerId).collect { attachments -> this.value = attachments }
+        } else {
+            this.value = emptyList()
+        }
     }
     val existing = existingState.orEmpty()
     val blocks = remember(ownerType, sessionKey) { mutableStateListOf<RichBlock>() }
