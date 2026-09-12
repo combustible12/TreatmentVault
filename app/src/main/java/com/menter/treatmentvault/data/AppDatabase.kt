@@ -62,7 +62,7 @@ abstract class AppDatabase : RoomDatabase() {
 
         private val MIGRATION_6_7 = object : Migration(6, 7) {
             override fun migrate(db: SupportSQLiteDatabase) {
-                db.execSQL("ALTER TABLE `RecordStateEntity` ADD COLUMN `displayType` TEXT NOT NULL DEFAULT 'normal'")
+                db.execSQL("ALTER TABLE `RecordStateEntity` ADD COLUMN `displayType` TEXT DEFAULT 'normal'")
                 db.execSQL("ALTER TABLE `RecordStateEntity` ADD COLUMN `completed` INTEGER NOT NULL DEFAULT 0")
 
                 db.execSQL("CREATE TABLE IF NOT EXISTS `RecordFolderEntity_new` (`ownerType` TEXT NOT NULL, `ownerId` INTEGER NOT NULL, `folderKey` TEXT NOT NULL, `updatedAt` INTEGER NOT NULL, PRIMARY KEY(`ownerType`,`ownerId`,`folderKey`))")
