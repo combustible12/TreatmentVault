@@ -18,7 +18,8 @@ import kotlinx.coroutines.launch
 
 @Composable
 fun TreatmentScreen(back: () -> Unit, initialPlanId: Long = 0L, initialRecordId: Long = 0L) {
-    val dao = (androidx.compose.ui.platform.LocalContext.current.applicationContext as TreatmentVaultApplication).database.dao()
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val dao = (context.applicationContext as TreatmentVaultApplication).database.dao()
     val plans by dao.plans().collectAsState(emptyList())
     val records by dao.records().collectAsState(emptyList())
     val scope = rememberCoroutineScope()
@@ -104,9 +105,13 @@ fun TreatmentScreen(back: () -> Unit, initialPlanId: Long = 0L, initialRecordId:
         FullScreenEditorDialog(
             title = if (initial == null) "新增治疗方案" else "编辑治疗方案",
             onDismiss = { planEditorOpen = false },
-            canSave = name.isNotBlank() || richBodyPlainText(explanation).isNotBlank() || pendingFiles.isNotEmpty(),
+            canSave = name.isNotBlank() || richBodyHasContent(explanation) || pendingFiles.isNotEmpty(),
+            hasPersistedRecord = initial != null,
             onSave = {
-                if (name.isBlank() && richBodyPlainText(explanation).isBlank() && pendingFiles.isEmpty()) return@FullScreenEditorDialog
+                if (initial == null && name.isBlank() && !richBodyHasContent(explanation) && pendingFiles.isEmpty()) {
+                    planEditorOpen = false
+                    return@FullScreenEditorDialog
+                }
                 scope.launch {
                     val value = TreatmentPlanEntity(
                         id = initial?.id ?: 0,
@@ -126,7 +131,8 @@ fun TreatmentScreen(back: () -> Unit, initialPlanId: Long = 0L, initialRecordId:
                         updatedAt = System.currentTimeMillis(),
                     )
                     val id = if (initial == null) dao.savePlan(value) else { dao.updatePlan(value); value.id }
-                    savePendingAttachments(dao, "plan", id, pendingFiles)
+                    reconcileRichAttachments(context, dao, "plan", id, explanation)
+                    pendingFiles = emptyList()
                     planEditorOpen = false
                 }
             },
@@ -135,9 +141,14 @@ fun TreatmentScreen(back: () -> Unit, initialPlanId: Long = 0L, initialRecordId:
                 item { Field(name, { name = it }, "标题") }
                 item {
                     RichNoteBodyEditor(
-                        dao = dao, ownerType = "plan", ownerId = initial?.id ?: 0L,
-                        value = explanation, onValueChange = { explanation = it },
-                        pendingFiles = pendingFiles, onPendingFilesChange = { pendingFiles = it },
+                        dao = dao,
+                        ownerType = "plan",
+                        ownerId = initial?.id ?: 0L,
+                        value = explanation,
+                        onValueChange = { explanation = it },
+                        pendingFiles = pendingFiles,
+                        onPendingFilesChange = { pendingFiles = it },
+                        sessionKey = "plan-${initial?.id ?: "new"}",
                     )
                 }
                 item {
@@ -179,9 +190,13 @@ fun TreatmentScreen(back: () -> Unit, initialPlanId: Long = 0L, initialRecordId:
         FullScreenEditorDialog(
             title = if (initial == null) "新增治疗记录" else "编辑治疗记录",
             onDismiss = { recordEditorOpen = false },
-            canSave = richBodyPlainText(content).isNotBlank() || pendingFiles.isNotEmpty() || date.isNotBlank() || type.isNotBlank(),
+            canSave = richBodyHasContent(content) || pendingFiles.isNotEmpty() || date.isNotBlank() || type.isNotBlank(),
+            hasPersistedRecord = initial != null,
             onSave = {
-                if (richBodyPlainText(content).isBlank() && pendingFiles.isEmpty() && date.isBlank() && type.isBlank()) return@FullScreenEditorDialog
+                if (initial == null && !richBodyHasContent(content) && pendingFiles.isEmpty() && date.isBlank() && type.isBlank()) {
+                    recordEditorOpen = false
+                    return@FullScreenEditorDialog
+                }
                 scope.launch {
                     val value = TreatmentRecordEntity(
                         id = initial?.id ?: 0,
@@ -197,7 +212,8 @@ fun TreatmentScreen(back: () -> Unit, initialPlanId: Long = 0L, initialRecordId:
                         updatedAt = System.currentTimeMillis(),
                     )
                     val id = if (initial == null) dao.saveRecord(value) else { dao.updateRecord(value); value.id }
-                    savePendingAttachments(dao, "record", id, pendingFiles)
+                    reconcileRichAttachments(context, dao, "record", id, content)
+                    pendingFiles = emptyList()
                     recordEditorOpen = false
                 }
             },
@@ -205,9 +221,14 @@ fun TreatmentScreen(back: () -> Unit, initialPlanId: Long = 0L, initialRecordId:
             LazyColumn(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp), contentPadding = PaddingValues(bottom = 24.dp)) {
                 item {
                     RichNoteBodyEditor(
-                        dao = dao, ownerType = "record", ownerId = initial?.id ?: 0L,
-                        value = content, onValueChange = { content = it },
-                        pendingFiles = pendingFiles, onPendingFilesChange = { pendingFiles = it },
+                        dao = dao,
+                        ownerType = "record",
+                        ownerId = initial?.id ?: 0L,
+                        value = content,
+                        onValueChange = { content = it },
+                        pendingFiles = pendingFiles,
+                        onPendingFilesChange = { pendingFiles = it },
+                        sessionKey = "record-${initial?.id ?: "new"}",
                     )
                 }
                 item {
