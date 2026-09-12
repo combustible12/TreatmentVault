@@ -64,6 +64,7 @@ fun ExamScreen(back: () -> Unit, initialEditId: Long = 0L) {
         var doctorExplanation by remember(initial?.id, editorOpen) { mutableStateOf(initial?.doctorExplanation.orEmpty()) }
         var notes by remember(initial?.id, editorOpen) { mutableStateOf(initial?.notes.orEmpty()) }
         var pendingFiles by remember(initial?.id, editorOpen) { mutableStateOf<List<String>>(emptyList()) }
+        var removedFiles by remember(initial?.id, editorOpen) { mutableStateOf<Set<String>>(emptySet()) }
         var detailsOpen by remember(initial?.id, editorOpen) {
             mutableStateOf(
                 !initial?.date.isNullOrBlank() || !initial?.hospital.isNullOrBlank() ||
@@ -97,8 +98,9 @@ fun ExamScreen(back: () -> Unit, initialEditId: Long = 0L) {
                         updatedAt = System.currentTimeMillis(),
                     )
                     val id = if (initial == null) dao.saveExam(value) else { dao.updateExam(value); value.id }
-                    reconcileRichAttachments(context, dao, "exam", id, body)
+                    reconcileRichAttachments(context, dao, "exam", id, body, removedFiles)
                     pendingFiles = emptyList()
+                    removedFiles = emptySet()
                     editorOpen = false
                 }
             },
@@ -114,6 +116,8 @@ fun ExamScreen(back: () -> Unit, initialEditId: Long = 0L) {
                         onValueChange = { body = it },
                         pendingFiles = pendingFiles,
                         onPendingFilesChange = { pendingFiles = it },
+                        removedFiles = removedFiles,
+                        onRemovedFilesChange = { removedFiles = it },
                         sessionKey = "exam-${initial?.id ?: "new"}",
                     )
                 }
