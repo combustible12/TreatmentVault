@@ -86,7 +86,7 @@ jobs:
               "versionName": os.environ["VERSION_NAME"],
               "apkUrl": "https://raw.githubusercontent.com/combustible12/TreatmentVault-Updates/main/TreatmentVault-latest.apk",
               "sha256": os.environ["SHA"],
-              "notes": "类目管理修正：默认类目和自建类目现在都可编辑、改名、改图标、调整上级、排序、隐藏和删除；删除类目不会删除任何记录，自建类目中的笔记会安全迁移到待整理或其他可见类目；可一键恢复默认类目。默认类目改名后，页面标题以及全部记录、搜索中的分类名称和图标会同步更新。"
+              "notes": "修复再次打开记录时正文看起来消失的问题：富文本编辑器现在会在数据库记录异步加载完成后正确恢复文字与图片区块，同时避免用户输入时被重复重置。此修复作用于普通笔记以及共用该编辑器的检查、治疗等记录；不改数据库结构。"
           }
           with open("update-repo/update.json", "w", encoding="utf-8") as f:
               json.dump(data, f, ensure_ascii=False, indent=2)
