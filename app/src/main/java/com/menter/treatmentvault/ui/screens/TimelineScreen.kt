@@ -45,7 +45,7 @@ private fun timelinePreview(vararg values: String): String = values
     .let { if (it.length > 110) it.take(110) + "…" else it }
 
 @Composable
-fun TimelineScreen(back: () -> Unit, go: (String) -> Unit) {
+fun TimelineScreen(back: () -> Unit, go: (String) -> Unit, initialEditId: Long = 0L) {
     val dao = (androidx.compose.ui.platform.LocalContext.current.applicationContext as TreatmentVaultApplication).database.dao()
     val timeline by dao.timeline().collectAsState(emptyList())
     val exams by dao.exams().collectAsState(emptyList())
@@ -60,22 +60,33 @@ fun TimelineScreen(back: () -> Unit, go: (String) -> Unit) {
 
     var editorOpen by remember { mutableStateOf(false) }
     var editing by remember { mutableStateOf<TimelineEntity?>(null) }
+    var openedInitial by remember(initialEditId) { mutableStateOf(false) }
+
+    LaunchedEffect(initialEditId, timeline) {
+        if (!openedInitial && initialEditId > 0L) {
+            timeline.firstOrNull { it.id == initialEditId }?.let {
+                editing = it
+                editorOpen = true
+                openedInitial = true
+            }
+        }
+    }
 
     val items = remember(timeline, exams, plans, records, symptoms, temperatures, questions, expenses, notes) {
         buildList {
             timeline.forEach { value ->
                 add(TimelineDisplayItem("timeline-${value.id}", dateForTimeline(value.date, value.updatedAt), value.type.ifBlank { "记录" }, value.title.ifBlank { "时间线记录" }, value.content, value.updatedAt, source = value))
             }
-            exams.forEach { value -> add(TimelineDisplayItem("exam-${value.id}", dateForTimeline(value.date, value.updatedAt), "检查", value.name, timelinePreview(value.summary, value.notes), value.updatedAt, "exams")) }
-            plans.forEach { value -> add(TimelineDisplayItem("plan-${value.id}", dateForTimeline(value.date.ifBlank { value.startDate }, value.updatedAt), "治疗方案", value.name, timelinePreview(value.explanation, value.notes), value.updatedAt, "treatment")) }
-            records.forEach { value -> add(TimelineDisplayItem("record-${value.id}", dateForTimeline(value.date, value.updatedAt), value.type.ifBlank { "治疗记录" }, value.type.ifBlank { "治疗记录" }, timelinePreview(value.content, value.notes), value.updatedAt, "treatment")) }
+            exams.forEach { value -> add(TimelineDisplayItem("exam-${value.id}", dateForTimeline(value.date, value.updatedAt), "检查", value.name, timelinePreview(value.summary, value.notes), value.updatedAt, "exams/${value.id}")) }
+            plans.forEach { value -> add(TimelineDisplayItem("plan-${value.id}", dateForTimeline(value.date.ifBlank { value.startDate }, value.updatedAt), "治疗方案", value.name, timelinePreview(value.explanation, value.notes), value.updatedAt, "treatment/plan/${value.id}")) }
+            records.forEach { value -> add(TimelineDisplayItem("record-${value.id}", dateForTimeline(value.date, value.updatedAt), value.type.ifBlank { "治疗记录" }, value.type.ifBlank { "治疗记录" }, timelinePreview(value.content, value.notes), value.updatedAt, "treatment/record/${value.id}")) }
             symptoms.forEach { value ->
                 val structured = listOf(value.nausea, value.vomiting, value.diarrhea, value.constipation, value.urinaryFrequency, value.dysuria, value.pain, value.fatigue, value.bleeding, value.other).firstOrNull { it.isNotBlank() }.orEmpty()
-                add(TimelineDisplayItem("symptom-${value.id}", dateForTimeline(value.date, value.updatedAt), "症状", "症状记录", timelinePreview(value.notes, structured), value.updatedAt, "symptoms"))
+                add(TimelineDisplayItem("symptom-${value.id}", dateForTimeline(value.date, value.updatedAt), "症状", "症状记录", timelinePreview(value.notes, structured), value.updatedAt, "symptoms/${value.id}"))
             }
-            temperatures.forEach { value -> add(TimelineDisplayItem("temp-${value.id}", dateForTimeline(value.date, value.updatedAt), "体温", "${value.temperature}℃ ${value.time}", timelinePreview(value.notes), value.updatedAt, "temperature")) }
-            questions.forEach { value -> add(TimelineDisplayItem("question-${value.id}", dateForTimeline(value.date, value.updatedAt), "问诊", value.question, timelinePreview(value.answer, value.notes), value.updatedAt, "questions")) }
-            expenses.forEach { value -> add(TimelineDisplayItem("expense-${value.id}", dateForTimeline(value.date, value.updatedAt), "费用", "${value.type} ¥${value.amount}", timelinePreview(value.notes, value.merchant), value.updatedAt, "expenses")) }
+            temperatures.forEach { value -> add(TimelineDisplayItem("temp-${value.id}", dateForTimeline(value.date, value.updatedAt), "体温", "${value.temperature}℃ ${value.time}", timelinePreview(value.notes), value.updatedAt, "temperature/${value.id}")) }
+            questions.forEach { value -> add(TimelineDisplayItem("question-${value.id}", dateForTimeline(value.date, value.updatedAt), "问诊", value.question, timelinePreview(value.answer, value.notes), value.updatedAt, "questions/${value.id}")) }
+            expenses.forEach { value -> add(TimelineDisplayItem("expense-${value.id}", dateForTimeline(value.date, value.updatedAt), "费用", "${value.type} ¥${value.amount}", timelinePreview(value.notes, value.merchant), value.updatedAt, "expenses/${value.id}")) }
             notes.forEach { value -> add(TimelineDisplayItem("note-${value.id}", dateForTimeline(value.date, value.updatedAt), "笔记", value.title.ifBlank { "未命名笔记" }, value.content, value.updatedAt, "note/${value.id}")) }
         }.sortedWith(compareByDescending<TimelineDisplayItem> { timelineSortTime(it.date, it.updatedAt) }.thenByDescending { it.updatedAt })
     }
