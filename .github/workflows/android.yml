@@ -64,7 +64,7 @@ jobs:
               "versionName": os.environ["VERSION_NAME"],
               "apkUrl": "https://raw.githubusercontent.com/combustible12/TreatmentVault-Updates/main/TreatmentVault-latest.apk",
               "sha256": os.environ["SHA"],
-              "notes": "笔记化首页：全局搜索、最近笔记、抽屉分类导航、全部笔记、新建/编辑笔记与分类移动；保留智能录入和医疗资料管理。"
+              "notes": "修复侧栏分类列表无法向上滑动的问题；分类数量不再被截断，底部管理入口固定可见。"
           }
           with open("update-repo/update.json", "w", encoding="utf-8") as f:
               json.dump(data, f, ensure_ascii=False, indent=2)

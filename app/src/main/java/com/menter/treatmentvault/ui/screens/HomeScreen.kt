@@ -72,26 +72,30 @@ private fun buildHomeSearchResults(
             val category = categoryMap[item.categoryId]
             val categoryName = category?.name ?: "笔记"
             if (matchesHomeQuery(q, categoryName, item.date, item.title, item.content, item.tags)) {
-                add(HomeSearchHit(
-                    item.title.ifBlank { previewText(item.content, 42).ifBlank { "未命名笔记" } },
-                    previewText(listOf(item.date, item.content, item.tags).filter { it.isNotBlank() }.joinToString(" · ")),
-                    categoryName,
-                    "note/${item.id}",
-                    category?.iconKey ?: "note",
-                    item.updatedAt,
-                ))
+                add(
+                    HomeSearchHit(
+                        title = item.title.ifBlank { previewText(item.content, 42).ifBlank { "未命名笔记" } },
+                        subtitle = previewText(listOf(item.date, item.content, item.tags).filter { it.isNotBlank() }.joinToString(" · ")),
+                        section = categoryName,
+                        route = "note/${item.id}",
+                        iconKey = category?.iconKey ?: "note",
+                        updatedAt = item.updatedAt,
+                    )
+                )
             }
         }
         categories.forEach { category ->
             if (matchesHomeQuery(q, category.name, category.smartKeywords)) {
-                add(HomeSearchHit(
-                    category.name,
-                    if (category.isSystem) "打开资料分类" else "打开笔记分类",
-                    "分类",
-                    if (category.isSystem) category.route else "custom/${category.key}",
-                    category.iconKey,
-                    category.updatedAt,
-                ))
+                add(
+                    HomeSearchHit(
+                        title = category.name,
+                        subtitle = if (category.isSystem) "打开资料分类" else "打开笔记分类",
+                        section = "分类",
+                        route = if (category.isSystem) category.route else "custom/${category.key}",
+                        iconKey = category.iconKey,
+                        updatedAt = category.updatedAt,
+                    )
+                )
             }
         }
         supplies.forEach { item ->
@@ -213,66 +217,76 @@ fun HomeScreen(go: (String) -> Unit) {
         drawerState = drawerState,
         drawerContent = {
             ModalDrawerSheet {
-                Spacer(Modifier.height(18.dp))
-                Text("治疗笔记", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.padding(horizontal = 20.dp))
-                Text("像笔记一样记，分类在后面帮你整理", style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp))
-                Spacer(Modifier.height(10.dp))
-                NavigationDrawerItem(
-                    icon = { Icon(Icons.Default.Notes, contentDescription = null) },
-                    label = { Text("全部笔记") },
-                    selected = false,
-                    onClick = { open("notes") },
-                )
-                NavigationDrawerItem(
-                    icon = { Icon(Icons.Default.Mic, contentDescription = null) },
-                    label = { Text("智能录入") },
-                    selected = false,
-                    onClick = { open("smart_input") },
-                )
-                NavigationDrawerItem(
-                    icon = { Icon(Icons.Default.AccountTree, contentDescription = null) },
-                    label = { Text("资料树") },
-                    selected = false,
-                    onClick = { open("structure") },
-                )
-                HorizontalDivider(Modifier.padding(vertical = 8.dp))
-                Text("分类", style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp))
-                visibleCategories.take(14).forEach { (category, depth) ->
-                    val route = if (category.isSystem) category.route else "custom/${category.key}"
+                Column(Modifier.fillMaxHeight()) {
+                    Spacer(Modifier.height(18.dp))
+                    Text("治疗笔记", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.padding(horizontal = 20.dp))
+                    Text("像笔记一样记，分类在后面帮你整理", style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp))
+                    Spacer(Modifier.height(10.dp))
                     NavigationDrawerItem(
-                        icon = { Icon(categoryIcon(category.iconKey), contentDescription = null) },
-                        label = {
-                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                Text((if (depth > 0) "  ".repeat(depth) else "") + category.name, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                val count = countFor(category)
-                                if (count > 0) Text(count.toString(), style = MaterialTheme.typography.labelSmall)
-                            }
-                        },
+                        icon = { Icon(Icons.Default.Notes, contentDescription = null) },
+                        label = { Text("全部笔记") },
                         selected = false,
-                        onClick = { open(route) },
+                        onClick = { open("notes") },
                     )
+                    NavigationDrawerItem(
+                        icon = { Icon(Icons.Default.Mic, contentDescription = null) },
+                        label = { Text("智能录入") },
+                        selected = false,
+                        onClick = { open("smart_input") },
+                    )
+                    NavigationDrawerItem(
+                        icon = { Icon(Icons.Default.AccountTree, contentDescription = null) },
+                        label = { Text("资料树") },
+                        selected = false,
+                        onClick = { open("structure") },
+                    )
+                    HorizontalDivider(Modifier.padding(vertical = 8.dp))
+                    Text("分类", style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp))
+
+                    LazyColumn(
+                        modifier = Modifier.fillMaxWidth().weight(1f),
+                        contentPadding = PaddingValues(bottom = 8.dp),
+                    ) {
+                        items(visibleCategories, key = { it.first.key }) { pair ->
+                            val category = pair.first
+                            val depth = pair.second
+                            val route = if (category.isSystem) category.route else "custom/${category.key}"
+                            NavigationDrawerItem(
+                                icon = { Icon(categoryIcon(category.iconKey), contentDescription = null) },
+                                label = {
+                                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                        Text((if (depth > 0) "  ".repeat(depth) else "") + category.name, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                        val count = countFor(category)
+                                        if (count > 0) Text(count.toString(), style = MaterialTheme.typography.labelSmall)
+                                    }
+                                },
+                                selected = false,
+                                onClick = { open(route) },
+                            )
+                        }
+                    }
+
+                    HorizontalDivider()
+                    NavigationDrawerItem(
+                        icon = { Icon(Icons.Default.Settings, contentDescription = null) },
+                        label = { Text("类目管理") },
+                        selected = false,
+                        onClick = { open("categories") },
+                    )
+                    NavigationDrawerItem(
+                        icon = { Icon(Icons.Default.Backup, contentDescription = null) },
+                        label = { Text("备份与恢复") },
+                        selected = false,
+                        onClick = { open("settings") },
+                    )
+                    NavigationDrawerItem(
+                        icon = { Icon(Icons.Default.SystemUpdateAlt, contentDescription = null) },
+                        label = { Text("检查更新") },
+                        selected = false,
+                        onClick = { open("update") },
+                    )
+                    Spacer(Modifier.height(12.dp))
                 }
-                Spacer(Modifier.weight(1f))
-                HorizontalDivider()
-                NavigationDrawerItem(
-                    icon = { Icon(Icons.Default.Settings, contentDescription = null) },
-                    label = { Text("类目管理") },
-                    selected = false,
-                    onClick = { open("categories") },
-                )
-                NavigationDrawerItem(
-                    icon = { Icon(Icons.Default.Backup, contentDescription = null) },
-                    label = { Text("备份与恢复") },
-                    selected = false,
-                    onClick = { open("settings") },
-                )
-                NavigationDrawerItem(
-                    icon = { Icon(Icons.Default.SystemUpdateAlt, contentDescription = null) },
-                    label = { Text("检查更新") },
-                    selected = false,
-                    onClick = { open("update") },
-                )
-                Spacer(Modifier.height(12.dp))
             }
         },
     ) {
@@ -359,7 +373,6 @@ fun HomeScreen(go: (String) -> Unit) {
                             }
                         }
                     }
-
                     item {
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                             Text("最近笔记", style = MaterialTheme.typography.titleMedium)
@@ -393,7 +406,6 @@ fun HomeScreen(go: (String) -> Unit) {
                             )
                         }
                     }
-
                     item {
                         Text("分类", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 4.dp))
                     }
