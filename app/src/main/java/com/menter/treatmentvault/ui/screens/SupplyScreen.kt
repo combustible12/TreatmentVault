@@ -18,7 +18,8 @@ import kotlinx.coroutines.launch
 
 @Composable
 fun SupplyScreen(back: () -> Unit, initialEditId: Long = 0L) {
-    val dao = (androidx.compose.ui.platform.LocalContext.current.applicationContext as TreatmentVaultApplication).database.dao()
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val dao = (context.applicationContext as TreatmentVaultApplication).database.dao()
     val list by dao.supplies().collectAsState(emptyList())
     val scope = rememberCoroutineScope()
     var editorOpen by remember { mutableStateOf(false) }
@@ -76,9 +77,13 @@ fun SupplyScreen(back: () -> Unit, initialEditId: Long = 0L) {
         FullScreenEditorDialog(
             title = if (initial == null) "新增药品/用品" else "编辑药品/用品",
             onDismiss = { editorOpen = false },
-            canSave = name.isNotBlank() || richBodyPlainText(notes).isNotBlank() || pendingFiles.isNotEmpty(),
+            canSave = name.isNotBlank() || richBodyHasContent(notes) || pendingFiles.isNotEmpty(),
+            hasPersistedRecord = initial != null,
             onSave = {
-                if (name.isBlank() && richBodyPlainText(notes).isBlank() && pendingFiles.isEmpty()) return@FullScreenEditorDialog
+                if (initial == null && name.isBlank() && !richBodyHasContent(notes) && pendingFiles.isEmpty()) {
+                    editorOpen = false
+                    return@FullScreenEditorDialog
+                }
                 scope.launch {
                     val value = SupplyEntity(
                         id = initial?.id ?: 0,
@@ -98,7 +103,8 @@ fun SupplyScreen(back: () -> Unit, initialEditId: Long = 0L) {
                         updatedAt = System.currentTimeMillis(),
                     )
                     val id = if (initial == null) dao.saveSupply(value) else { dao.updateSupply(value); value.id }
-                    savePendingAttachments(dao, "supply", id, pendingFiles)
+                    reconcileRichAttachments(context, dao, "supply", id, notes)
+                    pendingFiles = emptyList()
                     editorOpen = false
                 }
             },
@@ -107,9 +113,14 @@ fun SupplyScreen(back: () -> Unit, initialEditId: Long = 0L) {
                 item { Field(name, { name = it }, "标题/名称") }
                 item {
                     RichNoteBodyEditor(
-                        dao = dao, ownerType = "supply", ownerId = initial?.id ?: 0L,
-                        value = notes, onValueChange = { notes = it },
-                        pendingFiles = pendingFiles, onPendingFilesChange = { pendingFiles = it },
+                        dao = dao,
+                        ownerType = "supply",
+                        ownerId = initial?.id ?: 0L,
+                        value = notes,
+                        onValueChange = { notes = it },
+                        pendingFiles = pendingFiles,
+                        onPendingFilesChange = { pendingFiles = it },
+                        sessionKey = "supply-${initial?.id ?: "new"}",
                     )
                 }
                 item {
