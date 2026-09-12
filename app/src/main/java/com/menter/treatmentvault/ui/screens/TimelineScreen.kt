@@ -46,7 +46,8 @@ private fun timelinePreview(vararg values: String): String = values
 
 @Composable
 fun TimelineScreen(back: () -> Unit, go: (String) -> Unit, initialEditId: Long = 0L) {
-    val dao = (androidx.compose.ui.platform.LocalContext.current.applicationContext as TreatmentVaultApplication).database.dao()
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val dao = (context.applicationContext as TreatmentVaultApplication).database.dao()
     val timeline by dao.timeline().collectAsState(emptyList())
     val exams by dao.exams().collectAsState(emptyList())
     val plans by dao.plans().collectAsState(emptyList())
@@ -145,9 +146,13 @@ fun TimelineScreen(back: () -> Unit, go: (String) -> Unit, initialEditId: Long =
         FullScreenEditorDialog(
             title = if (initial == null) "新增时间线记录" else "编辑时间线记录",
             onDismiss = { editorOpen = false },
-            canSave = title.isNotBlank() || richBodyPlainText(body).isNotBlank() || pendingFiles.isNotEmpty(),
+            canSave = title.isNotBlank() || richBodyHasContent(body) || pendingFiles.isNotEmpty(),
+            hasPersistedRecord = initial != null,
             onSave = {
-                if (title.isBlank() && richBodyPlainText(body).isBlank() && pendingFiles.isEmpty()) return@FullScreenEditorDialog
+                if (initial == null && title.isBlank() && !richBodyHasContent(body) && pendingFiles.isEmpty()) {
+                    editorOpen = false
+                    return@FullScreenEditorDialog
+                }
                 scope.launch {
                     val value = TimelineEntity(
                         id = initial?.id ?: 0L,
@@ -161,7 +166,8 @@ fun TimelineScreen(back: () -> Unit, go: (String) -> Unit, initialEditId: Long =
                         updatedAt = System.currentTimeMillis(),
                     )
                     val id = if (initial == null) dao.saveTimeline(value) else { dao.updateTimeline(value); value.id }
-                    savePendingAttachments(dao, "timeline", id, pendingFiles)
+                    reconcileRichAttachments(context, dao, "timeline", id, body)
+                    pendingFiles = emptyList()
                     editorOpen = false
                 }
             },
@@ -170,9 +176,14 @@ fun TimelineScreen(back: () -> Unit, go: (String) -> Unit, initialEditId: Long =
                 item { Field(title, { title = it }, "标题") }
                 item {
                     RichNoteBodyEditor(
-                        dao = dao, ownerType = "timeline", ownerId = initial?.id ?: 0L,
-                        value = body, onValueChange = { body = it },
-                        pendingFiles = pendingFiles, onPendingFilesChange = { pendingFiles = it },
+                        dao = dao,
+                        ownerType = "timeline",
+                        ownerId = initial?.id ?: 0L,
+                        value = body,
+                        onValueChange = { body = it },
+                        pendingFiles = pendingFiles,
+                        onPendingFilesChange = { pendingFiles = it },
+                        sessionKey = "timeline-${initial?.id ?: "new"}",
                     )
                 }
                 item { Field(date, { date = it }, "日期") }
