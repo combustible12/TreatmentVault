@@ -1,4 +1,5 @@
 name: Android APK
+# Publishes a verified APK to TreatmentVault-Updates when UPDATE_REPO_TOKEN is configured.
 on:
   push:
   workflow_dispatch:
