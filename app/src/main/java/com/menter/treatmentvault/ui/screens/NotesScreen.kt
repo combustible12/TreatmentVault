@@ -56,6 +56,7 @@ fun NoteEditorScreen(noteId: Long, initialCategoryId: String?, back: () -> Unit)
     var categoryMenu by remember { mutableStateOf(false) }
     var confirmTrash by remember { mutableStateOf(false) }
     var pendingFiles by remember(noteId) { mutableStateOf<List<String>>(emptyList()) }
+    var removedFiles by remember(noteId) { mutableStateOf<Set<String>>(emptySet()) }
     var saving by remember { mutableStateOf(false) }
     var leaving by remember { mutableStateOf(false) }
     var revision by remember(noteId) { mutableLongStateOf(0L) }
@@ -87,6 +88,8 @@ fun NoteEditorScreen(noteId: Long, initialCategoryId: String?, back: () -> Unit)
             date = note.date
             tags = note.tags
             categoryId = note.categoryId
+            pendingFiles = emptyList()
+            removedFiles = emptySet()
             initialized = true
             revision = 0L
             savedRevision = 0L
@@ -108,6 +111,7 @@ fun NoteEditorScreen(noteId: Long, initialCategoryId: String?, back: () -> Unit)
 
         val targetRevision = revision
         val pendingSnapshot = pendingFiles.distinct()
+        val removedSnapshot = removedFiles.toSet()
         val value = CustomEntryEntity(
             id = persistedId,
             categoryId = safeCategory,
@@ -122,8 +126,9 @@ fun NoteEditorScreen(noteId: Long, initialCategoryId: String?, back: () -> Unit)
         try {
             val savedId = if (value.id == 0L) dao.saveCustomEntry(value) else { dao.updateCustomEntry(value); value.id }
             persistedId = savedId
-            reconcileRichAttachments(context, dao, "note", savedId, value.content)
+            reconcileRichAttachments(context, dao, "note", savedId, value.content, removedSnapshot)
             if (pendingSnapshot.isNotEmpty()) pendingFiles = pendingFiles.filterNot { it in pendingSnapshot }
+            if (removedSnapshot.isNotEmpty()) removedFiles = removedFiles - removedSnapshot
             if (revision == targetRevision) savedRevision = targetRevision
             savedId
         } finally {
@@ -203,6 +208,8 @@ fun NoteEditorScreen(noteId: Long, initialCategoryId: String?, back: () -> Unit)
                         onValueChange = { if (content != it) { content = it; markDirty() } },
                         pendingFiles = pendingFiles,
                         onPendingFilesChange = { if (pendingFiles != it) { pendingFiles = it; markDirty() } },
+                        removedFiles = removedFiles,
+                        onRemovedFilesChange = { if (removedFiles != it) { removedFiles = it; markDirty() } },
                     )
                 }
                 item {
