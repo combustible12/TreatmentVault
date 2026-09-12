@@ -68,7 +68,7 @@ fun TreatmentVaultApp() {
             }
             composable("smart_input") { SmartInputScreen { nav.popBackStack() } }
 
-            composable("supplies") { SupplyScreen { nav.popBackStack() } }
+            composable("supplies") { SupplyScreen(back = { nav.popBackStack() }) }
             composable("supplies/{itemId}") { entry ->
                 SupplyScreen(
                     back = { nav.popBackStack() },
@@ -76,7 +76,7 @@ fun TreatmentVaultApp() {
                 )
             }
 
-            composable("exams") { ExamScreen { nav.popBackStack() } }
+            composable("exams") { ExamScreen(back = { nav.popBackStack() }) }
             composable("exams/{itemId}") { entry ->
                 ExamScreen(
                     back = { nav.popBackStack() },
@@ -84,7 +84,7 @@ fun TreatmentVaultApp() {
                 )
             }
 
-            composable("treatment") { TreatmentScreen { nav.popBackStack() } }
+            composable("treatment") { TreatmentScreen(back = { nav.popBackStack() }) }
             composable("treatment/plan/{itemId}") { entry ->
                 TreatmentScreen(
                     back = { nav.popBackStack() },
@@ -98,7 +98,7 @@ fun TreatmentVaultApp() {
                 )
             }
 
-            composable("symptoms") { SymptomScreen { nav.popBackStack() } }
+            composable("symptoms") { SymptomScreen(back = { nav.popBackStack() }) }
             composable("symptoms/{itemId}") { entry ->
                 SymptomScreen(
                     back = { nav.popBackStack() },
@@ -106,7 +106,7 @@ fun TreatmentVaultApp() {
                 )
             }
 
-            composable("temperature") { TemperatureScreen { nav.popBackStack() } }
+            composable("temperature") { TemperatureScreen(back = { nav.popBackStack() }) }
             composable("temperature/{itemId}") { entry ->
                 TemperatureScreen(
                     back = { nav.popBackStack() },
@@ -114,7 +114,7 @@ fun TreatmentVaultApp() {
                 )
             }
 
-            composable("questions") { QuestionScreen { nav.popBackStack() } }
+            composable("questions") { QuestionScreen(back = { nav.popBackStack() }) }
             composable("questions/{itemId}") { entry ->
                 QuestionScreen(
                     back = { nav.popBackStack() },
@@ -122,7 +122,7 @@ fun TreatmentVaultApp() {
                 )
             }
 
-            composable("expenses") { ExpenseScreen { nav.popBackStack() } }
+            composable("expenses") { ExpenseScreen(back = { nav.popBackStack() }) }
             composable("expenses/{itemId}") { entry ->
                 ExpenseScreen(
                     back = { nav.popBackStack() },
