@@ -96,7 +96,7 @@ fun HomeScreen(go: (String) -> Unit) {
         }
     }
 
-    fun categoryRoute(category: CategoryEntity): String = if (category.isSystem) category.route else "custom/${category.key}"
+    fun categoryRoute(category: CategoryEntity): String = categoryOpenRoute(category)
     fun countFor(category: CategoryEntity): Int = allRecords.count { it.categoryKey == category.key }
 
     fun createCategory() {

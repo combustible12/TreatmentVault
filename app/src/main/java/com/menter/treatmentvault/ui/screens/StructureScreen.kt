@@ -37,24 +37,38 @@ fun StructureScreen(back: () -> Unit, go: (String) -> Unit) {
     val customEntries by dao.allCustomEntriesFlow().collectAsState(initial = emptyList())
 
     val dataCategories = remember(categories) {
-        categories.filter { !it.isSystem || it.key !in nonDataCategoryKeys }
+        categories.filter { !it.hidden && (!it.isSystem || it.key !in nonDataCategoryKeys) }
+    }
+    val flattened = remember(dataCategories) {
+        val byParent = dataCategories.groupBy { it.parentId }
+        buildList<Pair<CategoryEntity, Int>> {
+            fun visit(parent: String?, depth: Int) {
+                byParent[parent].orEmpty().sortedBy { it.sortOrder }.forEach { category ->
+                    add(category to depth)
+                    visit(category.key, depth + 1)
+                }
+            }
+            visit(null, 0)
+            val included = map { it.first.key }.toSet()
+            dataCategories.filterNot { it.key in included }.sortedBy { it.sortOrder }.forEach { add(it to 0) }
+        }
     }
     var expanded by remember { mutableStateOf<Set<String>>(emptySet()) }
 
     fun children(category: CategoryEntity): List<String> = when (category.key) {
         "timeline" -> timeline.map { "${it.date} · ${it.title}" }
-        "exams" -> exams.map { "${it.date} · ${it.name}" }
+        "exams" -> exams.map { "${it.date} · ${it.name}" } + customEntries.filter { it.categoryId == category.key }.map { entryLabel(it) }
         "treatment" -> plans.map { "方案 · ${it.name}" } + records.map {
             "${it.date} · ${it.type}${if (it.content.isBlank()) "" else " · ${it.content.take(30)}"}"
-        }
-        "supplies" -> supplies.map { it.name }
+        } + customEntries.filter { it.categoryId == category.key }.map { entryLabel(it) }
+        "supplies" -> supplies.map { it.name } + customEntries.filter { it.categoryId == category.key }.map { entryLabel(it) }
         "symptoms" -> symptoms.map {
             val detail = it.notes.ifBlank { it.other.ifBlank { "症状记录" } }
             "${it.date} · ${detail.take(36)}"
-        }
-        "temperature" -> temperatures.map { "${it.date} ${it.time} · ${it.temperature}℃" }
-        "questions" -> questions.map { "${it.status} · ${it.question.take(42)}" }
-        "expenses" -> expenses.map { "${it.date} · ${it.type} · ¥${it.amount}" }
+        } + customEntries.filter { it.categoryId == category.key }.map { entryLabel(it) }
+        "temperature" -> temperatures.map { "${it.date} ${it.time} · ${it.temperature}℃" } + customEntries.filter { it.categoryId == category.key }.map { entryLabel(it) }
+        "questions" -> questions.map { "${it.status} · ${it.question.take(42)}" } + customEntries.filter { it.categoryId == category.key }.map { entryLabel(it) }
+        "expenses" -> expenses.map { "${it.date} · ${it.type} · ¥${it.amount}" } + customEntries.filter { it.categoryId == category.key }.map { entryLabel(it) }
         else -> customEntries.filter { it.categoryId == category.key }.map { entryLabel(it) }
     }
 
@@ -64,20 +78,16 @@ fun StructureScreen(back: () -> Unit, go: (String) -> Unit) {
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             Icon(Icons.Default.AccountTree, contentDescription = null)
-            Text("治疗资料库 → 类目 → 记录", style = MaterialTheme.typography.titleSmall)
+            Text("治疗资料库 → 文件夹 → 子文件夹 → 记录", style = MaterialTheme.typography.titleSmall)
         }
         Text(
-            "这是全局结构视图。展开类目看里面的记录，点类目可以直接进入管理。",
+            "这里按真实文件夹层级显示。展开文件夹看直属记录，点“进入”打开对应文件夹。",
             style = MaterialTheme.typography.bodySmall,
         )
 
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedButton(onClick = { expanded = dataCategories.map { it.key }.toSet() }) {
-                Text("全部展开")
-            }
-            OutlinedButton(onClick = { expanded = emptySet() }) {
-                Text("全部收起")
-            }
+            OutlinedButton(onClick = { expanded = dataCategories.map { it.key }.toSet() }) { Text("全部展开") }
+            OutlinedButton(onClick = { expanded = emptySet() }) { Text("全部收起") }
         }
 
         Card(modifier = Modifier.fillMaxWidth()) {
@@ -88,7 +98,7 @@ fun StructureScreen(back: () -> Unit, go: (String) -> Unit) {
                 Icon(Icons.Default.AccountTree, contentDescription = null)
                 Column {
                     Text("治疗资料库", style = MaterialTheme.typography.titleMedium)
-                    Text("${dataCategories.size} 个资料类目", style = MaterialTheme.typography.bodySmall)
+                    Text("${dataCategories.size} 个文件夹/资料入口", style = MaterialTheme.typography.bodySmall)
                 }
             }
         }
@@ -97,44 +107,31 @@ fun StructureScreen(back: () -> Unit, go: (String) -> Unit) {
             modifier = Modifier.fillMaxWidth().heightIn(max = 700.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
-            items(dataCategories, key = { it.key }) { category ->
+            items(flattened, key = { it.first.key }) { (category, depth) ->
                 val childItems = children(category)
+                val childFolderCount = dataCategories.count { it.parentId == category.key }
                 val isExpanded = category.key in expanded
-                Card(modifier = Modifier.fillMaxWidth()) {
+                Card(modifier = Modifier.fillMaxWidth().padding(start = (depth * 18).dp)) {
                     Column {
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clickable {
-                                    expanded = if (isExpanded) expanded - category.key else expanded + category.key
-                                }
+                                .clickable { expanded = if (isExpanded) expanded - category.key else expanded + category.key }
                                 .padding(horizontal = 10.dp, vertical = 9.dp),
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
                         ) {
-                            Icon(
-                                if (isExpanded) Icons.Default.ExpandMore else Icons.Default.ChevronRight,
-                                contentDescription = if (isExpanded) "收起" else "展开",
-                            )
+                            Icon(if (isExpanded) Icons.Default.ExpandMore else Icons.Default.ChevronRight, contentDescription = if (isExpanded) "收起" else "展开")
                             Icon(categoryIcon(category.iconKey), contentDescription = null)
                             Column(Modifier.weight(1f)) {
                                 Text(category.name, style = MaterialTheme.typography.titleSmall)
-                                Text("${childItems.size} 条记录", style = MaterialTheme.typography.labelSmall)
+                                Text("$childFolderCount 个子文件夹 · ${childItems.size} 条直属记录", style = MaterialTheme.typography.labelSmall)
                             }
-                            TextButton(
-                                onClick = {
-                                    val route = if (category.isSystem) category.route else "custom/${category.key}"
-                                    if (route.isNotBlank()) go(route)
-                                },
-                            ) { Text("进入") }
+                            TextButton(onClick = { val route = categoryOpenRoute(category); if (route.isNotBlank()) go(route) }) { Text("进入") }
                         }
 
                         if (isExpanded) {
                             if (childItems.isEmpty()) {
-                                Text(
-                                    "└─ 暂无记录",
-                                    modifier = Modifier.padding(start = 44.dp, end = 12.dp, bottom = 10.dp),
-                                    style = MaterialTheme.typography.bodySmall,
-                                )
+                                Text("└─ 暂无直属记录", modifier = Modifier.padding(start = 44.dp, end = 12.dp, bottom = 10.dp), style = MaterialTheme.typography.bodySmall)
                             } else {
                                 childItems.take(80).forEachIndexed { index, label ->
                                     Text(
@@ -146,11 +143,7 @@ fun StructureScreen(back: () -> Unit, go: (String) -> Unit) {
                                     )
                                 }
                                 if (childItems.size > 80) {
-                                    Text(
-                                        "└─ 还有 ${childItems.size - 80} 条，进入类目查看",
-                                        modifier = Modifier.padding(start = 44.dp, end = 12.dp, bottom = 10.dp),
-                                        style = MaterialTheme.typography.labelSmall,
-                                    )
+                                    Text("└─ 还有 ${childItems.size - 80} 条，进入文件夹查看", modifier = Modifier.padding(start = 44.dp, end = 12.dp, bottom = 10.dp), style = MaterialTheme.typography.labelSmall)
                                 }
                             }
                         }
@@ -163,7 +156,7 @@ fun StructureScreen(back: () -> Unit, go: (String) -> Unit) {
 
 private fun entryLabel(entry: CustomEntryEntity): String {
     val title = entry.title.ifBlank {
-        entry.content.lineSequence().firstOrNull().orEmpty().take(40).ifBlank { "未命名记录" }
+        richBodyPlainText(entry.content).lineSequence().firstOrNull().orEmpty().take(40).ifBlank { "未命名记录" }
     }
     return if (entry.date.isBlank()) title else "${entry.date} · $title"
 }

@@ -59,8 +59,15 @@ fun TreatmentVaultApp() {
             composable("categories") { EditableCategoryManagementScreen { nav.popBackStack() } }
             composable("structure") { StructureScreen(back = { nav.popBackStack() }, go = { nav.navigate(it) }) }
             composable("update") { UpdateScreen { nav.popBackStack() } }
+            composable("folder/{categoryId}") { entry ->
+                FolderScreen(
+                    categoryId = entry.arguments?.getString("categoryId").orEmpty(),
+                    back = { nav.popBackStack() },
+                    go = { nav.navigate(it) },
+                )
+            }
             composable("custom/{categoryId}") { entry ->
-                NotebookCategoryScreen(
+                FolderScreen(
                     categoryId = entry.arguments?.getString("categoryId").orEmpty(),
                     back = { nav.popBackStack() },
                     go = { nav.navigate(it) },

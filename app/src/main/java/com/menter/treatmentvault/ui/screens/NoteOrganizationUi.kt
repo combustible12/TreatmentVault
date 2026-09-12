@@ -21,11 +21,23 @@ suspend fun moveNotesToCategory(
 ) {
     if (ids.isEmpty()) return
     val now = System.currentTimeMillis()
-    allNotes.filter { it.id in ids }.forEach { note ->
+    allNotes.filter { it.id in ids }.forEachIndexed { index, note ->
         if (note.categoryId != destinationCategoryId) {
-            dao.updateCustomEntry(note.copy(categoryId = destinationCategoryId, updatedAt = now))
+            dao.updateCustomEntry(note.copy(categoryId = destinationCategoryId, updatedAt = now + index))
         }
     }
+}
+
+private fun categoryPath(category: CategoryEntity, categories: List<CategoryEntity>): String {
+    val map = categories.associateBy { it.key }
+    val names = mutableListOf<String>()
+    val seen = mutableSetOf<String>()
+    var current: CategoryEntity? = category
+    while (current != null && seen.add(current.key)) {
+        names += current.name
+        current = current.parentId?.let { map[it] }
+    }
+    return names.asReversed().joinToString(" / ")
 }
 
 @Composable
@@ -37,9 +49,10 @@ fun MoveNotesDialog(
     onMove: (String) -> Unit,
 ) {
     val targets = remember(categories, currentCategoryId) {
-        categories.filter { !it.isSystem && !it.hidden && it.key != currentCategoryId }.sortedBy { it.sortOrder }
+        categories
+            .filter { isFolderCategory(it) && !it.hidden && it.key != currentCategoryId }
+            .sortedBy { categoryPath(it, categories).lowercase() }
     }
-    val categoryMap = remember(categories) { categories.associateBy { it.key } }
     var destination by remember(targets) { mutableStateOf(targets.firstOrNull()?.key) }
 
     AlertDialog(
@@ -47,15 +60,17 @@ fun MoveNotesDialog(
         title = { Text("移动 $count 条笔记") },
         text = {
             if (targets.isEmpty()) {
-                Text("目前没有其他可用文件夹。可以先新建一个类目。")
+                Text("目前没有其他可用文件夹。可以先新建一个文件夹。")
             } else {
-                LazyColumn(modifier = Modifier.fillMaxWidth().heightIn(max = 420.dp)) {
+                LazyColumn(modifier = Modifier.fillMaxWidth().heightIn(max = 440.dp)) {
                     items(targets, key = { it.key }) { category ->
-                        val parentName = category.parentId?.let { categoryMap[it]?.name }
+                        val path = categoryPath(category, categories)
                         ListItem(
                             modifier = Modifier.fillMaxWidth().clickable { destination = category.key },
                             headlineContent = { Text(category.name, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-                            supportingContent = { if (parentName != null) Text("位于 $parentName") },
+                            supportingContent = {
+                                if (path != category.name) Text(path, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            },
                             leadingContent = {
                                 RadioButton(
                                     selected = destination == category.key,
@@ -92,7 +107,7 @@ fun CollectExistingNotesDialog(
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(
-                    "从“待整理”中选择笔记，移动到“$destinationName”。移动不会复制或改动正文、图片和收藏状态。",
+                    "从“待整理”中选择笔记，移动到“$destinationName”。移动不会复制，也不会改动正文、图片、收藏或置顶状态。",
                     style = MaterialTheme.typography.bodySmall,
                 )
                 if (notes.isEmpty()) {
@@ -115,13 +130,9 @@ fun CollectExistingNotesDialog(
                                 modifier = Modifier.fillMaxWidth().clickable {
                                     selected = if (note.id in selected) selected - note.id else selected + note.id
                                 },
-                                headlineContent = {
-                                    Text(title, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                },
+                                headlineContent = { Text(title, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                                 supportingContent = {
-                                    if (plain.isNotBlank()) {
-                                        Text(plain, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                                    }
+                                    if (plain.isNotBlank()) Text(plain, maxLines = 2, overflow = TextOverflow.Ellipsis)
                                 },
                                 leadingContent = {
                                     Checkbox(

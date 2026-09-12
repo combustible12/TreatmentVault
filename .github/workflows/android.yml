@@ -86,7 +86,7 @@ jobs:
               "versionName": os.environ["VERSION_NAME"],
               "apkUrl": "https://raw.githubusercontent.com/combustible12/TreatmentVault-Updates/main/TreatmentVault-latest.apk",
               "sha256": os.environ["SHA"],
-              "notes": "笔记整理体验重构：自定义文件夹内可直接从待整理多选收纳已有笔记；全部记录和文件夹内均支持长按普通笔记进入多选并批量移动；单条普通笔记也可直接移动。文件夹列表新增最近编辑/记录日期/标题排序，归档和回收站内容不再混入普通文件夹，列表预览会隐藏内部图片标记。移动只改变文件夹归属，不复制记录，不改正文、图片、收藏或置顶状态。"
+              "notes": "文件夹体系重构：检查报告、治疗、药品、症状、体温、问诊、费用等默认资料入口与自建文件夹统一进入新的文件夹页；所有文件夹都可新建笔记、从待整理收纳已有笔记、新建子文件夹，普通笔记可在默认或自建文件夹之间批量移动。文件夹内优先显示子文件夹，笔记与结构化记录统一改为大色块卡片样式；默认资料仍保留原专用结构化记录入口。资料树同步显示子文件夹层级。本版不改数据库结构。"
           }
           with open("update-repo/update.json", "w", encoding="utf-8") as f:
               json.dump(data, f, ensure_ascii=False, indent=2)

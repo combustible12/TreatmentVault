@@ -46,13 +46,19 @@ fun NoteEditorScreen(noteId: Long, initialCategoryId: String?, back: () -> Unit)
     var pendingFiles by remember(noteId) { mutableStateOf<List<String>>(emptyList()) }
     var saving by remember { mutableStateOf(false) }
 
-    val customCategories = remember(categories) { categories.filterNot { it.isSystem }.sortedBy { it.sortOrder } }
+    val folderCategories = remember(categories, categoryId) {
+        categories
+            .filter { isFolderCategory(it) && (!it.hidden || it.key == categoryId) }
+            .sortedWith(compareBy({ it.parentId != null }, { it.sortOrder }, { it.name }))
+    }
 
     LaunchedEffect(categories) {
         if (categories.none { it.key == "inbox" }) {
             dao.saveCategory(CategoryEntity(key = "inbox", name = "待整理", iconKey = "note", sortOrder = 5, isSystem = false, smartEnabled = false))
         }
-        if (noteId == 0L && categoryId.isBlank()) categoryId = initialCategoryId ?: customCategories.firstOrNull()?.key ?: "inbox"
+        if (noteId == 0L && categoryId.isBlank()) {
+            categoryId = initialCategoryId ?: folderCategories.firstOrNull { it.key == "inbox" }?.key ?: folderCategories.firstOrNull()?.key ?: "inbox"
+        }
     }
 
     LaunchedEffect(existing) {
@@ -67,14 +73,17 @@ fun NoteEditorScreen(noteId: Long, initialCategoryId: String?, back: () -> Unit)
         }
     }
 
-    val selectedCategory = customCategories.firstOrNull { it.key == categoryId }
+    val selectedCategory = folderCategories.firstOrNull { it.key == categoryId }
+        ?: categories.firstOrNull { it.key == categoryId }
     val canSave = title.isNotBlank() || richBodyPlainText(content).isNotBlank() || pendingFiles.isNotEmpty()
 
     fun saveAndBack() {
         if (saving) return
         if (!canSave) { back(); return }
         saving = true
-        val safeCategory = categoryId.ifBlank { customCategories.firstOrNull()?.key ?: "inbox" }
+        val safeCategory = categoryId.ifBlank {
+            folderCategories.firstOrNull { it.key == "inbox" }?.key ?: folderCategories.firstOrNull()?.key ?: "inbox"
+        }
         val value = CustomEntryEntity(
             id = existing?.id ?: 0,
             categoryId = safeCategory,
@@ -130,11 +139,15 @@ fun NoteEditorScreen(noteId: Long, initialCategoryId: String?, back: () -> Unit)
                         OutlinedButton(onClick = { categoryMenu = true }, modifier = Modifier.fillMaxWidth()) {
                             Icon(categoryIcon(selectedCategory?.iconKey ?: "note"), contentDescription = null)
                             Spacer(Modifier.width(6.dp))
-                            Text(selectedCategory?.name ?: "选择分类", maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Text(selectedCategory?.name ?: "选择文件夹", maxLines = 1, overflow = TextOverflow.Ellipsis)
                         }
                         DropdownMenu(expanded = categoryMenu, onDismissRequest = { categoryMenu = false }) {
-                            customCategories.forEach { category ->
-                                DropdownMenuItem(text = { Text(category.name) }, leadingIcon = { Icon(categoryIcon(category.iconKey), contentDescription = null) }, onClick = { categoryId = category.key; categoryMenu = false })
+                            folderCategories.forEach { category ->
+                                DropdownMenuItem(
+                                    text = { Text(category.name) },
+                                    leadingIcon = { Icon(categoryIcon(category.iconKey), contentDescription = null) },
+                                    onClick = { categoryId = category.key; categoryMenu = false },
+                                )
                             }
                         }
                     }
