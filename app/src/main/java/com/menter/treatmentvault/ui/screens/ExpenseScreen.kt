@@ -16,12 +16,23 @@ import com.menter.treatmentvault.data.ExpenseEntity
 import kotlinx.coroutines.launch
 
 @Composable
-fun ExpenseScreen(back: () -> Unit) {
+fun ExpenseScreen(back: () -> Unit, initialEditId: Long = 0L) {
     val dao = (androidx.compose.ui.platform.LocalContext.current.applicationContext as TreatmentVaultApplication).database.dao()
     val list by dao.expenses().collectAsState(emptyList())
     val scope = rememberCoroutineScope()
     var editorOpen by remember { mutableStateOf(false) }
     var editing by remember { mutableStateOf<ExpenseEntity?>(null) }
+    var openedInitial by remember(initialEditId) { mutableStateOf(false) }
+
+    LaunchedEffect(initialEditId, list) {
+        if (!openedInitial && initialEditId > 0L) {
+            list.firstOrNull { it.id.toLong() == initialEditId }?.let {
+                editing = it
+                editorOpen = true
+                openedInitial = true
+            }
+        }
+    }
 
     Page("费用记录", back) {
         Text("合计 ¥${"%.2f".format(list.sumOf { it.amount })}", style = MaterialTheme.typography.headlineSmall)
