@@ -17,7 +17,8 @@ import kotlinx.coroutines.launch
 
 @Composable
 fun ExpenseScreen(back: () -> Unit, initialEditId: Long = 0L) {
-    val dao = (androidx.compose.ui.platform.LocalContext.current.applicationContext as TreatmentVaultApplication).database.dao()
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val dao = (context.applicationContext as TreatmentVaultApplication).database.dao()
     val list by dao.expenses().collectAsState(emptyList())
     val scope = rememberCoroutineScope()
     var editorOpen by remember { mutableStateOf(false) }
@@ -72,8 +73,13 @@ fun ExpenseScreen(back: () -> Unit, initialEditId: Long = 0L) {
             title = if (initial == null) "新增费用" else "编辑费用",
             onDismiss = { editorOpen = false },
             canSave = amount.toDoubleOrNull() != null,
+            hasPersistedRecord = initial != null,
             onSave = {
-                val number = amount.toDoubleOrNull() ?: return@FullScreenEditorDialog
+                val number = amount.toDoubleOrNull()
+                if (number == null) {
+                    if (initial == null && !richBodyHasContent(notes) && pendingFiles.isEmpty()) editorOpen = false
+                    return@FullScreenEditorDialog
+                }
                 scope.launch {
                     val value = ExpenseEntity(
                         id = initial?.id ?: 0,
@@ -89,7 +95,8 @@ fun ExpenseScreen(back: () -> Unit, initialEditId: Long = 0L) {
                         updatedAt = System.currentTimeMillis(),
                     )
                     val id = if (initial == null) dao.saveExpense(value) else { dao.updateExpense(value); value.id }
-                    savePendingAttachments(dao, "expense", id, pendingFiles)
+                    reconcileRichAttachments(context, dao, "expense", id, notes)
+                    pendingFiles = emptyList()
                     editorOpen = false
                 }
             },
@@ -98,10 +105,15 @@ fun ExpenseScreen(back: () -> Unit, initialEditId: Long = 0L) {
                 item { Field(amount, { amount = it }, "金额") }
                 item {
                     RichNoteBodyEditor(
-                        dao = dao, ownerType = "expense", ownerId = initial?.id ?: 0L,
-                        value = notes, onValueChange = { notes = it },
-                        pendingFiles = pendingFiles, onPendingFilesChange = { pendingFiles = it },
+                        dao = dao,
+                        ownerType = "expense",
+                        ownerId = initial?.id ?: 0L,
+                        value = notes,
+                        onValueChange = { notes = it },
+                        pendingFiles = pendingFiles,
+                        onPendingFilesChange = { pendingFiles = it },
                         label = "说明与票据",
+                        sessionKey = "expense-${initial?.id ?: "new"}",
                     )
                 }
                 item {
