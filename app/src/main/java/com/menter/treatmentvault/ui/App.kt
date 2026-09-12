@@ -74,7 +74,7 @@ fun TreatmentVaultApp() {
             composable("temperature") { TemperatureScreen { nav.popBackStack() } }
             composable("questions") { QuestionScreen { nav.popBackStack() } }
             composable("expenses") { ExpenseScreen { nav.popBackStack() } }
-            composable("timeline") { TimelineScreen { nav.popBackStack() } }
+            composable("timeline") { TimelineScreen(back = { nav.popBackStack() }, go = { nav.navigate(it) }) }
             composable("import") { ImportScreen { nav.popBackStack() } }
             composable("settings") { SettingsScreen { nav.popBackStack() } }
         }

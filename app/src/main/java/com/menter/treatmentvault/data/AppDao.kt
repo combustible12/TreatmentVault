@@ -54,6 +54,8 @@ interface AppDao {
 
     @Query("SELECT * FROM TimelineEntity ORDER BY date DESC,id DESC") fun timeline():Flow<List<TimelineEntity>>
     @Insert suspend fun saveTimeline(v:TimelineEntity):Long
+    @Update suspend fun updateTimeline(v:TimelineEntity)
+    @Delete suspend fun deleteTimeline(v:TimelineEntity)
     @Query("SELECT * FROM TimelineEntity WHERE date=:date AND type=:type AND title=:title LIMIT 1") suspend fun findTimeline(date:String,type:String,title:String):TimelineEntity?
 
     @Query("SELECT * FROM ImportHistoryEntity ORDER BY importedAt DESC") fun importHistory():Flow<List<ImportHistoryEntity>>

@@ -4,9 +4,11 @@ import android.content.Context
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.rememberTransformableState
+import androidx.compose.foundation.gestures.transformable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.AddPhotoAlternate
@@ -15,6 +17,8 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
@@ -48,6 +52,17 @@ fun Page(title: String, onBack: () -> Unit, content: @Composable ColumnScope.() 
 @Composable
 fun Field(value: String, on: (String) -> Unit, label: String) {
     OutlinedTextField(value = value, onValueChange = on, label = { Text(label) }, modifier = Modifier.fillMaxWidth())
+}
+
+@Composable
+fun NoteBodyField(value: String, on: (String) -> Unit, label: String = "正文") {
+    OutlinedTextField(
+        value = value,
+        onValueChange = on,
+        label = { Text(label) },
+        modifier = Modifier.fillMaxWidth(),
+        minLines = 7,
+    )
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -108,6 +123,7 @@ fun ImageAttachmentSection(
     val scope = rememberCoroutineScope()
     val flow = remember(ownerType, ownerId) { if (ownerId > 0) dao.attachments(ownerType, ownerId) else flowOf(emptyList()) }
     val existing by flow.collectAsState(initial = emptyList())
+    var previewFile by remember { mutableStateOf<File?>(null) }
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
         if (uris.isEmpty()) return@rememberLauncherForActivityResult
         scope.launch {
@@ -117,39 +133,103 @@ fun ImageAttachmentSection(
     }
 
     Text("图片", style = MaterialTheme.typography.titleSmall)
-    if (existing.isNotEmpty() || pendingFiles.isNotEmpty()) {
-        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            items(existing, key = { "old-${it.id}" }) { attachment ->
-                AttachmentThumb(file = attachmentFile(context, attachment.fileName)) {
+    Text("图片会按笔记方式显示，点图片可全屏查看并双指缩放。", style = MaterialTheme.typography.bodySmall)
+
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        existing.forEach { attachment ->
+            val file = attachmentFile(context, attachment.fileName)
+            NoteImagePreview(
+                file = file,
+                onOpen = { previewFile = file },
+                onRemove = {
                     scope.launch {
                         dao.deleteAttachment(attachment)
-                        withContext(Dispatchers.IO) { attachmentFile(context, attachment.fileName).delete() }
+                        withContext(Dispatchers.IO) { file.delete() }
                     }
-                }
-            }
-            items(pendingFiles, key = { "new-$it" }) { fileName ->
-                AttachmentThumb(file = attachmentFile(context, fileName)) {
+                },
+            )
+        }
+        pendingFiles.forEach { fileName ->
+            val file = attachmentFile(context, fileName)
+            NoteImagePreview(
+                file = file,
+                onOpen = { previewFile = file },
+                onRemove = {
                     onPendingFilesChange(pendingFiles - fileName)
-                    scope.launch(Dispatchers.IO) { attachmentFile(context, fileName).delete() }
-                }
-            }
+                    scope.launch(Dispatchers.IO) { file.delete() }
+                },
+            )
         }
     }
+
     OutlinedButton(onClick = { picker.launch(arrayOf("image/*")) }, modifier = Modifier.fillMaxWidth()) {
         Icon(Icons.Default.AddPhotoAlternate, contentDescription = null)
         Spacer(Modifier.width(6.dp))
         Text("添加图片")
     }
+
+    previewFile?.let { file ->
+        FullScreenImageViewer(file = file, onDismiss = { previewFile = null })
+    }
 }
 
 @Composable
-private fun AttachmentThumb(file: File, onRemove: () -> Unit) {
-    Box(modifier = Modifier.size(112.dp)) {
-        Card(modifier = Modifier.fillMaxSize()) {
-            AsyncImage(model = file, contentDescription = "附件图片", modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+private fun NoteImagePreview(file: File, onOpen: () -> Unit, onRemove: () -> Unit) {
+    Box(modifier = Modifier.fillMaxWidth()) {
+        Card(modifier = Modifier.fillMaxWidth().heightIn(min = 220.dp, max = 420.dp).clickable(onClick = onOpen)) {
+            AsyncImage(
+                model = file,
+                contentDescription = "附件图片，点击放大",
+                modifier = Modifier.fillMaxWidth().heightIn(min = 220.dp, max = 420.dp),
+                contentScale = ContentScale.Fit,
+            )
         }
-        IconButton(onClick = onRemove, modifier = Modifier.align(Alignment.TopEnd).size(32.dp)) {
+        FilledIconButton(onClick = onRemove, modifier = Modifier.align(Alignment.TopEnd).padding(6.dp).size(34.dp)) {
             Icon(Icons.Default.Close, contentDescription = "移除图片")
+        }
+    }
+}
+
+@Composable
+private fun FullScreenImageViewer(file: File, onDismiss: () -> Unit) {
+    var scale by remember(file) { mutableFloatStateOf(1f) }
+    var offsetX by remember(file) { mutableFloatStateOf(0f) }
+    var offsetY by remember(file) { mutableFloatStateOf(0f) }
+    val transformState = rememberTransformableState { zoomChange, panChange, _ ->
+        val nextScale = (scale * zoomChange).coerceIn(1f, 6f)
+        scale = nextScale
+        if (nextScale <= 1.01f) {
+            offsetX = 0f
+            offsetY = 0f
+        } else {
+            offsetX += panChange.x
+            offsetY += panChange.y
+        }
+    }
+
+    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
+            AsyncImage(
+                model = file,
+                contentDescription = "大图预览",
+                modifier = Modifier
+                    .fillMaxSize()
+                    .graphicsLayer(
+                        scaleX = scale,
+                        scaleY = scale,
+                        translationX = offsetX,
+                        translationY = offsetY,
+                    )
+                    .transformable(transformState),
+                contentScale = ContentScale.Fit,
+            )
+            FilledIconButton(
+                onClick = onDismiss,
+                modifier = Modifier.align(Alignment.TopEnd).statusBarsPadding().padding(16.dp),
+                colors = IconButtonDefaults.filledIconButtonColors(containerColor = Color(0xAA2A2A2A), contentColor = Color.White),
+            ) {
+                Icon(Icons.Default.Close, contentDescription = "关闭大图")
+            }
         }
     }
 }
