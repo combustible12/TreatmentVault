@@ -10,52 +10,61 @@ interface AppDao {
     @Update suspend fun updateSupply(v:SupplyEntity)
     @Query("SELECT * FROM SupplyEntity WHERE name=:name LIMIT 1") suspend fun supplyByName(name:String):SupplyEntity?
     @Delete suspend fun deleteSupply(v:SupplyEntity)
+    @Query("DELETE FROM SupplyEntity WHERE id=:id") suspend fun deleteSupplyById(id:Long)
 
     @Query("SELECT * FROM ExamEntity ORDER BY date DESC,id DESC") fun exams():Flow<List<ExamEntity>>
     @Insert suspend fun saveExam(v:ExamEntity):Long
     @Update suspend fun updateExam(v:ExamEntity)
     @Delete suspend fun deleteExam(v:ExamEntity)
+    @Query("DELETE FROM ExamEntity WHERE id=:id") suspend fun deleteExamById(id:Long)
     @Query("SELECT * FROM ExamEntity WHERE name=:name AND date=:date AND hospital=:hospital LIMIT 1") suspend fun findExam(name:String,date:String,hospital:String):ExamEntity?
 
     @Query("SELECT * FROM TreatmentPlanEntity ORDER BY date DESC,id DESC") fun plans():Flow<List<TreatmentPlanEntity>>
     @Insert suspend fun savePlan(v:TreatmentPlanEntity):Long
     @Update suspend fun updatePlan(v:TreatmentPlanEntity)
     @Delete suspend fun deletePlan(v:TreatmentPlanEntity)
+    @Query("DELETE FROM TreatmentPlanEntity WHERE id=:id") suspend fun deletePlanById(id:Long)
     @Query("SELECT * FROM TreatmentPlanEntity WHERE name=:name AND date=:date LIMIT 1") suspend fun findPlan(name:String,date:String):TreatmentPlanEntity?
 
     @Query("SELECT * FROM TreatmentRecordEntity ORDER BY date DESC,id DESC") fun records():Flow<List<TreatmentRecordEntity>>
     @Insert suspend fun saveRecord(v:TreatmentRecordEntity):Long
     @Update suspend fun updateRecord(v:TreatmentRecordEntity)
     @Delete suspend fun deleteRecord(v:TreatmentRecordEntity)
+    @Query("DELETE FROM TreatmentRecordEntity WHERE id=:id") suspend fun deleteRecordById(id:Long)
     @Query("SELECT * FROM TreatmentRecordEntity WHERE date=:date AND type=:type AND content=:content LIMIT 1") suspend fun findRecord(date:String,type:String,content:String):TreatmentRecordEntity?
 
     @Query("SELECT * FROM SymptomEntity ORDER BY date DESC,id DESC") fun symptoms():Flow<List<SymptomEntity>>
     @Insert suspend fun saveSymptom(v:SymptomEntity):Long
     @Update suspend fun updateSymptom(v:SymptomEntity)
     @Delete suspend fun deleteSymptom(v:SymptomEntity)
+    @Query("DELETE FROM SymptomEntity WHERE id=:id") suspend fun deleteSymptomById(id:Long)
     @Query("SELECT * FROM SymptomEntity WHERE date=:date LIMIT 1") suspend fun findSymptom(date:String):SymptomEntity?
 
     @Query("SELECT * FROM TemperatureEntity ORDER BY date DESC,time DESC,id DESC") fun temperatures():Flow<List<TemperatureEntity>>
     @Insert suspend fun saveTemperature(v:TemperatureEntity):Long
     @Update suspend fun updateTemperature(v:TemperatureEntity)
     @Delete suspend fun deleteTemperature(v:TemperatureEntity)
+    @Query("DELETE FROM TemperatureEntity WHERE id=:id") suspend fun deleteTemperatureById(id:Long)
 
     @Query("SELECT * FROM QuestionEntity ORDER BY CASE status WHEN '待问' THEN 0 ELSE 1 END,date DESC,id DESC") fun questions():Flow<List<QuestionEntity>>
     @Insert suspend fun saveQuestion(v:QuestionEntity):Long
     @Update suspend fun updateQuestion(v:QuestionEntity)
     @Delete suspend fun deleteQuestion(v:QuestionEntity)
+    @Query("DELETE FROM QuestionEntity WHERE id=:id") suspend fun deleteQuestionById(id:Long)
     @Query("SELECT * FROM QuestionEntity WHERE question=:question AND date=:date LIMIT 1") suspend fun findQuestion(question:String,date:String):QuestionEntity?
 
     @Query("SELECT * FROM ExpenseEntity ORDER BY date DESC,id DESC") fun expenses():Flow<List<ExpenseEntity>>
     @Insert suspend fun saveExpense(v:ExpenseEntity):Long
     @Update suspend fun updateExpense(v:ExpenseEntity)
     @Delete suspend fun deleteExpense(v:ExpenseEntity)
+    @Query("DELETE FROM ExpenseEntity WHERE id=:id") suspend fun deleteExpenseById(id:Long)
     @Query("SELECT * FROM ExpenseEntity WHERE date=:date AND amount=:amount AND type=:type AND notes=:notes LIMIT 1") suspend fun findExpense(date:String,amount:Double,type:String,notes:String):ExpenseEntity?
 
     @Query("SELECT * FROM TimelineEntity ORDER BY date DESC,id DESC") fun timeline():Flow<List<TimelineEntity>>
     @Insert suspend fun saveTimeline(v:TimelineEntity):Long
     @Update suspend fun updateTimeline(v:TimelineEntity)
     @Delete suspend fun deleteTimeline(v:TimelineEntity)
+    @Query("DELETE FROM TimelineEntity WHERE id=:id") suspend fun deleteTimelineById(id:Long)
     @Query("SELECT * FROM TimelineEntity WHERE date=:date AND type=:type AND title=:title LIMIT 1") suspend fun findTimeline(date:String,type:String,title:String):TimelineEntity?
 
     @Query("SELECT * FROM ImportHistoryEntity ORDER BY importedAt DESC") fun importHistory():Flow<List<ImportHistoryEntity>>
@@ -76,6 +85,7 @@ interface AppDao {
     @Insert suspend fun saveCustomEntry(v:CustomEntryEntity):Long
     @Update suspend fun updateCustomEntry(v:CustomEntryEntity)
     @Delete suspend fun deleteCustomEntry(v:CustomEntryEntity)
+    @Query("DELETE FROM CustomEntryEntity WHERE id=:id") suspend fun deleteCustomEntryById(id:Long)
     @Query("DELETE FROM CustomEntryEntity WHERE categoryId=:categoryId") suspend fun clearCustomEntriesForCategory(categoryId:String)
     @Query("DELETE FROM CustomEntryEntity") suspend fun clearCustomEntries()
 
@@ -90,6 +100,13 @@ interface AppDao {
     @Delete suspend fun deleteAttachment(v:AttachmentEntity)
     @Query("DELETE FROM AttachmentEntity WHERE ownerType=:ownerType AND ownerId=:ownerId") suspend fun clearAttachmentsForOwner(ownerType:String, ownerId:Long)
     @Query("DELETE FROM AttachmentEntity") suspend fun clearAttachments()
+
+    @Query("SELECT * FROM RecordStateEntity") fun recordStates():Flow<List<RecordStateEntity>>
+    @Query("SELECT * FROM RecordStateEntity") suspend fun allRecordStates():List<RecordStateEntity>
+    @Query("SELECT * FROM RecordStateEntity WHERE ownerType=:ownerType AND ownerId=:ownerId LIMIT 1") suspend fun recordState(ownerType:String, ownerId:Long):RecordStateEntity?
+    @Insert(onConflict=OnConflictStrategy.REPLACE) suspend fun saveRecordState(v:RecordStateEntity)
+    @Query("DELETE FROM RecordStateEntity WHERE ownerType=:ownerType AND ownerId=:ownerId") suspend fun deleteRecordState(ownerType:String, ownerId:Long)
+    @Query("DELETE FROM RecordStateEntity") suspend fun clearRecordStates()
 
     @Query("SELECT * FROM SupplyEntity") suspend fun allSupplies():List<SupplyEntity>
     @Query("SELECT * FROM ExamEntity") suspend fun allExams():List<ExamEntity>
