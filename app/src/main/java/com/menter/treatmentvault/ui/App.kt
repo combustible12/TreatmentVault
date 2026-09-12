@@ -56,7 +56,7 @@ fun TreatmentVaultApp() {
                     back = { nav.popBackStack() },
                 )
             }
-            composable("categories") { CategoryManagementScreen { nav.popBackStack() } }
+            composable("categories") { EditableCategoryManagementScreen { nav.popBackStack() } }
             composable("structure") { StructureScreen(back = { nav.popBackStack() }, go = { nav.navigate(it) }) }
             composable("update") { UpdateScreen { nav.popBackStack() } }
             composable("custom/{categoryId}") { entry ->
