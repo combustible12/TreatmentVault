@@ -72,6 +72,7 @@ fun SupplyScreen(back: () -> Unit, initialEditId: Long = 0L) {
         var usage by remember(initial?.id, editorOpen) { mutableStateOf(initial?.usage.orEmpty()) }
         var notes by remember(initial?.id, editorOpen) { mutableStateOf(initial?.notes.orEmpty()) }
         var pendingFiles by remember(initial?.id, editorOpen) { mutableStateOf<List<String>>(emptyList()) }
+        var removedFiles by remember(initial?.id, editorOpen) { mutableStateOf<Set<String>>(emptySet()) }
         var detailsOpen by remember(initial?.id, editorOpen) { mutableStateOf(false) }
 
         FullScreenEditorDialog(
@@ -103,8 +104,9 @@ fun SupplyScreen(back: () -> Unit, initialEditId: Long = 0L) {
                         updatedAt = System.currentTimeMillis(),
                     )
                     val id = if (initial == null) dao.saveSupply(value) else { dao.updateSupply(value); value.id }
-                    reconcileRichAttachments(context, dao, "supply", id, notes)
+                    reconcileRichAttachments(context, dao, "supply", id, notes, removedFiles)
                     pendingFiles = emptyList()
+                    removedFiles = emptySet()
                     editorOpen = false
                 }
             },
@@ -120,6 +122,8 @@ fun SupplyScreen(back: () -> Unit, initialEditId: Long = 0L) {
                         onValueChange = { notes = it },
                         pendingFiles = pendingFiles,
                         onPendingFilesChange = { pendingFiles = it },
+                        removedFiles = removedFiles,
+                        onRemovedFilesChange = { removedFiles = it },
                         sessionKey = "supply-${initial?.id ?: "new"}",
                     )
                 }
