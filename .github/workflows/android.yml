@@ -2,6 +2,7 @@ name: Android APK
 on:
   push:
   workflow_dispatch:
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -33,3 +34,40 @@ jobs:
             app/build/outputs/apk/debug/app-debug.apk
             app/build/outputs/apk/debug/app-debug.apk.sha256
             app/build/outputs/apk/debug/apk-info.txt
+      - name: Publish verified APK to update channel
+        env:
+          UPDATE_REPO_TOKEN: ${{ secrets.UPDATE_REPO_TOKEN }}
+        if: ${{ env.UPDATE_REPO_TOKEN != '' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK="app/build/outputs/apk/debug/app-debug.apk"
+          VERSION_CODE="$(grep -oP 'versionCode = \K[0-9]+' app/build.gradle.kts | head -1)"
+          VERSION_NAME="$(grep -oP 'versionName = "\K[^"]+' app/build.gradle.kts | head -1)"
+          SHA="$(sha256sum "$APK" | awk '{print $1}')"
+          AUTH="$(printf 'x-access-token:%s' "$UPDATE_REPO_TOKEN" | base64 -w0)"
+          git -c http.https://github.com/.extraheader="AUTHORIZATION: basic $AUTH" clone https://github.com/combustible12/TreatmentVault-Updates.git update-repo
+          cp "$APK" update-repo/TreatmentVault-latest.apk
+          export VERSION_CODE VERSION_NAME SHA
+          python3 - <<'PY'
+          import json, os
+          data = {
+              "versionCode": int(os.environ["VERSION_CODE"]),
+              "versionName": os.environ["VERSION_NAME"],
+              "apkUrl": "https://raw.githubusercontent.com/combustible12/TreatmentVault-Updates/main/TreatmentVault-latest.apk",
+              "sha256": os.environ["SHA"],
+              "notes": f"TreatmentVault {os.environ['VERSION_NAME']} 更新"
+          }
+          with open("update-repo/update.json", "w", encoding="utf-8") as f:
+              json.dump(data, f, ensure_ascii=False, indent=2)
+              f.write("\n")
+          PY
+          cd update-repo
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add TreatmentVault-latest.apk update.json
+          if git diff --cached --quiet; then
+            exit 0
+          fi
+          git commit -m "Publish TreatmentVault ${VERSION_NAME}"
+          git -c http.https://github.com/.extraheader="AUTHORIZATION: basic $AUTH" push
