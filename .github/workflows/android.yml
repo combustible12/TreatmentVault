@@ -88,7 +88,7 @@ jobs:
               "versionName": os.environ["VERSION_NAME"],
               "apkUrl": "https://raw.githubusercontent.com/combustible12/TreatmentVault-Updates/main/TreatmentVault-latest.apk",
               "sha256": os.environ["SHA"],
-              "notes": "清理旧专用列表页残留：检查报告、治疗、药品用品、症状、体温、问诊、费用等系统分类根入口统一进入当前文件夹页面，不再跳到旧的重复列表页；文件夹内移除“专用记录”旧入口。具体已有结构化记录的直达编辑路由继续保留，数据、图片和记录类型不受影响。"
+              "notes": "文件夹页面视觉压缩：子文件夹和笔记/记录卡片统一改为紧凑色块，减少上下留白、圆角、图标和标题字号，日期与数量信息降为小号辅助信息；长标题仍可两行，但普通标题不再被大卡片撑高。延续 0.15.1 的旧专用列表页清理与 0.15.0 的内容可靠性修复。"
           }
           with open("update-repo/update.json", "w", encoding="utf-8") as f:
               json.dump(data, f, ensure_ascii=False, indent=2)
