@@ -20,7 +20,8 @@ import java.util.Locale
 
 @Composable
 fun TemperatureScreen(back: () -> Unit, initialEditId: Long = 0L) {
-    val dao = (androidx.compose.ui.platform.LocalContext.current.applicationContext as TreatmentVaultApplication).database.dao()
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val dao = (context.applicationContext as TreatmentVaultApplication).database.dao()
     val list by dao.temperatures().collectAsState(emptyList())
     val scope = rememberCoroutineScope()
     var editorOpen by remember { mutableStateOf(false) }
@@ -78,8 +79,13 @@ fun TemperatureScreen(back: () -> Unit, initialEditId: Long = 0L) {
             title = if (initial == null) "记录体温" else "编辑体温",
             onDismiss = { editorOpen = false },
             canSave = temp.toDoubleOrNull() != null,
+            hasPersistedRecord = initial != null,
             onSave = {
-                val number = temp.toDoubleOrNull() ?: return@FullScreenEditorDialog
+                val number = temp.toDoubleOrNull()
+                if (number == null) {
+                    if (initial == null && !richBodyHasContent(notes) && pendingFiles.isEmpty()) editorOpen = false
+                    return@FullScreenEditorDialog
+                }
                 scope.launch {
                     val value = TemperatureEntity(
                         id = initial?.id ?: 0,
@@ -91,7 +97,8 @@ fun TemperatureScreen(back: () -> Unit, initialEditId: Long = 0L) {
                         updatedAt = System.currentTimeMillis(),
                     )
                     val id = if (initial == null) dao.saveTemperature(value) else { dao.updateTemperature(value); value.id }
-                    savePendingAttachments(dao, "temperature", id, pendingFiles)
+                    reconcileRichAttachments(context, dao, "temperature", id, notes)
+                    pendingFiles = emptyList()
                     editorOpen = false
                 }
             },
@@ -100,10 +107,15 @@ fun TemperatureScreen(back: () -> Unit, initialEditId: Long = 0L) {
                 item { Field(temp, { temp = it }, "体温 ℃") }
                 item {
                     RichNoteBodyEditor(
-                        dao = dao, ownerType = "temperature", ownerId = initial?.id ?: 0L,
-                        value = notes, onValueChange = { notes = it },
-                        pendingFiles = pendingFiles, onPendingFilesChange = { pendingFiles = it },
+                        dao = dao,
+                        ownerType = "temperature",
+                        ownerId = initial?.id ?: 0L,
+                        value = notes,
+                        onValueChange = { notes = it },
+                        pendingFiles = pendingFiles,
+                        onPendingFilesChange = { pendingFiles = it },
                         label = "备注",
+                        sessionKey = "temperature-${initial?.id ?: "new"}",
                     )
                 }
                 item {
