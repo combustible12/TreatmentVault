@@ -176,17 +176,34 @@ fun RichNoteBodyEditor(
     val scope = rememberCoroutineScope()
     val flow = remember(ownerType, ownerId) { if (ownerId > 0) dao.attachments(ownerType, ownerId) else flowOf(emptyList()) }
     val existing by flow.collectAsState(initial = emptyList())
-    val blocks = remember(ownerType, ownerId) { mutableStateListOf<RichBlock>().apply { addAll(parseRichBody(value)) } }
+    val blocks = remember(ownerType, ownerId) { mutableStateListOf<RichBlock>() }
+    var lastSerializedValue by remember(ownerType, ownerId) { mutableStateOf<String?>(null) }
+    var hydrationVersion by remember(ownerType, ownerId) { mutableIntStateOf(0) }
     var previewFile by remember { mutableStateOf<File?>(null) }
-    var insertIndex by remember { mutableIntStateOf(blocks.size) }
+    var insertIndex by remember { mutableIntStateOf(0) }
 
-    fun sync() = onValueChange(serializeRichBody(blocks))
+    fun sync() {
+        val serialized = serializeRichBody(blocks)
+        lastSerializedValue = serialized
+        onValueChange(serialized)
+    }
 
-    LaunchedEffect(existing) {
+    LaunchedEffect(ownerType, ownerId, value) {
+        if (lastSerializedValue == null || value != lastSerializedValue) {
+            blocks.clear()
+            blocks.addAll(parseRichBody(value))
+            lastSerializedValue = value
+            insertIndex = blocks.size
+            hydrationVersion++
+        }
+    }
+
+    LaunchedEffect(existing, hydrationVersion) {
         val names = blocks.filterIsInstance<RichBlock.ImageBlock>().map { it.fileName }.toSet()
         val missing = existing.filterNot { it.fileName in names }
         if (missing.isNotEmpty()) {
             missing.forEach { blocks += RichBlock.ImageBlock(fileName = it.fileName) }
+            insertIndex = blocks.size
             sync()
         }
     }
@@ -201,6 +218,7 @@ fun RichNoteBodyEditor(
                     blocks.add(at, RichBlock.ImageBlock(fileName = fileName))
                     at++
                 }
+                insertIndex = at
                 onPendingFilesChange(pendingFiles + imported)
                 sync()
             }
