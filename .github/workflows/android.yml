@@ -88,7 +88,7 @@ jobs:
               "versionName": os.environ["VERSION_NAME"],
               "apkUrl": "https://raw.githubusercontent.com/combustible12/TreatmentVault-Updates/main/TreatmentVault-latest.apk",
               "sha256": os.environ["SHA"],
-              "notes": "记录色块图片缩略图：正文含图片时，首页置顶/最近/搜索、全部记录以及文件夹内记录会自动显示第一张图片的小缩略图；无图记录保持原布局，不新增空白占位。缩略图仅用于快速识别，原图和正文顺序不变。"
+              "notes": "首页右下角 + 现在可直接选择新建笔记或新建类目；首页文件夹卡片改为独立色块样式，与普通笔记/记录明显区分。长按记录会继续完整显示所有归属文件夹，并新增重命名显示名称；重命名只改列表显示名，不改体温、金额、日期等结构化原始字段，且显示名随现有备份与恢复一起保存。"
           }
           with open("update-repo/update.json", "w", encoding="utf-8") as f:
               json.dump(data, f, ensure_ascii=False, indent=2)
