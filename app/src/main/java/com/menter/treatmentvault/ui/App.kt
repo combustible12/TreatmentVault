@@ -41,7 +41,7 @@ fun TreatmentVaultApp() {
         val nav = rememberNavController()
         NavHost(nav, "home") {
             composable("home") { HomeScreen { nav.navigate(it) } }
-            composable("notes") { AllNotesScreen(back = { nav.popBackStack() }, go = { nav.navigate(it) }) }
+            composable("notes") { AllRecordsScreen(back = { nav.popBackStack() }, go = { nav.navigate(it) }) }
             composable("note/new/{categoryId}") { entry ->
                 NoteEditorScreen(
                     noteId = 0L,
@@ -70,73 +70,45 @@ fun TreatmentVaultApp() {
 
             composable("supplies") { SupplyScreen(back = { nav.popBackStack() }) }
             composable("supplies/{itemId}") { entry ->
-                SupplyScreen(
-                    back = { nav.popBackStack() },
-                    initialEditId = entry.arguments?.getString("itemId")?.toLongOrNull() ?: 0L,
-                )
+                SupplyScreen(back = { nav.popBackStack() }, initialEditId = entry.arguments?.getString("itemId")?.toLongOrNull() ?: 0L)
             }
 
             composable("exams") { ExamScreen(back = { nav.popBackStack() }) }
             composable("exams/{itemId}") { entry ->
-                ExamScreen(
-                    back = { nav.popBackStack() },
-                    initialEditId = entry.arguments?.getString("itemId")?.toLongOrNull() ?: 0L,
-                )
+                ExamScreen(back = { nav.popBackStack() }, initialEditId = entry.arguments?.getString("itemId")?.toLongOrNull() ?: 0L)
             }
 
             composable("treatment") { TreatmentScreen(back = { nav.popBackStack() }) }
             composable("treatment/plan/{itemId}") { entry ->
-                TreatmentScreen(
-                    back = { nav.popBackStack() },
-                    initialPlanId = entry.arguments?.getString("itemId")?.toLongOrNull() ?: 0L,
-                )
+                TreatmentScreen(back = { nav.popBackStack() }, initialPlanId = entry.arguments?.getString("itemId")?.toLongOrNull() ?: 0L)
             }
             composable("treatment/record/{itemId}") { entry ->
-                TreatmentScreen(
-                    back = { nav.popBackStack() },
-                    initialRecordId = entry.arguments?.getString("itemId")?.toLongOrNull() ?: 0L,
-                )
+                TreatmentScreen(back = { nav.popBackStack() }, initialRecordId = entry.arguments?.getString("itemId")?.toLongOrNull() ?: 0L)
             }
 
             composable("symptoms") { SymptomScreen(back = { nav.popBackStack() }) }
             composable("symptoms/{itemId}") { entry ->
-                SymptomScreen(
-                    back = { nav.popBackStack() },
-                    initialEditId = entry.arguments?.getString("itemId")?.toLongOrNull() ?: 0L,
-                )
+                SymptomScreen(back = { nav.popBackStack() }, initialEditId = entry.arguments?.getString("itemId")?.toLongOrNull() ?: 0L)
             }
 
             composable("temperature") { TemperatureScreen(back = { nav.popBackStack() }) }
             composable("temperature/{itemId}") { entry ->
-                TemperatureScreen(
-                    back = { nav.popBackStack() },
-                    initialEditId = entry.arguments?.getString("itemId")?.toLongOrNull() ?: 0L,
-                )
+                TemperatureScreen(back = { nav.popBackStack() }, initialEditId = entry.arguments?.getString("itemId")?.toLongOrNull() ?: 0L)
             }
 
             composable("questions") { QuestionScreen(back = { nav.popBackStack() }) }
             composable("questions/{itemId}") { entry ->
-                QuestionScreen(
-                    back = { nav.popBackStack() },
-                    initialEditId = entry.arguments?.getString("itemId")?.toLongOrNull() ?: 0L,
-                )
+                QuestionScreen(back = { nav.popBackStack() }, initialEditId = entry.arguments?.getString("itemId")?.toLongOrNull() ?: 0L)
             }
 
             composable("expenses") { ExpenseScreen(back = { nav.popBackStack() }) }
             composable("expenses/{itemId}") { entry ->
-                ExpenseScreen(
-                    back = { nav.popBackStack() },
-                    initialEditId = entry.arguments?.getString("itemId")?.toLongOrNull() ?: 0L,
-                )
+                ExpenseScreen(back = { nav.popBackStack() }, initialEditId = entry.arguments?.getString("itemId")?.toLongOrNull() ?: 0L)
             }
 
             composable("timeline") { TimelineScreen(back = { nav.popBackStack() }, go = { nav.navigate(it) }) }
             composable("timeline/{itemId}") { entry ->
-                TimelineScreen(
-                    back = { nav.popBackStack() },
-                    go = { nav.navigate(it) },
-                    initialEditId = entry.arguments?.getString("itemId")?.toLongOrNull() ?: 0L,
-                )
+                TimelineScreen(back = { nav.popBackStack() }, go = { nav.navigate(it) }, initialEditId = entry.arguments?.getString("itemId")?.toLongOrNull() ?: 0L)
             }
             composable("import") { ImportScreen { nav.popBackStack() } }
             composable("settings") { SettingsScreen { nav.popBackStack() } }
