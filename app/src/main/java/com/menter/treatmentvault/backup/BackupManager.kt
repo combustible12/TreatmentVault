@@ -24,6 +24,7 @@ data class Snapshot(
     val customEntries: List<CustomEntryEntity>? = null,
     val tags: List<TagEntity>? = null,
     val attachments: List<AttachmentEntity>? = null,
+    val recordStates: List<RecordStateEntity>? = null,
 )
 
 class BackupManager(private val context: Context, private val db: AppDatabase) {
@@ -35,7 +36,7 @@ class BackupManager(private val context: Context, private val db: AppDatabase) {
         val snap = Snapshot(
             dao.allSupplies(), dao.allExams(), dao.allPlans(), dao.allRecords(), dao.allSymptoms(),
             dao.allTemperatures(), dao.allQuestions(), dao.allExpenses(), dao.allTimeline(),
-            dao.allCategories(), dao.allCustomEntries(), dao.allTags(), dao.allAttachments(),
+            dao.allCategories(), dao.allCustomEntries(), dao.allTags(), dao.allAttachments(), dao.allRecordStates(),
         )
         ZipOutputStream(context.contentResolver.openOutputStream(uri)).use { z ->
             z.putNextEntry(ZipEntry("backup.json"))
@@ -69,7 +70,7 @@ class BackupManager(private val context: Context, private val db: AppDatabase) {
         val snap = gson.fromJson(json ?: error("无 backup.json"), Snapshot::class.java)
         db.withTransaction {
             dao.clearSupplies(); dao.clearExams(); dao.clearPlans(); dao.clearRecords(); dao.clearSymptoms()
-            dao.clearTemperatures(); dao.clearQuestions(); dao.clearExpenses(); dao.clearTimeline(); dao.clearAttachments()
+            dao.clearTemperatures(); dao.clearQuestions(); dao.clearExpenses(); dao.clearTimeline(); dao.clearAttachments(); dao.clearRecordStates()
             snap.supplies.forEach { dao.saveSupply(it) }; snap.exams.forEach { dao.saveExam(it) }
             snap.plans.forEach { dao.savePlan(it) }; snap.records.forEach { dao.saveRecord(it) }
             snap.symptoms.forEach { dao.saveSymptom(it) }; snap.temperatures.orEmpty().forEach { dao.saveTemperature(it) }
@@ -79,6 +80,7 @@ class BackupManager(private val context: Context, private val db: AppDatabase) {
             snap.customEntries?.let { list -> dao.clearCustomEntries(); list.forEach { dao.saveCustomEntry(it) } }
             snap.tags?.let { list -> dao.clearTags(); list.forEach { dao.saveTag(it) } }
             snap.attachments.orEmpty().forEach { dao.saveAttachment(it) }
+            snap.recordStates.orEmpty().forEach { dao.saveRecordState(it) }
         }
         files.forEach { (fileName, bytes) -> File(attachmentDir, fileName).writeBytes(bytes) }
     }
