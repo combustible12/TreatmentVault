@@ -107,7 +107,7 @@ fun FolderScreen(categoryId: String, back: () -> Unit, go: (String) -> Unit) {
         LazyColumn(
             modifier = Modifier.fillMaxSize().padding(padding),
             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 10.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             item {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -187,9 +187,9 @@ fun FolderScreen(categoryId: String, back: () -> Unit, go: (String) -> Unit) {
                     Card(
                         modifier = Modifier.fillMaxWidth(),
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
-                        shape = RoundedCornerShape(20.dp),
+                        shape = RoundedCornerShape(18.dp),
                     ) {
-                        Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                             Text(if (q.isBlank()) "这个文件夹还是空的" else "没有匹配内容", style = MaterialTheme.typography.titleMedium)
                             if (q.isBlank()) {
                                 Text(
@@ -202,7 +202,7 @@ fun FolderScreen(categoryId: String, back: () -> Unit, go: (String) -> Unit) {
                     }
                 }
             }
-            item { Spacer(Modifier.height(30.dp)) }
+            item { Spacer(Modifier.height(24.dp)) }
         }
     }
 
@@ -289,20 +289,20 @@ fun FolderScreen(categoryId: String, back: () -> Unit, go: (String) -> Unit) {
 private fun FolderColorCard(folder: CategoryEntity, supporting: String, onClick: () -> Unit) {
     Card(
         modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
-        shape = RoundedCornerShape(20.dp),
+        shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
     ) {
         Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 18.dp),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 11.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            Icon(categoryIcon(folder.iconKey), contentDescription = null, modifier = Modifier.size(28.dp))
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text(folder.name, style = MaterialTheme.typography.titleLarge, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                Text(supporting, style = MaterialTheme.typography.bodySmall)
+            Icon(categoryIcon(folder.iconKey), contentDescription = null, modifier = Modifier.size(23.dp))
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
+                Text(folder.name, style = MaterialTheme.typography.titleMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                if (supporting.isNotBlank()) Text(supporting, style = MaterialTheme.typography.labelSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
-            Icon(Icons.Default.ChevronRight, contentDescription = null)
+            Icon(Icons.Default.ChevronRight, contentDescription = null, modifier = Modifier.size(22.dp))
         }
     }
 }
@@ -319,25 +319,25 @@ private fun FolderRecordCard(
 ) {
     Card(
         modifier = Modifier.fillMaxWidth().combinedClickable(onClick = onClick, onLongClick = onLongClick),
-        shape = RoundedCornerShape(20.dp),
+        shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
     ) {
         Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 20.dp),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            Icon(categoryIcon(item.iconKey), contentDescription = null, modifier = Modifier.size(26.dp))
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text(item.title, style = MaterialTheme.typography.titleLarge, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
-                    if (state.pinned) Icon(Icons.Default.PushPin, contentDescription = null, modifier = Modifier.size(16.dp))
-                    if (state.favorite) Icon(Icons.Default.Favorite, contentDescription = null, modifier = Modifier.size(16.dp))
+            Icon(categoryIcon(item.iconKey), contentDescription = null, modifier = Modifier.size(23.dp))
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(5.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text(item.title, style = MaterialTheme.typography.titleMedium, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+                    if (state.pinned) Icon(Icons.Default.PushPin, contentDescription = null, modifier = Modifier.size(14.dp))
+                    if (state.favorite) Icon(Icons.Default.Favorite, contentDescription = null, modifier = Modifier.size(14.dp))
                 }
-                if (item.date.isNotBlank()) Text(item.date, style = MaterialTheme.typography.bodySmall)
+                if (item.date.isNotBlank()) Text(item.date, style = MaterialTheme.typography.labelSmall, maxLines = 1)
             }
             if (selectionMode) Checkbox(checked = selected, onCheckedChange = { onClick() })
-            else Icon(Icons.Default.ChevronRight, contentDescription = null)
+            else Icon(Icons.Default.ChevronRight, contentDescription = null, modifier = Modifier.size(22.dp))
         }
     }
 }
