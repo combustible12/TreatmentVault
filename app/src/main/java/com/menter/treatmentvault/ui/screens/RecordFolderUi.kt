@@ -41,8 +41,9 @@ internal fun RecordFolderOwnershipDialog(
     val validCurrent = remember(item.folderKeys, categories) {
         item.folderKeys.filter { key -> categories.any { it.key == key } }.toSet()
     }
-    val currentFolders = remember(validCurrent, availableFolders) {
-        availableFolders.filter { it.key in validCurrent }
+    val currentFolders = remember(validCurrent, categories) {
+        categories.filter { it.key in validCurrent }
+            .sortedBy { folderPathText(it.key, categories).lowercase() }
     }
     val requiredPrimary = if (item.ownerType == "note") item.categoryKey else null
     var managing by remember(item.key) { mutableStateOf(false) }
