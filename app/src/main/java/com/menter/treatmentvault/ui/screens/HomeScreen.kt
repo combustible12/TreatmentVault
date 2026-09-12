@@ -1,6 +1,7 @@
 package com.menter.treatmentvault.ui.screens
 
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -32,7 +33,7 @@ private fun flattenHomeCategories(categories: List<CategoryEntity>): List<Pair<C
     return result
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun HomeScreen(go: (String) -> Unit) {
     val app = androidx.compose.ui.platform.LocalContext.current.applicationContext as TreatmentVaultApplication
@@ -58,6 +59,8 @@ fun HomeScreen(go: (String) -> Unit) {
     var newCategoryName by rememberSaveable { mutableStateOf("") }
     var newCategoryParentId by rememberSaveable { mutableStateOf<String?>(null) }
     var parentMenuOpen by remember { mutableStateOf(false) }
+    var ownershipItem by remember { mutableStateOf<UnifiedRecordItem?>(null) }
+    var renameCategory by remember { mutableStateOf<CategoryEntity?>(null) }
 
     LaunchedEffect(categories) {
         if (categories.none { it.key == "inbox" }) {
@@ -138,7 +141,15 @@ fun HomeScreen(go: (String) -> Unit) {
                                 icon = { Icon(categoryIcon(category.iconKey), contentDescription = null) },
                                 label = {
                                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                        Text((if (depth > 0) "  ".repeat(depth) else "") + category.name, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                        Text(
+                                            (if (depth > 0) "  ".repeat(depth) else "") + category.name,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis,
+                                            modifier = Modifier.combinedClickable(
+                                                onClick = {},
+                                                onLongClick = { renameCategory = category },
+                                            ),
+                                        )
                                         val count = countFor(category)
                                         if (count > 0) Text(count.toString(), style = MaterialTheme.typography.labelSmall)
                                     }
@@ -186,10 +197,20 @@ fun HomeScreen(go: (String) -> Unit) {
                 }
                 if (q.isNotBlank()) {
                     item { Text("搜索结果 · ${recordSearch.size + categorySearch.size}", style = MaterialTheme.typography.titleSmall) }
-                    items(recordSearch, key = { it.key }) { item -> RecordListItem(item = item, pinned = recordStateFor(item, stateMap).pinned, onClick = { go(item.route) }) }
+                    items(recordSearch, key = { it.key }) { item ->
+                        RecordListItem(
+                            item = item,
+                            pinned = recordStateFor(item, stateMap).pinned,
+                            onClick = { go(item.route) },
+                            onLongClick = { ownershipItem = item },
+                        )
+                    }
                     items(categorySearch, key = { "category:${it.key}" }) { category ->
                         ListItem(
-                            modifier = Modifier.fillMaxWidth().clickable { go(categoryRoute(category)) },
+                            modifier = Modifier.fillMaxWidth().combinedClickable(
+                                onClick = { go(categoryRoute(category)) },
+                                onLongClick = { renameCategory = category },
+                            ),
                             headlineContent = { Text(category.name) },
                             supportingContent = { Text("分类 · 打开后查看该分类全部记录") },
                             leadingContent = { Icon(categoryIcon(category.iconKey), null) },
@@ -211,7 +232,9 @@ fun HomeScreen(go: (String) -> Unit) {
                                 TextButton(onClick = { go("notes") }) { Text("管理") }
                             }
                         }
-                        items(pinnedRecords, key = { "pinned:${it.key}" }) { item -> RecordListItem(item, true) { go(item.route) } }
+                        items(pinnedRecords, key = { "pinned:${it.key}" }) { item ->
+                            RecordListItem(item, true, { go(item.route) }, { ownershipItem = item })
+                        }
                     }
                     item {
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -222,7 +245,9 @@ fun HomeScreen(go: (String) -> Unit) {
                     if (recentRecords.isEmpty()) {
                         item { Card(Modifier.fillMaxWidth()) { Column(Modifier.padding(16.dp)) { Text("还没有记录", style = MaterialTheme.typography.titleSmall); Text("先随手记下来，不用先决定放哪里。", style = MaterialTheme.typography.bodySmall) } } }
                     } else {
-                        items(recentRecords, key = { "recent:${it.key}" }) { item -> RecordListItem(item, recordStateFor(item, stateMap).pinned) { go(item.route) } }
+                        items(recentRecords, key = { "recent:${it.key}" }) { item ->
+                            RecordListItem(item, recordStateFor(item, stateMap).pinned, { go(item.route) }, { ownershipItem = item })
+                        }
                     }
                     item {
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -232,7 +257,10 @@ fun HomeScreen(go: (String) -> Unit) {
                     }
                     items(visibleCategories, key = { it.first.key }) { (category, depth) ->
                         ListItem(
-                            modifier = Modifier.fillMaxWidth().clickable { go(categoryRoute(category)) },
+                            modifier = Modifier.fillMaxWidth().combinedClickable(
+                                onClick = { go(categoryRoute(category)) },
+                                onLongClick = { renameCategory = category },
+                            ),
                             headlineContent = { Text(category.name, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                             supportingContent = { val count = countFor(category); Text(if (count == 0) "暂无记录" else "$count 条") },
                             leadingContent = { Row { if (depth > 0) Spacer(Modifier.width((depth * 18).dp)); Icon(categoryIcon(category.iconKey), null) } },
@@ -242,6 +270,26 @@ fun HomeScreen(go: (String) -> Unit) {
                 }
             }
         }
+    }
+
+    ownershipItem?.let { item ->
+        RecordFolderOwnershipDialog(
+            item = item,
+            categories = categories,
+            onDismiss = { ownershipItem = null },
+        )
+    }
+
+    renameCategory?.let { target ->
+        RenameCategoryDialog(
+            category = target,
+            categories = categories,
+            onDismiss = { renameCategory = null },
+            onRename = { newName ->
+                scope.launch { dao.saveCategory(target.copy(name = newName)) }
+                renameCategory = null
+            },
+        )
     }
 
     if (showAddCategory) {
@@ -273,10 +321,16 @@ fun HomeScreen(go: (String) -> Unit) {
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun RecordListItem(item: UnifiedRecordItem, pinned: Boolean, onClick: () -> Unit) {
+private fun RecordListItem(
+    item: UnifiedRecordItem,
+    pinned: Boolean,
+    onClick: () -> Unit,
+    onLongClick: () -> Unit,
+) {
     ListItem(
-        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
+        modifier = Modifier.fillMaxWidth().combinedClickable(onClick = onClick, onLongClick = onLongClick),
         headlineContent = {
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 if (pinned) Icon(Icons.Default.PushPin, null, modifier = Modifier.size(16.dp))
