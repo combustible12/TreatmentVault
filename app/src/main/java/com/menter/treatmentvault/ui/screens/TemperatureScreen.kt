@@ -19,12 +19,23 @@ import java.util.Date
 import java.util.Locale
 
 @Composable
-fun TemperatureScreen(back: () -> Unit) {
+fun TemperatureScreen(back: () -> Unit, initialEditId: Long = 0L) {
     val dao = (androidx.compose.ui.platform.LocalContext.current.applicationContext as TreatmentVaultApplication).database.dao()
     val list by dao.temperatures().collectAsState(emptyList())
     val scope = rememberCoroutineScope()
     var editorOpen by remember { mutableStateOf(false) }
     var editing by remember { mutableStateOf<TemperatureEntity?>(null) }
+    var openedInitial by remember(initialEditId) { mutableStateOf(false) }
+
+    LaunchedEffect(initialEditId, list) {
+        if (!openedInitial && initialEditId > 0L) {
+            list.firstOrNull { it.id.toLong() == initialEditId }?.let {
+                editing = it
+                editorOpen = true
+                openedInitial = true
+            }
+        }
+    }
 
     Page("体温记录", back) {
         list.firstOrNull()?.let { latest ->
