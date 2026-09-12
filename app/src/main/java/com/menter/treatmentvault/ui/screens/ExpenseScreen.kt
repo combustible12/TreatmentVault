@@ -4,6 +4,9 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -22,15 +25,16 @@ fun ExpenseScreen(back: () -> Unit) {
 
     Page("费用记录", back) {
         Text("合计 ¥${"%.2f".format(list.sumOf { it.amount })}", style = MaterialTheme.typography.headlineSmall)
-        Text("点任意记录即可继续编辑和添加票据图片。", style = MaterialTheme.typography.bodySmall)
+        Text("票据、说明可以直接按笔记方式放文字和图片；报销细项需要时再展开。", style = MaterialTheme.typography.bodySmall)
         LazyColumn(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             items(list, key = { it.id }) { value ->
                 Card(Modifier.fillMaxWidth().clickable { editing = value; editorOpen = true }) {
                     Row(modifier = Modifier.padding(12.dp).fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Column {
+                        Column(Modifier.weight(1f)) {
                             Text(value.type)
                             Text("${value.date} ${value.merchant}")
-                            if (value.notes.isNotBlank()) Text(value.notes, style = MaterialTheme.typography.bodySmall)
+                            val plain = richBodyPlainText(value.notes)
+                            if (plain.isNotBlank()) Text(plain, style = MaterialTheme.typography.bodySmall, maxLines = 2)
                         }
                         Text("¥${"%.2f".format(value.amount)}")
                     }
@@ -51,6 +55,7 @@ fun ExpenseScreen(back: () -> Unit) {
         var reimbursed by remember(initial?.id, editorOpen) { mutableStateOf(initial?.reimbursedAmount?.toString().orEmpty()) }
         var notes by remember(initial?.id, editorOpen) { mutableStateOf(initial?.notes.orEmpty()) }
         var pendingFiles by remember(initial?.id, editorOpen) { mutableStateOf<List<String>>(emptyList()) }
+        var detailsOpen by remember(initial?.id, editorOpen) { mutableStateOf(false) }
 
         FullScreenEditorDialog(
             title = if (initial == null) "新增费用" else "编辑费用",
@@ -60,11 +65,17 @@ fun ExpenseScreen(back: () -> Unit) {
                 val number = amount.toDoubleOrNull() ?: return@FullScreenEditorDialog
                 scope.launch {
                     val value = ExpenseEntity(
-                        id = initial?.id ?: 0, date = date.trim(), type = type.trim().ifBlank { "其他" }, amount = number, merchant = merchant.trim(),
+                        id = initial?.id ?: 0,
+                        date = date.trim(),
+                        type = type.trim().ifBlank { "其他" },
+                        amount = number,
+                        merchant = merchant.trim(),
                         insuranceAmount = insurance.toDoubleOrNull() ?: 0.0,
                         selfPayAmount = selfPay.toDoubleOrNull() ?: if (initial == null) number else initial.selfPayAmount,
                         reimbursedAmount = reimbursed.toDoubleOrNull() ?: 0.0,
-                        notes = notes.trim(), receiptPath = initial?.receiptPath.orEmpty(), updatedAt = System.currentTimeMillis(),
+                        notes = notes,
+                        receiptPath = initial?.receiptPath.orEmpty(),
+                        updatedAt = System.currentTimeMillis(),
                     )
                     val id = if (initial == null) dao.saveExpense(value) else { dao.updateExpense(value); value.id }
                     savePendingAttachments(dao, "expense", id, pendingFiles)
@@ -72,17 +83,31 @@ fun ExpenseScreen(back: () -> Unit) {
                 }
             },
         ) {
-            LazyColumn(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                item { Field(date, { date = it }, "日期") }
-                item { Field(type, { type = it }, "类型") }
+            LazyColumn(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp), contentPadding = PaddingValues(bottom = 24.dp)) {
                 item { Field(amount, { amount = it }, "金额") }
-                item { Field(merchant, { merchant = it }, "商家/医院") }
-                item { Field(insurance, { insurance = it }, "医保金额") }
-                item { Field(selfPay, { selfPay = it }, "自费金额") }
-                item { Field(reimbursed, { reimbursed = it }, "已报销金额") }
-                item { Field(notes, { notes = it }, "备注") }
-                item { ImageAttachmentSection(dao, "expense", initial?.id ?: 0L, pendingFiles) { pendingFiles = it } }
-                item { Spacer(Modifier.height(20.dp)) }
+                item {
+                    RichNoteBodyEditor(
+                        dao = dao, ownerType = "expense", ownerId = initial?.id ?: 0L,
+                        value = notes, onValueChange = { notes = it },
+                        pendingFiles = pendingFiles, onPendingFilesChange = { pendingFiles = it },
+                        label = "说明与票据",
+                    )
+                }
+                item {
+                    TextButton(onClick = { detailsOpen = !detailsOpen }, modifier = Modifier.fillMaxWidth()) {
+                        Icon(if (detailsOpen) Icons.Default.ExpandLess else Icons.Default.ExpandMore, contentDescription = null)
+                        Spacer(Modifier.width(6.dp))
+                        Text(if (detailsOpen) "收起费用信息" else "更多费用信息（选填）")
+                    }
+                }
+                if (detailsOpen) {
+                    item { Field(date, { date = it }, "日期") }
+                    item { Field(type, { type = it }, "类型") }
+                    item { Field(merchant, { merchant = it }, "商家/医院") }
+                    item { Field(insurance, { insurance = it }, "医保金额") }
+                    item { Field(selfPay, { selfPay = it }, "自费金额") }
+                    item { Field(reimbursed, { reimbursed = it }, "已报销金额") }
+                }
             }
         }
     }

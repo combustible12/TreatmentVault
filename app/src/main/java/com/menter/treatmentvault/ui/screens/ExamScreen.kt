@@ -24,7 +24,7 @@ fun ExamScreen(back: () -> Unit) {
     var editing by remember { mutableStateOf<ExamEntity?>(null) }
 
     Page("检查报告", back) {
-        Text("这里按笔记来用：标题、正文、图片是主要内容；其他检查信息都只是选填。", style = MaterialTheme.typography.bodySmall)
+        Text("按笔记来记：标题 + 可穿插的文字/图片。日期、医院、类型等都只是选填。", style = MaterialTheme.typography.bodySmall)
         LazyColumn(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             items(list, key = { it.id }) { value ->
                 Card(Modifier.fillMaxWidth().clickable { editing = value; editorOpen = true }) {
@@ -32,7 +32,7 @@ fun ExamScreen(back: () -> Unit) {
                         Text(value.name, style = MaterialTheme.typography.titleMedium)
                         val meta = listOf(value.date, value.type, value.hospital).filter { it.isNotBlank() && it != "其他" }.joinToString(" · ")
                         if (meta.isNotBlank()) Text(meta, style = MaterialTheme.typography.bodySmall)
-                        val body = value.summary.ifBlank { value.notes }
+                        val body = richBodyPlainText(value.summary.ifBlank { value.notes })
                         if (body.isNotBlank()) Text(body, maxLines = 3)
                     }
                 }
@@ -63,17 +63,17 @@ fun ExamScreen(back: () -> Unit) {
         FullScreenEditorDialog(
             title = if (initial == null) "新增检查笔记" else "编辑检查笔记",
             onDismiss = { editorOpen = false },
-            canSave = name.isNotBlank(),
+            canSave = name.isNotBlank() || richBodyPlainText(body).isNotBlank() || pendingFiles.isNotEmpty(),
             onSave = {
-                if (name.isBlank()) return@FullScreenEditorDialog
+                if (name.isBlank() && richBodyPlainText(body).isBlank() && pendingFiles.isEmpty()) return@FullScreenEditorDialog
                 scope.launch {
                     val value = ExamEntity(
                         id = initial?.id ?: 0,
-                        name = name.trim(),
+                        name = name.trim().ifBlank { "未命名检查" },
                         date = date.trim(),
                         hospital = hospital.trim(),
                         type = type.trim().ifBlank { "其他" },
-                        summary = body.trim(),
+                        summary = body,
                         keyData = keyData.trim(),
                         doctorExplanation = doctorExplanation.trim(),
                         notes = notes.trim(),
@@ -88,8 +88,17 @@ fun ExamScreen(back: () -> Unit) {
         ) {
             LazyColumn(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(12.dp), contentPadding = PaddingValues(bottom = 24.dp)) {
                 item { Field(name, { name = it }, "标题") }
-                item { NoteBodyField(body, { body = it }, "正文") }
-                item { ImageAttachmentSection(dao, "exam", initial?.id ?: 0L, pendingFiles) { pendingFiles = it } }
+                item {
+                    RichNoteBodyEditor(
+                        dao = dao,
+                        ownerType = "exam",
+                        ownerId = initial?.id ?: 0L,
+                        value = body,
+                        onValueChange = { body = it },
+                        pendingFiles = pendingFiles,
+                        onPendingFilesChange = { pendingFiles = it },
+                    )
+                }
                 item {
                     TextButton(onClick = { detailsOpen = !detailsOpen }, modifier = Modifier.fillMaxWidth()) {
                         Icon(if (detailsOpen) Icons.Default.ExpandLess else Icons.Default.ExpandMore, contentDescription = null)

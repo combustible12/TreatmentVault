@@ -23,7 +23,7 @@ import java.util.Date
 import java.util.Locale
 
 private fun noteTitle(note: CustomEntryEntity): String =
-    note.title.ifBlank { note.content.lineSequence().firstOrNull().orEmpty().take(48).ifBlank { "未命名笔记" } }
+    note.title.ifBlank { richBodyPlainText(note.content).lineSequence().firstOrNull().orEmpty().take(48).ifBlank { "未命名笔记" } }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -40,8 +40,9 @@ fun AllNotesScreen(back: () -> Unit, go: (String) -> Unit) {
     val filtered = remember(notes, query, categoryFilter) {
         val q = query.trim()
         notes.filter { note ->
+            val plain = richBodyPlainText(note.content)
             (categoryFilter == null || note.categoryId == categoryFilter) &&
-                (q.isBlank() || note.title.contains(q, true) || note.content.contains(q, true) || note.tags.contains(q, true) || note.date.contains(q, true))
+                (q.isBlank() || note.title.contains(q, true) || plain.contains(q, true) || note.tags.contains(q, true) || note.date.contains(q, true))
         }.sortedByDescending { it.updatedAt }
     }
 
@@ -49,15 +50,11 @@ fun AllNotesScreen(back: () -> Unit, go: (String) -> Unit) {
         topBar = {
             TopAppBar(
                 title = { Text("全部笔记") },
-                navigationIcon = {
-                    IconButton(onClick = back) { Icon(Icons.Default.ArrowBack, contentDescription = "返回") }
-                },
+                navigationIcon = { IconButton(onClick = back) { Icon(Icons.Default.ArrowBack, contentDescription = "返回") } },
             )
         },
         floatingActionButton = {
-            FloatingActionButton(onClick = { go("note/new/inbox") }) {
-                Icon(Icons.Default.Add, contentDescription = "新建笔记")
-            }
+            FloatingActionButton(onClick = { go("note/new/inbox") }) { Icon(Icons.Default.Add, contentDescription = "新建笔记") }
         },
     ) { padding ->
         LazyColumn(
@@ -73,19 +70,13 @@ fun AllNotesScreen(back: () -> Unit, go: (String) -> Unit) {
                     singleLine = true,
                     placeholder = { Text("搜索笔记") },
                     leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
-                    trailingIcon = {
-                        if (query.isNotBlank()) {
-                            IconButton(onClick = { query = "" }) { Icon(Icons.Default.Close, contentDescription = "清空") }
-                        }
-                    },
+                    trailingIcon = { if (query.isNotBlank()) IconButton(onClick = { query = "" }) { Icon(Icons.Default.Close, contentDescription = "清空") } },
                     shape = MaterialTheme.shapes.extraLarge,
                 )
             }
             item {
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    item {
-                        FilterChip(selected = categoryFilter == null, onClick = { categoryFilter = null }, label = { Text("全部") })
-                    }
+                    item { FilterChip(selected = categoryFilter == null, onClick = { categoryFilter = null }, label = { Text("全部") }) }
                     items(customCategories, key = { it.key }) { category ->
                         FilterChip(
                             selected = categoryFilter == category.key,
@@ -102,20 +93,21 @@ fun AllNotesScreen(back: () -> Unit, go: (String) -> Unit) {
                     Card(Modifier.fillMaxWidth()) {
                         Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                             Text(if (notes.isEmpty()) "还没有笔记" else "没有匹配的笔记", style = MaterialTheme.typography.titleSmall)
-                            if (notes.isEmpty()) Text("直接点右下角 + 开始记，不用先设计数据库。", style = MaterialTheme.typography.bodySmall)
+                            if (notes.isEmpty()) Text("直接点右下角 + 开始记。", style = MaterialTheme.typography.bodySmall)
                         }
                     }
                 }
             } else {
                 items(filtered, key = { it.id }) { note ->
                     val category = categoryMap[note.categoryId]
+                    val plain = richBodyPlainText(note.content)
                     ListItem(
                         modifier = Modifier.fillMaxWidth().clickable { go("note/${note.id}") },
                         headlineContent = { Text(noteTitle(note), maxLines = 1, overflow = TextOverflow.Ellipsis) },
                         supportingContent = {
                             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                                 Text(category?.name ?: "笔记", style = MaterialTheme.typography.labelSmall)
-                                if (note.content.isNotBlank()) Text(note.content.replace("\n", " "), maxLines = 2, overflow = TextOverflow.Ellipsis)
+                                if (plain.isNotBlank()) Text(plain.replace("\n", " "), maxLines = 2, overflow = TextOverflow.Ellipsis)
                                 if (note.tags.isNotBlank()) Text("# ${note.tags}", maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.labelSmall)
                             }
                         },
@@ -171,7 +163,7 @@ fun NoteEditorScreen(noteId: Long, initialCategoryId: String?, back: () -> Unit)
     }
 
     val selectedCategory = customCategories.firstOrNull { it.key == categoryId }
-    val canSave = title.isNotBlank() || content.isNotBlank()
+    val canSave = title.isNotBlank() || richBodyPlainText(content).isNotBlank() || pendingFiles.isNotEmpty()
 
     fun saveAndBack() {
         if (!canSave) return
@@ -181,15 +173,12 @@ fun NoteEditorScreen(noteId: Long, initialCategoryId: String?, back: () -> Unit)
             categoryId = safeCategory,
             date = date.trim(),
             title = title.trim(),
-            content = content.trim(),
+            content = content,
             tags = tags.trim(),
             updatedAt = System.currentTimeMillis(),
         )
         scope.launch {
-            val savedId = if (value.id == 0L) dao.saveCustomEntry(value) else {
-                dao.updateCustomEntry(value)
-                value.id
-            }
+            val savedId = if (value.id == 0L) dao.saveCustomEntry(value) else { dao.updateCustomEntry(value); value.id }
             savePendingAttachments(dao, "note", savedId, pendingFiles)
             back()
         }
@@ -212,8 +201,17 @@ fun NoteEditorScreen(noteId: Long, initialCategoryId: String?, back: () -> Unit)
             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
+            item { OutlinedTextField(value = title, onValueChange = { title = it }, modifier = Modifier.fillMaxWidth(), placeholder = { Text("标题") }, singleLine = true, textStyle = MaterialTheme.typography.titleLarge) }
             item {
-                OutlinedTextField(value = title, onValueChange = { title = it }, modifier = Modifier.fillMaxWidth(), placeholder = { Text("标题") }, singleLine = true, textStyle = MaterialTheme.typography.titleLarge)
+                RichNoteBodyEditor(
+                    dao = dao,
+                    ownerType = "note",
+                    ownerId = existing?.id ?: 0L,
+                    value = content,
+                    onValueChange = { content = it },
+                    pendingFiles = pendingFiles,
+                    onPendingFilesChange = { pendingFiles = it },
+                )
             }
             item {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -232,16 +230,8 @@ fun NoteEditorScreen(noteId: Long, initialCategoryId: String?, back: () -> Unit)
                     OutlinedTextField(value = date, onValueChange = { date = it }, modifier = Modifier.weight(1f), label = { Text("日期") }, singleLine = true)
                 }
             }
-            item {
-                OutlinedTextField(value = tags, onValueChange = { tags = it }, modifier = Modifier.fillMaxWidth(), placeholder = { Text("标签，例如：化疗, 便秘, 待问") }, singleLine = true, leadingIcon = { Icon(Icons.Default.Tag, contentDescription = null) })
-            }
-            item {
-                OutlinedTextField(value = content, onValueChange = { content = it }, modifier = Modifier.fillMaxWidth().heightIn(min = 300.dp), placeholder = { Text("直接写。先记下来，之后再整理。") }, minLines = 12)
-            }
-            item {
-                ImageAttachmentSection(dao = dao, ownerType = "note", ownerId = existing?.id ?: 0L, pendingFiles = pendingFiles, onPendingFilesChange = { pendingFiles = it })
-            }
-            item { Text("标题、正文、分类、标签和图片之后都可以重新打开修改。", style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(bottom = 16.dp)) }
+            item { OutlinedTextField(value = tags, onValueChange = { tags = it }, modifier = Modifier.fillMaxWidth(), placeholder = { Text("标签，例如：化疗, 便秘, 待问") }, singleLine = true, leadingIcon = { Icon(Icons.Default.Tag, contentDescription = null) }) }
+            item { Spacer(Modifier.height(20.dp)) }
         }
     }
 
@@ -253,11 +243,7 @@ fun NoteEditorScreen(noteId: Long, initialCategoryId: String?, back: () -> Unit)
             confirmButton = {
                 TextButton(onClick = {
                     val note = existing ?: return@TextButton
-                    scope.launch {
-                        dao.deleteCustomEntry(note)
-                        confirmDelete = false
-                        back()
-                    }
+                    scope.launch { dao.deleteCustomEntry(note); confirmDelete = false; back() }
                 }) { Text("删除") }
             },
             dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text("取消") } },

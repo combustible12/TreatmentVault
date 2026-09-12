@@ -6,6 +6,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -24,26 +26,25 @@ fun SupplyScreen(back: () -> Unit) {
 
     Page("药品与用品", back) {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            listOf("待购", "已购", "暂不购买").forEach { status ->
-                AssistChip(onClick = {}, label = { Text("$status ${list.count { it.purchaseStatus == status }}") })
-            }
+            listOf("待购", "已购", "暂不购买").forEach { status -> AssistChip(onClick = {}, label = { Text("$status ${list.count { it.purchaseStatus == status }}") }) }
         }
-        Text("点任意记录即可继续编辑和添加图片。", style = MaterialTheme.typography.bodySmall)
+        Text("名称下面直接记文字和图片；购买状态、使用阶段等放到更多信息里。", style = MaterialTheme.typography.bodySmall)
         LazyColumn(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             items(list, key = { it.id }) { value ->
                 Card(Modifier.fillMaxWidth().clickable { editing = value; editorOpen = true }) {
                     Column(Modifier.padding(12.dp)) {
                         Text(value.name, style = MaterialTheme.typography.titleMedium)
-                        Text("${value.purchaseStatus} · ${value.necessity}")
-                        if (value.purpose.isNotBlank()) Text(value.purpose)
-                        if (value.stages.isNotBlank()) Text(value.stages, style = MaterialTheme.typography.bodySmall)
+                        Text("${value.purchaseStatus} · ${value.necessity}", style = MaterialTheme.typography.bodySmall)
+                        val body = richBodyPlainText(value.notes).ifBlank { value.purpose }
+                        if (body.isNotBlank()) Text(body, maxLines = 3)
                     }
                 }
             }
         }
         Button(onClick = { editing = null; editorOpen = true }, modifier = Modifier.fillMaxWidth()) {
             Icon(Icons.Default.Add, contentDescription = null)
-            Text("新增用品")
+            Spacer(Modifier.width(4.dp))
+            Text("新增药品/用品")
         }
     }
 
@@ -59,20 +60,31 @@ fun SupplyScreen(back: () -> Unit) {
         var usage by remember(initial?.id, editorOpen) { mutableStateOf(initial?.usage.orEmpty()) }
         var notes by remember(initial?.id, editorOpen) { mutableStateOf(initial?.notes.orEmpty()) }
         var pendingFiles by remember(initial?.id, editorOpen) { mutableStateOf<List<String>>(emptyList()) }
+        var detailsOpen by remember(initial?.id, editorOpen) { mutableStateOf(false) }
 
         FullScreenEditorDialog(
-            title = if (initial == null) "新增用品" else "编辑用品",
+            title = if (initial == null) "新增药品/用品" else "编辑药品/用品",
             onDismiss = { editorOpen = false },
-            canSave = name.isNotBlank(),
+            canSave = name.isNotBlank() || richBodyPlainText(notes).isNotBlank() || pendingFiles.isNotEmpty(),
             onSave = {
-                if (name.isBlank()) return@FullScreenEditorDialog
+                if (name.isBlank() && richBodyPlainText(notes).isBlank() && pendingFiles.isEmpty()) return@FullScreenEditorDialog
                 scope.launch {
                     val value = SupplyEntity(
                         id = initial?.id ?: 0,
-                        name = name.trim(), stages = stages.trim(), purpose = purpose.trim(), necessity = necessity.trim().ifBlank { "按需购买" },
-                        purchaseStatus = purchaseStatus.trim().ifBlank { "待购" }, quantity = quantity.toIntOrNull(), price = price.toDoubleOrNull(),
-                        purchaseUrl = initial?.purchaseUrl.orEmpty(), usage = usage.trim(), doctorConfirmed = initial?.doctorConfirmed ?: false,
-                        notes = notes.trim(), imagePath = initial?.imagePath.orEmpty(), attachmentPath = initial?.attachmentPath.orEmpty(), updatedAt = System.currentTimeMillis(),
+                        name = name.trim().ifBlank { "未命名用品" },
+                        stages = stages.trim(),
+                        purpose = purpose.trim(),
+                        necessity = necessity.trim().ifBlank { "按需购买" },
+                        purchaseStatus = purchaseStatus.trim().ifBlank { "待购" },
+                        quantity = quantity.toIntOrNull(),
+                        price = price.toDoubleOrNull(),
+                        purchaseUrl = initial?.purchaseUrl.orEmpty(),
+                        usage = usage.trim(),
+                        doctorConfirmed = initial?.doctorConfirmed ?: false,
+                        notes = notes,
+                        imagePath = initial?.imagePath.orEmpty(),
+                        attachmentPath = initial?.attachmentPath.orEmpty(),
+                        updatedAt = System.currentTimeMillis(),
                     )
                     val id = if (initial == null) dao.saveSupply(value) else { dao.updateSupply(value); value.id }
                     savePendingAttachments(dao, "supply", id, pendingFiles)
@@ -80,18 +92,31 @@ fun SupplyScreen(back: () -> Unit) {
                 }
             },
         ) {
-            LazyColumn(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                item { Field(name, { name = it }, "名称") }
-                item { Field(stages, { stages = it }, "使用阶段") }
-                item { Field(purpose, { purpose = it }, "作用") }
-                item { Field(necessity, { necessity = it }, "必要性") }
-                item { Field(purchaseStatus, { purchaseStatus = it }, "购买状态（待购/已购/暂不购买）") }
-                item { Field(quantity, { quantity = it }, "数量") }
-                item { Field(price, { price = it }, "价格") }
-                item { Field(usage, { usage = it }, "使用方法") }
-                item { Field(notes, { notes = it }, "备注") }
-                item { ImageAttachmentSection(dao, "supply", initial?.id ?: 0L, pendingFiles) { pendingFiles = it } }
-                item { Spacer(Modifier.height(20.dp)) }
+            LazyColumn(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp), contentPadding = PaddingValues(bottom = 24.dp)) {
+                item { Field(name, { name = it }, "标题/名称") }
+                item {
+                    RichNoteBodyEditor(
+                        dao = dao, ownerType = "supply", ownerId = initial?.id ?: 0L,
+                        value = notes, onValueChange = { notes = it },
+                        pendingFiles = pendingFiles, onPendingFilesChange = { pendingFiles = it },
+                    )
+                }
+                item {
+                    TextButton(onClick = { detailsOpen = !detailsOpen }, modifier = Modifier.fillMaxWidth()) {
+                        Icon(if (detailsOpen) Icons.Default.ExpandLess else Icons.Default.ExpandMore, contentDescription = null)
+                        Spacer(Modifier.width(6.dp))
+                        Text(if (detailsOpen) "收起用品信息" else "更多用品信息（全部选填）")
+                    }
+                }
+                if (detailsOpen) {
+                    item { Field(stages, { stages = it }, "使用阶段") }
+                    item { Field(purpose, { purpose = it }, "作用") }
+                    item { Field(necessity, { necessity = it }, "必要性") }
+                    item { Field(purchaseStatus, { purchaseStatus = it }, "购买状态（待购/已购/暂不购买）") }
+                    item { Field(quantity, { quantity = it }, "数量") }
+                    item { Field(price, { price = it }, "价格") }
+                    item { Field(usage, { usage = it }, "使用方法") }
+                }
             }
         }
     }
