@@ -120,7 +120,7 @@ fun TimelineScreen(back: () -> Unit, go: (String) -> Unit) {
             }
             Spacer(Modifier.weight(1f))
         } else {
-            LazyColumn(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp), contentPadding = PaddingValues(vertical = 4.dp, bottom = 24.dp)) {
+            LazyColumn(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp), contentPadding = PaddingValues(top = 4.dp, bottom = 24.dp)) {
                 items(items, key = { it.key }) { value ->
                     Row(modifier = Modifier.fillMaxWidth()) {
                         Text(value.date, modifier = Modifier.width(94.dp), style = MaterialTheme.typography.bodySmall)
