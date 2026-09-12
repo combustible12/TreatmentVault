@@ -1,5 +1,5 @@
 name: Android APK
-# Builds with one explicit repository keystore and publishes only after signature verification.
+# Builds with one explicit repository keystore and publishes only after tests and signature verification.
 on:
   push:
   workflow_dispatch:
@@ -21,6 +21,8 @@ jobs:
           chmod 600 .github/keystore/treatmentvault-debug.keystore
       - uses: gradle/actions/setup-gradle@v4
         with: { gradle-version: '8.10.2' }
+      - name: Run persistence regression tests
+        run: gradle testDebugUnitTest --stacktrace
       - name: Build APK
         run: gradle assembleDebug --stacktrace
       - name: Verify install package and signing identity
@@ -86,7 +88,7 @@ jobs:
               "versionName": os.environ["VERSION_NAME"],
               "apkUrl": "https://raw.githubusercontent.com/combustible12/TreatmentVault-Updates/main/TreatmentVault-latest.apk",
               "sha256": os.environ["SHA"],
-              "notes": "记录与文件夹彻底解耦：检查、治疗、药品、症状、体温、问诊、费用等专用记录现在都能像普通笔记一样自由移动到任意文件夹或子文件夹，仍保留原记录类型和专用字段。文件夹内长按可多选任意记录移动；“收纳已有”可从其他位置收纳任意记录和文件夹。新增记录位置映射及数据库 5→6 安全迁移，旧数据默认保持原位置；备份恢复同步保存记录位置，首页、搜索、全部记录和资料树同步显示移动后的文件夹归属。"
+              "notes": "内容可靠性重构：正文中的图文顺序成为唯一显示顺序，附件表只负责文件存储，不再反向把图片塞回末尾；普通笔记支持延迟自动保存、退出前保存和切后台前保存，修复文字消失和图片调序后回退。旧记录若只有附件没有正文图片标记会安全补齐一次；删除图片改为记录保存成功后再清理文件。检查、治疗、药品、症状、体温、问诊、费用、时间线编辑器关闭时也会先保存有效修改并同步附件。移除两套已废弃的旧分类/笔记页面，统一使用当前文件夹页面。发布前新增图文顺序、图片-only 内容、旧附件恢复和笔记持久化回归测试。"
           }
           with open("update-repo/update.json", "w", encoding="utf-8") as f:
               json.dump(data, f, ensure_ascii=False, indent=2)
