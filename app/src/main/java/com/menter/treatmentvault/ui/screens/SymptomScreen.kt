@@ -19,12 +19,23 @@ import java.util.Date
 import java.util.Locale
 
 @Composable
-fun SymptomScreen(back: () -> Unit) {
+fun SymptomScreen(back: () -> Unit, initialEditId: Long = 0L) {
     val dao = (androidx.compose.ui.platform.LocalContext.current.applicationContext as TreatmentVaultApplication).database.dao()
     val list by dao.symptoms().collectAsState(emptyList())
     val scope = rememberCoroutineScope()
     var editorOpen by remember { mutableStateOf(false) }
     var editing by remember { mutableStateOf<SymptomEntity?>(null) }
+    var openedInitial by remember(initialEditId) { mutableStateOf(false) }
+
+    LaunchedEffect(initialEditId, list) {
+        if (!openedInitial && initialEditId > 0L) {
+            list.firstOrNull { it.id.toLong() == initialEditId }?.let {
+                editing = it
+                editorOpen = true
+                openedInitial = true
+            }
+        }
+    }
 
     Page("症状记录", back) {
         Text("先像记笔记一样写发生了什么，需要时再展开体温、疼痛、排便等细项。", style = MaterialTheme.typography.bodySmall)
