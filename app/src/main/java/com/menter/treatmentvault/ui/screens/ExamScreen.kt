@@ -16,12 +16,23 @@ import com.menter.treatmentvault.data.ExamEntity
 import kotlinx.coroutines.launch
 
 @Composable
-fun ExamScreen(back: () -> Unit) {
+fun ExamScreen(back: () -> Unit, initialEditId: Long = 0L) {
     val dao = (androidx.compose.ui.platform.LocalContext.current.applicationContext as TreatmentVaultApplication).database.dao()
     val list by dao.exams().collectAsState(emptyList())
     val scope = rememberCoroutineScope()
     var editorOpen by remember { mutableStateOf(false) }
     var editing by remember { mutableStateOf<ExamEntity?>(null) }
+    var openedInitial by remember(initialEditId) { mutableStateOf(false) }
+
+    LaunchedEffect(initialEditId, list) {
+        if (!openedInitial && initialEditId > 0L) {
+            list.firstOrNull { it.id.toLong() == initialEditId }?.let {
+                editing = it
+                editorOpen = true
+                openedInitial = true
+            }
+        }
+    }
 
     Page("检查报告", back) {
         Text("按笔记来记：标题 + 可穿插的文字/图片。日期、医院、类型等都只是选填。", style = MaterialTheme.typography.bodySmall)
