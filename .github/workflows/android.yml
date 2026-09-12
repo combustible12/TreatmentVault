@@ -30,7 +30,7 @@ jobs:
           "$BUILD_TOOLS/aapt2" dump badging "$APK" | tee app/build/outputs/apk/debug/apk-info.txt
           sha256sum "$APK" | tee app/build/outputs/apk/debug/app-debug.apk.sha256
           KEY_SHA="$(keytool -exportcert -alias androiddebugkey -keystore "$KEYSTORE" -storepass android 2>/dev/null | sha256sum | awk '{print $1}')"
-          APK_SHA="$(awk -F': ' '/certificate SHA-256 digest:/{print tolower($2); exit}' app/build/outputs/apk/debug/apk-signing.txt)"
+          APK_SHA="$(awk -F': ' '/certificate SHA-256 digest:/{print tolower($NF); exit}' app/build/outputs/apk/debug/apk-signing.txt)"
           echo "Expected signer: $KEY_SHA"
           echo "APK signer:      $APK_SHA"
           test -n "$KEY_SHA" && test "$KEY_SHA" = "$APK_SHA"
