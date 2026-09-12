@@ -7,9 +7,13 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.menter.treatmentvault.TreatmentVaultApplication
 import com.menter.treatmentvault.data.CategoryEntity
+import com.menter.treatmentvault.data.RecordStateEntity
+import kotlinx.coroutines.launch
 
 internal fun folderPathFor(categoryKey: String, categories: List<CategoryEntity>): List<CategoryEntity> {
     val byKey = categories.associateBy { it.key }
@@ -34,6 +38,22 @@ internal fun RecordFolderOwnershipDialog(
     onFoldersChange: ((Set<String>) -> Unit)? = null,
     onSelectForMove: (() -> Unit)? = null,
 ) {
+    val app = LocalContext.current.applicationContext as TreatmentVaultApplication
+    val dao = app.database.dao()
+    val scope = rememberCoroutineScope()
+    var currentState by remember(item.key) { mutableStateOf<RecordStateEntity?>(null) }
+    var renaming by remember(item.key) { mutableStateOf(false) }
+    var renameText by remember(item.key) { mutableStateOf("") }
+
+    LaunchedEffect(item.key) {
+        currentState = dao.recordState(item.ownerType, item.ownerId)
+            ?: RecordStateEntity(ownerType = item.ownerType, ownerId = item.ownerId)
+        renameText = recordDisplayTitle(item, currentState!!)
+    }
+
+    val displayTitle = currentState?.let { recordDisplayTitle(item, it) } ?: item.title
+    val cleanRename = renameText.trim()
+
     val availableFolders = remember(categories) {
         categories.filter { isFolderCategory(it) && !it.hidden }
             .sortedBy { folderPathText(it.key, categories).lowercase() }
@@ -51,11 +71,21 @@ internal fun RecordFolderOwnershipDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(item.title, maxLines = 2, overflow = TextOverflow.Ellipsis) },
+        title = { Text(if (renaming) "重命名" else displayTitle, maxLines = 2, overflow = TextOverflow.Ellipsis) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text("归属文件夹", style = MaterialTheme.typography.titleSmall)
-                if (!managing) {
+                if (renaming) {
+                    OutlinedTextField(
+                        value = renameText,
+                        onValueChange = { renameText = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        label = { Text("显示名称") },
+                        singleLine = true,
+                    )
+                    Text("只修改列表里的显示名称，不改变体温、金额、日期等原始记录字段。", style = MaterialTheme.typography.bodySmall)
+                } else {
+                    Text("归属文件夹", style = MaterialTheme.typography.titleSmall)
+                    if (!managing) {
                     if (currentFolders.isEmpty()) {
                         Text("未找到有效文件夹归属", style = MaterialTheme.typography.bodyMedium)
                     } else {
@@ -71,9 +101,15 @@ internal fun RecordFolderOwnershipDialog(
                             }
                         }
                     }
-                    if (onFoldersChange != null) {
-                        TextButton(onClick = { managing = true }, modifier = Modifier.fillMaxWidth()) {
-                            Text("管理归属文件夹")
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        TextButton(
+                            onClick = { renameText = displayTitle; renaming = true },
+                            modifier = Modifier.weight(1f),
+                        ) { Text("重命名") }
+                        if (onFoldersChange != null) {
+                            TextButton(onClick = { managing = true }, modifier = Modifier.weight(1f)) {
+                                Text("管理归属")
+                            }
                         }
                     }
                 } else {
@@ -117,10 +153,27 @@ internal fun RecordFolderOwnershipDialog(
                         }
                     }
                 }
+                }
             }
         },
         confirmButton = {
-            if (managing && onFoldersChange != null) {
+            if (renaming) {
+                TextButton(
+                    enabled = cleanRename.isNotBlank(),
+                    onClick = {
+                        val base = currentState ?: RecordStateEntity(ownerType = item.ownerType, ownerId = item.ownerId)
+                        val next = base.copy(
+                            customTitle = cleanRename.takeUnless { it == item.title },
+                            updatedAt = System.currentTimeMillis(),
+                        )
+                        scope.launch {
+                            dao.saveRecordState(next)
+                            currentState = next
+                            renaming = false
+                        }
+                    },
+                ) { Text("保存名称") }
+            } else if (managing && onFoldersChange != null) {
                 TextButton(
                     enabled = item.ownerType == "note" || selected.isNotEmpty(),
                     onClick = {
@@ -134,6 +187,7 @@ internal fun RecordFolderOwnershipDialog(
             }
         },
         dismissButton = when {
+            renaming -> ({ TextButton(onClick = { renaming = false; renameText = displayTitle }) { Text("返回") } })
             managing -> ({ TextButton(onClick = { managing = false; selected = item.folderKeys }) { Text("返回") } })
             onSelectForMove != null -> ({ TextButton(onClick = onSelectForMove) { Text("选择并移动") } })
             else -> null

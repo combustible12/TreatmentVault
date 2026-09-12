@@ -63,6 +63,7 @@ fun HomeScreen(go: (String) -> Unit) {
     var parentMenuOpen by remember { mutableStateOf(false) }
     var ownershipItem by remember { mutableStateOf<UnifiedRecordItem?>(null) }
     var renameCategory by remember { mutableStateOf<CategoryEntity?>(null) }
+    var addMenuOpen by remember { mutableStateOf(false) }
 
     LaunchedEffect(categories) {
         if (categories.none { it.key == "inbox" }) {
@@ -85,9 +86,10 @@ fun HomeScreen(go: (String) -> Unit) {
     val pinnedRecords = remember(activeRecords, stateMap) { activeRecords.filter { recordStateFor(it, stateMap).pinned }.take(5) }
     val recentRecords = remember(activeRecords) { activeRecords.take(7) }
     val q = query.trim()
-    val recordSearch = remember(activeRecords, q) {
+    val recordSearch = remember(activeRecords, stateMap, q) {
         if (q.isBlank()) emptyList() else activeRecords.filter { item ->
-            listOf(item.title, item.preview, item.section, item.date).any { it.contains(q, true) }
+            val state = recordStateFor(item, stateMap)
+            listOf(recordDisplayTitle(item, state), item.preview, item.section, item.date).any { it.contains(q, true) }
         }
     }
     val categorySearch = remember(categories, q) {
@@ -181,7 +183,23 @@ fun HomeScreen(go: (String) -> Unit) {
                     actions = { IconButton(onClick = { go("structure") }) { Icon(Icons.Default.AccountTree, contentDescription = "资料树") } },
                 )
             },
-            floatingActionButton = { FloatingActionButton(onClick = { go("note/new/inbox") }) { Icon(Icons.Default.Add, contentDescription = "新建记录") } },
+            floatingActionButton = {
+                Box {
+                    FloatingActionButton(onClick = { addMenuOpen = true }) { Icon(Icons.Default.Add, contentDescription = "新建") }
+                    DropdownMenu(expanded = addMenuOpen, onDismissRequest = { addMenuOpen = false }) {
+                        DropdownMenuItem(
+                            text = { Text("新建笔记") },
+                            leadingIcon = { Icon(Icons.Default.EditNote, contentDescription = null) },
+                            onClick = { addMenuOpen = false; go("note/new/inbox") },
+                        )
+                        DropdownMenuItem(
+                            text = { Text("新建类目") },
+                            leadingIcon = { Icon(Icons.Default.CreateNewFolder, contentDescription = null) },
+                            onClick = { addMenuOpen = false; showAddCategory = true },
+                        )
+                    }
+                }
+            },
         ) { padding ->
             LazyColumn(
                 modifier = Modifier.fillMaxSize().padding(padding),
@@ -206,15 +224,12 @@ fun HomeScreen(go: (String) -> Unit) {
                         item { Text("分类", style = MaterialTheme.typography.labelLarge) }
                     }
                     items(categorySearch, key = { "category:${it.key}" }) { category ->
-                        ListItem(
-                            modifier = Modifier.fillMaxWidth().combinedClickable(
-                                onClick = { go(categoryRoute(category)) },
-                                onLongClick = { renameCategory = category },
-                            ),
-                            headlineContent = { Text(category.name) },
-                            supportingContent = { Text("分类 · 打开后查看该分类全部记录") },
-                            leadingContent = { Icon(categoryIcon(category.iconKey), null) },
-                            trailingContent = { Icon(Icons.Default.ChevronRight, null) },
+                        HomeCategoryCard(
+                            category = category,
+                            depth = 0,
+                            supporting = "文件夹 · 打开后查看该分类全部记录",
+                            onClick = { go(categoryRoute(category)) },
+                            onLongClick = { renameCategory = category },
                         )
                     }
                     if (recordSearch.isNotEmpty()) {
@@ -269,15 +284,13 @@ fun HomeScreen(go: (String) -> Unit) {
                         }
                     }
                     items(visibleCategories, key = { it.first.key }) { (category, depth) ->
-                        ListItem(
-                            modifier = Modifier.fillMaxWidth().combinedClickable(
-                                onClick = { go(categoryRoute(category)) },
-                                onLongClick = { renameCategory = category },
-                            ),
-                            headlineContent = { Text(category.name, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-                            supportingContent = { val count = countFor(category); Text(if (count == 0) "暂无记录" else "$count 条") },
-                            leadingContent = { Row { if (depth > 0) Spacer(Modifier.width((depth * 18).dp)); Icon(categoryIcon(category.iconKey), null) } },
-                            trailingContent = { Icon(Icons.Default.ChevronRight, null) },
+                        val count = countFor(category)
+                        HomeCategoryCard(
+                            category = category,
+                            depth = depth,
+                            supporting = if (count == 0) "文件夹 · 暂无记录" else "文件夹 · $count 条记录",
+                            onClick = { go(categoryRoute(category)) },
+                            onLongClick = { renameCategory = category },
                         )
                     }
                 }
@@ -337,6 +350,41 @@ fun HomeScreen(go: (String) -> Unit) {
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
+private fun HomeCategoryCard(
+    category: CategoryEntity,
+    depth: Int,
+    supporting: String,
+    onClick: () -> Unit,
+    onLongClick: () -> Unit,
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth().padding(start = (depth * 12).dp).combinedClickable(onClick = onClick, onLongClick = onLongClick),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
+        shape = MaterialTheme.shapes.large,
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Surface(
+                shape = MaterialTheme.shapes.medium,
+                color = MaterialTheme.colorScheme.secondary,
+                contentColor = MaterialTheme.colorScheme.onSecondary,
+            ) {
+                Box(Modifier.padding(9.dp)) { Icon(categoryIcon(category.iconKey), contentDescription = "文件夹") }
+            }
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(category.name, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(supporting, style = MaterialTheme.typography.labelSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+            Icon(Icons.Default.ChevronRight, contentDescription = null)
+        }
+    }
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
 private fun RecordListItem(
     item: UnifiedRecordItem,
     state: RecordStateEntity,
@@ -356,7 +404,7 @@ private fun RecordListItem(
                     Checkbox(checked = state.completed, onCheckedChange = { onStateChange(state.copy(completed = it)) })
                 }
                 if (state.pinned) Icon(Icons.Default.PushPin, null, modifier = Modifier.size(16.dp), tint = contentColor)
-                Text(item.title, maxLines = 1, overflow = TextOverflow.Ellipsis, color = contentColor)
+                Text(recordDisplayTitle(item, state), maxLines = 1, overflow = TextOverflow.Ellipsis, color = contentColor)
             }
         },
         supportingContent = {

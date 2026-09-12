@@ -64,7 +64,7 @@ fun AllRecordsScreen(back: () -> Unit, go: (String) -> Unit) {
                 RecordShelf.ARCHIVED -> state.trashedAt == null && state.archived
                 RecordShelf.TRASH -> state.trashedAt != null
             }
-            shelfMatch && (q.isBlank() || listOf(item.title, item.preview, item.section, item.date).any { it.contains(q, true) })
+            shelfMatch && (q.isBlank() || listOf(recordDisplayTitle(item, state), item.preview, item.section, item.date).any { it.contains(q, true) })
         }.sortedWith(
             compareByDescending<UnifiedRecordItem> { recordStateFor(it, stateMap).pinned && shelf == RecordShelf.ALL }
                 .thenByDescending { isTodo(recordStateFor(it, stateMap)) && !recordStateFor(it, stateMap).completed }
@@ -130,7 +130,7 @@ fun AllRecordsScreen(back: () -> Unit, go: (String) -> Unit) {
                 }
             }
             if (selectedKeys.isEmpty()) {
-                item { Text("${filtered.size} 条记录 · 长按查看全部归属文件夹", style = MaterialTheme.typography.bodySmall) }
+                item { Text("${filtered.size} 条记录 · 长按可重命名并查看全部归属文件夹", style = MaterialTheme.typography.bodySmall) }
             }
             if (filtered.isEmpty()) {
                 item {
@@ -230,7 +230,7 @@ private fun UnifiedRecordRow(
                     )
                 }
                 if (state.pinned && shelf != RecordShelf.TRASH) Icon(Icons.Default.PushPin, contentDescription = null, modifier = Modifier.size(16.dp), tint = contentColor)
-                Text(item.title, maxLines = 1, overflow = TextOverflow.Ellipsis, color = contentColor)
+                Text(recordDisplayTitle(item, state), maxLines = 1, overflow = TextOverflow.Ellipsis, color = contentColor)
             }
         },
         supportingContent = {

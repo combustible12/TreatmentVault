@@ -75,9 +75,10 @@ fun FolderScreen(categoryId: String, back: () -> Unit, go: (String) -> Unit) {
     val visibleChildren = remember(childFolders, q) {
         if (q.isBlank()) childFolders else childFolders.filter { it.name.contains(q, true) || it.smartKeywords.contains(q, true) }
     }
-    val visibleItems = remember(directItems, q) {
+    val visibleItems = remember(directItems, stateMap, q) {
         if (q.isBlank()) directItems else directItems.filter { item ->
-            listOf(item.title, item.preview, item.date, item.section).any { it.contains(q, true) }
+            val state = recordStateFor(item, stateMap)
+            listOf(recordDisplayTitle(item, state), item.preview, item.date, item.section).any { it.contains(q, true) }
         }
     }
 
@@ -386,7 +387,7 @@ private fun FolderRecordCard(
                     if (isTodo(state)) {
                         Checkbox(checked = state.completed, onCheckedChange = { onStateChange(state.copy(completed = it)) })
                     }
-                    Text(item.title, color = contentColor, style = MaterialTheme.typography.titleMedium, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+                    Text(recordDisplayTitle(item, state), color = contentColor, style = MaterialTheme.typography.titleMedium, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
                     if (state.pinned) Icon(Icons.Default.PushPin, contentDescription = null, modifier = Modifier.size(14.dp), tint = contentColor)
                     if (state.favorite) Icon(Icons.Default.Favorite, contentDescription = null, modifier = Modifier.size(14.dp), tint = contentColor)
                 }

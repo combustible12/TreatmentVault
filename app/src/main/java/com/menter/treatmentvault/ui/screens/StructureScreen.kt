@@ -69,7 +69,10 @@ fun StructureScreen(back: () -> Unit, go: (String) -> Unit) {
     fun children(category: CategoryEntity): List<String> = activeItems
         .filter { it.categoryKey == category.key }
         .sortedByDescending { it.updatedAt }
-        .map { item -> if (item.date.isBlank()) item.title else "${item.date} · ${item.title}" }
+        .map { item ->
+            val title = recordDisplayTitle(item, recordStateFor(item, stateMap))
+            if (item.date.isBlank()) title else "${item.date} · $title"
+        }
 
     Page("资料树", back) {
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {

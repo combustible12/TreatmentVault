@@ -13,6 +13,9 @@ internal fun toggleTodoDisplay(state: RecordStateEntity): RecordStateEntity =
 internal fun toggleTodoCompleted(state: RecordStateEntity): RecordStateEntity =
     state.copy(displayType = "todo", completed = !state.completed)
 
+internal fun recordDisplayTitle(item: UnifiedRecordItem, state: RecordStateEntity): String =
+    state.customTitle?.trim()?.takeIf { it.isNotEmpty() } ?: item.title
+
 @Composable
 internal fun recordBackgroundColor(state: RecordStateEntity, normal: Color = Color.Transparent): Color = when {
     isTodo(state) && state.completed -> MaterialTheme.colorScheme.surfaceVariant

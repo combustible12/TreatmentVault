@@ -22,5 +22,6 @@ data class RecordStateEntity(
     val trashedAt: Long? = null,
     @ColumnInfo(defaultValue = "'normal'") val displayType: String? = "normal",
     @ColumnInfo(defaultValue = "0") val completed: Boolean = false,
+    val customTitle: String? = null,
     val updatedAt: Long = System.currentTimeMillis(),
 )
