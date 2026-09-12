@@ -20,7 +20,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
@@ -34,40 +33,6 @@ import kotlinx.coroutines.withContext
 import java.io.File
 import java.util.UUID
 
-private val imageMarkerRegex = Regex("\\[\\[image:([^\\]]+)]]")
-
-private sealed interface RichBlock {
-    val key: String
-    data class TextBlock(override val key: String = UUID.randomUUID().toString(), val text: String = "") : RichBlock
-    data class ImageBlock(override val key: String = UUID.randomUUID().toString(), val fileName: String) : RichBlock
-}
-
-fun richBodyPlainText(value: String): String = imageMarkerRegex.replace(value, "")
-    .replace(Regex("\\n{3,}"), "\n\n")
-    .trim()
-
-private fun parseRichBody(value: String): List<RichBlock> {
-    val result = mutableListOf<RichBlock>()
-    var cursor = 0
-    imageMarkerRegex.findAll(value).forEach { match ->
-        val before = value.substring(cursor, match.range.first).trim('\n')
-        if (before.isNotBlank()) result += RichBlock.TextBlock(text = before)
-        result += RichBlock.ImageBlock(fileName = match.groupValues[1])
-        cursor = match.range.last + 1
-    }
-    val tail = value.substring(cursor).trim('\n')
-    if (tail.isNotBlank()) result += RichBlock.TextBlock(text = tail)
-    if (result.none { it is RichBlock.TextBlock }) result.add(0, RichBlock.TextBlock())
-    return result
-}
-
-private fun serializeRichBody(blocks: List<RichBlock>): String = blocks.joinToString("\n\n") { block ->
-    when (block) {
-        is RichBlock.TextBlock -> block.text.trimEnd()
-        is RichBlock.ImageBlock -> "[[image:${block.fileName}]]"
-    }
-}.trim()
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun Page(title: String, onBack: () -> Unit, content: @Composable ColumnScope.() -> Unit) {
@@ -76,7 +41,7 @@ fun Page(title: String, onBack: () -> Unit, content: @Composable ColumnScope.() 
         "总时间轴" -> "timeline"
         "检查报告" -> "exams"
         "治疗方案与记录" -> "treatment"
-        "药品用品" -> "supplies"
+        "药品用品", "药品与用品" -> "supplies"
         "症状记录" -> "symptoms"
         "体温记录" -> "temperature"
         "医生问诊" -> "questions"
@@ -106,13 +71,7 @@ fun Field(value: String, on: (String) -> Unit, label: String) {
 
 @Composable
 fun NoteBodyField(value: String, on: (String) -> Unit, label: String = "正文") {
-    OutlinedTextField(
-        value = value,
-        onValueChange = on,
-        label = { Text(label) },
-        modifier = Modifier.fillMaxWidth(),
-        minLines = 7,
-    )
+    OutlinedTextField(value = value, onValueChange = on, label = { Text(label) }, modifier = Modifier.fillMaxWidth(), minLines = 7)
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -122,16 +81,18 @@ fun FullScreenEditorDialog(
     onDismiss: () -> Unit,
     onSave: () -> Unit,
     canSave: Boolean = true,
+    hasPersistedRecord: Boolean = false,
     content: @Composable ColumnScope.() -> Unit,
 ) {
-    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+    val requestClose = { if (canSave || hasPersistedRecord) onSave() else onDismiss() }
+    Dialog(onDismissRequest = requestClose, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
             Scaffold(
                 topBar = {
                     TopAppBar(
                         title = { Text(title) },
-                        navigationIcon = { IconButton(onClick = onDismiss) { Icon(Icons.Default.Close, contentDescription = "关闭") } },
-                        actions = { TextButton(onClick = onSave, enabled = canSave) { Text("保存") } },
+                        navigationIcon = { IconButton(onClick = requestClose) { Icon(Icons.Default.Close, contentDescription = "保存并关闭") } },
+                        actions = { TextButton(onClick = onSave, enabled = canSave || hasPersistedRecord) { Text("保存") } },
                     )
                 },
             ) { padding ->
@@ -171,16 +132,18 @@ fun RichNoteBodyEditor(
     pendingFiles: List<String>,
     onPendingFilesChange: (List<String>) -> Unit,
     label: String = "正文",
+    sessionKey: Any = ownerId,
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val flow = remember(ownerType, ownerId) { if (ownerId > 0) dao.attachments(ownerType, ownerId) else flowOf(emptyList()) }
     val existing by flow.collectAsState(initial = emptyList())
-    val blocks = remember(ownerType, ownerId) { mutableStateListOf<RichBlock>() }
-    var lastSerializedValue by remember(ownerType, ownerId) { mutableStateOf<String?>(null) }
-    var hydrationVersion by remember(ownerType, ownerId) { mutableIntStateOf(0) }
-    var previewFile by remember { mutableStateOf<File?>(null) }
-    var insertIndex by remember { mutableIntStateOf(0) }
+    val blocks = remember(ownerType, sessionKey) { mutableStateListOf<RichBlock>() }
+    var lastSerializedValue by remember(ownerType, sessionKey) { mutableStateOf<String?>(null) }
+    var hydrated by remember(ownerType, sessionKey) { mutableStateOf(false) }
+    var legacyRecovered by remember(ownerType, sessionKey) { mutableStateOf(false) }
+    var previewFile by remember(ownerType, sessionKey) { mutableStateOf<File?>(null) }
+    var insertIndex by remember(ownerType, sessionKey) { mutableIntStateOf(0) }
 
     fun sync() {
         val serialized = serializeRichBody(blocks)
@@ -188,23 +151,27 @@ fun RichNoteBodyEditor(
         onValueChange(serialized)
     }
 
-    LaunchedEffect(ownerType, ownerId, value) {
+    LaunchedEffect(ownerType, sessionKey, value) {
         if (lastSerializedValue == null || value != lastSerializedValue) {
             blocks.clear()
             blocks.addAll(parseRichBody(value))
             lastSerializedValue = value
             insertIndex = blocks.size
-            hydrationVersion++
+            hydrated = true
         }
     }
 
-    LaunchedEffect(existing, hydrationVersion) {
-        val names = blocks.filterIsInstance<RichBlock.ImageBlock>().map { it.fileName }.toSet()
-        val missing = existing.filterNot { it.fileName in names }
-        if (missing.isNotEmpty()) {
-            missing.forEach { blocks += RichBlock.ImageBlock(fileName = it.fileName) }
+    LaunchedEffect(existing, hydrated) {
+        if (!hydrated || legacyRecovered) return@LaunchedEffect
+        legacyRecovered = true
+        val current = serializeRichBody(blocks)
+        val recovered = recoverLegacyImageMarkers(current, existing.map { it.fileName })
+        if (recovered != current) {
+            blocks.clear()
+            blocks.addAll(parseRichBody(recovered))
+            lastSerializedValue = recovered
             insertIndex = blocks.size
-            sync()
+            onValueChange(recovered)
         }
     }
 
@@ -219,7 +186,7 @@ fun RichNoteBodyEditor(
                     at++
                 }
                 insertIndex = at
-                onPendingFilesChange(pendingFiles + imported)
+                onPendingFilesChange((pendingFiles + imported).distinct())
                 sync()
             }
         }
@@ -229,6 +196,7 @@ fun RichNoteBodyEditor(
         if (from !in blocks.indices || to !in blocks.indices || from == to) return
         val item = blocks.removeAt(from)
         blocks.add(to, item)
+        insertIndex = (to + 1).coerceAtMost(blocks.size)
         sync()
     }
 
@@ -237,29 +205,23 @@ fun RichNoteBodyEditor(
             is RichBlock.TextBlock -> {
                 if (blocks.size == 1) blocks[index] = block.copy(text = "") else blocks.removeAt(index)
                 if (blocks.none { it is RichBlock.TextBlock }) blocks.add(0, RichBlock.TextBlock())
-                sync()
             }
             is RichBlock.ImageBlock -> {
-                val old = existing.firstOrNull { it.fileName == block.fileName }
-                if (old != null) {
-                    scope.launch {
-                        dao.deleteAttachment(old)
-                        withContext(Dispatchers.IO) { attachmentFile(context, old.fileName).delete() }
-                    }
-                } else if (block.fileName in pendingFiles) {
+                if (block.fileName in pendingFiles && existing.none { it.fileName == block.fileName }) {
                     onPendingFilesChange(pendingFiles - block.fileName)
                     scope.launch(Dispatchers.IO) { attachmentFile(context, block.fileName).delete() }
                 }
                 blocks.removeAt(index)
                 if (blocks.none { it is RichBlock.TextBlock }) blocks.add(0, RichBlock.TextBlock())
-                sync()
             }
         }
+        insertIndex = insertIndex.coerceAtMost(blocks.size)
+        sync()
     }
 
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Text(label, style = MaterialTheme.typography.titleSmall)
-        Text("文字和图片可以任意穿插。点图片看大图；每个区块都能继续往下插文字或图片。", style = MaterialTheme.typography.bodySmall)
+        Text("文字和图片的当前顺序就是保存顺序；退出再打开也应保持一致。", style = MaterialTheme.typography.bodySmall)
 
         blocks.forEachIndexed { index, block ->
             key(block.key) {
@@ -278,7 +240,16 @@ fun RichNoteBodyEditor(
                     }
                     is RichBlock.ImageBlock -> {
                         val file = attachmentFile(context, block.fileName)
-                        NoteImagePreview(file = file, onOpen = { previewFile = file })
+                        if (file.isFile) {
+                            NoteImagePreview(file = file, onOpen = { previewFile = file })
+                        } else {
+                            Card(Modifier.fillMaxWidth()) {
+                                Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    Icon(Icons.Default.BrokenImage, contentDescription = null)
+                                    Text("图片文件暂时不可用，但位置已保留。", style = MaterialTheme.typography.bodySmall)
+                                }
+                            }
+                        }
                     }
                 }
 
@@ -287,32 +258,16 @@ fun RichNoteBodyEditor(
                     horizontalArrangement = Arrangement.spacedBy(2.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    IconButton(onClick = { move(index, index - 1) }, enabled = index > 0) {
-                        Icon(Icons.Default.ArrowUpward, contentDescription = "上移")
+                    IconButton(onClick = { move(index, index - 1) }, enabled = index > 0) { Icon(Icons.Default.ArrowUpward, contentDescription = "上移") }
+                    IconButton(onClick = { move(index, index + 1) }, enabled = index < blocks.lastIndex) { Icon(Icons.Default.ArrowDownward, contentDescription = "下移") }
+                    TextButton(onClick = { blocks.add(index + 1, RichBlock.TextBlock()); insertIndex = index + 2; sync() }) {
+                        Icon(Icons.Default.Add, contentDescription = null); Spacer(Modifier.width(3.dp)); Text("文字")
                     }
-                    IconButton(onClick = { move(index, index + 1) }, enabled = index < blocks.lastIndex) {
-                        Icon(Icons.Default.ArrowDownward, contentDescription = "下移")
-                    }
-                    TextButton(onClick = {
-                        blocks.add(index + 1, RichBlock.TextBlock())
-                        sync()
-                    }) {
-                        Icon(Icons.Default.Add, contentDescription = null)
-                        Spacer(Modifier.width(3.dp))
-                        Text("文字")
-                    }
-                    TextButton(onClick = {
-                        insertIndex = index + 1
-                        picker.launch(arrayOf("image/*"))
-                    }) {
-                        Icon(Icons.Default.AddPhotoAlternate, contentDescription = null)
-                        Spacer(Modifier.width(3.dp))
-                        Text("图片")
+                    TextButton(onClick = { insertIndex = index + 1; picker.launch(arrayOf("image/*")) }) {
+                        Icon(Icons.Default.AddPhotoAlternate, contentDescription = null); Spacer(Modifier.width(3.dp)); Text("图片")
                     }
                     Spacer(Modifier.weight(1f))
-                    IconButton(onClick = { remove(index, block) }) {
-                        Icon(Icons.Default.DeleteOutline, contentDescription = "删除区块")
-                    }
+                    IconButton(onClick = { remove(index, block) }) { Icon(Icons.Default.DeleteOutline, contentDescription = "删除区块") }
                 }
             }
         }
@@ -321,62 +276,29 @@ fun RichNoteBodyEditor(
     previewFile?.let { file -> FullScreenImageViewer(file = file, onDismiss = { previewFile = null }) }
 }
 
-@Composable
-fun ImageAttachmentSection(
+suspend fun reconcileRichAttachments(
+    context: Context,
     dao: AppDao,
     ownerType: String,
     ownerId: Long,
-    pendingFiles: List<String>,
-    onPendingFilesChange: (List<String>) -> Unit,
+    body: String,
 ) {
-    val context = LocalContext.current
-    val scope = rememberCoroutineScope()
-    val flow = remember(ownerType, ownerId) { if (ownerId > 0) dao.attachments(ownerType, ownerId) else flowOf(emptyList()) }
-    val existing by flow.collectAsState(initial = emptyList())
-    var previewFile by remember { mutableStateOf<File?>(null) }
-    val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
-        if (uris.isEmpty()) return@rememberLauncherForActivityResult
-        scope.launch {
-            val imported = uris.mapNotNull { uri -> runCatching { importImageToApp(context, uri) }.getOrNull() }
-            if (imported.isNotEmpty()) onPendingFilesChange(pendingFiles + imported)
+    if (ownerId <= 0L) return
+    val desired = richBodyImageNames(body).distinct()
+    val desiredSet = desired.toSet()
+    val existing = dao.attachmentsForOwner(ownerType, ownerId)
+    val existingNames = existing.map { it.fileName }.toSet()
+
+    desired.filterNot { it in existingNames }.forEach { fileName ->
+        if (attachmentFile(context, fileName).isFile) {
+            dao.saveAttachment(AttachmentEntity(ownerType = ownerType, ownerId = ownerId, fileName = fileName))
         }
     }
 
-    Text("图片", style = MaterialTheme.typography.titleSmall)
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        existing.forEach { attachment ->
-            val file = attachmentFile(context, attachment.fileName)
-            Box {
-                NoteImagePreview(file = file, onOpen = { previewFile = file })
-                FilledIconButton(onClick = {
-                    scope.launch {
-                        dao.deleteAttachment(attachment)
-                        withContext(Dispatchers.IO) { file.delete() }
-                    }
-                }, modifier = Modifier.align(Alignment.TopEnd).padding(6.dp).size(34.dp)) {
-                    Icon(Icons.Default.Close, contentDescription = "移除图片")
-                }
-            }
-        }
-        pendingFiles.forEach { fileName ->
-            val file = attachmentFile(context, fileName)
-            Box {
-                NoteImagePreview(file = file, onOpen = { previewFile = file })
-                FilledIconButton(onClick = {
-                    onPendingFilesChange(pendingFiles - fileName)
-                    scope.launch(Dispatchers.IO) { file.delete() }
-                }, modifier = Modifier.align(Alignment.TopEnd).padding(6.dp).size(34.dp)) {
-                    Icon(Icons.Default.Close, contentDescription = "移除图片")
-                }
-            }
-        }
+    existing.filterNot { it.fileName in desiredSet }.forEach { attachment ->
+        dao.deleteAttachment(attachment)
+        withContext(Dispatchers.IO) { attachmentFile(context, attachment.fileName).delete() }
     }
-    OutlinedButton(onClick = { picker.launch(arrayOf("image/*")) }, modifier = Modifier.fillMaxWidth()) {
-        Icon(Icons.Default.AddPhotoAlternate, contentDescription = null)
-        Spacer(Modifier.width(6.dp))
-        Text("添加图片")
-    }
-    previewFile?.let { file -> FullScreenImageViewer(file = file, onDismiss = { previewFile = null }) }
 }
 
 @Composable
@@ -413,23 +335,14 @@ private fun FullScreenImageViewer(file: File, onDismiss: () -> Unit) {
             AsyncImage(
                 model = file,
                 contentDescription = "大图预览",
-                modifier = Modifier
-                    .fillMaxSize()
-                    .graphicsLayer(scaleX = scale, scaleY = scale, translationX = offsetX, translationY = offsetY)
-                    .transformable(transformState),
+                modifier = Modifier.fillMaxSize().graphicsLayer(scaleX = scale, scaleY = scale, translationX = offsetX, translationY = offsetY).transformable(transformState),
                 contentScale = ContentScale.Fit,
             )
             FilledIconButton(
                 onClick = onDismiss,
                 modifier = Modifier.align(Alignment.TopEnd).statusBarsPadding().padding(16.dp),
                 colors = IconButtonDefaults.filledIconButtonColors(containerColor = Color(0xAA2A2A2A), contentColor = Color.White),
-            ) {
-                Icon(Icons.Default.Close, contentDescription = "关闭大图")
-            }
+            ) { Icon(Icons.Default.Close, contentDescription = "关闭大图") }
         }
     }
-}
-
-suspend fun savePendingAttachments(dao: AppDao, ownerType: String, ownerId: Long, fileNames: List<String>) {
-    fileNames.distinct().forEach { fileName -> dao.saveAttachment(AttachmentEntity(ownerType = ownerType, ownerId = ownerId, fileName = fileName)) }
 }
