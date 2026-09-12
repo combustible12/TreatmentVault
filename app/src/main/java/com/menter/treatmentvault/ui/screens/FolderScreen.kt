@@ -62,16 +62,15 @@ fun FolderScreen(categoryId: String, back: () -> Unit, go: (String) -> Unit) {
         }
     }
     val childFolders = remember(categories, categoryId) {
-        categories
-            .filter { it.parentId == categoryId && isFolderCategory(it) && !it.hidden }
+        categories.filter { it.parentId == categoryId && isFolderCategory(it) && !it.hidden }
             .sortedWith(compareBy<CategoryEntity> { it.sortOrder }.thenBy { it.name })
     }
     val directItems = remember(activeItems, categoryId) {
         activeItems.filter { it.categoryKey == categoryId }.sortedByDescending { it.updatedAt }
     }
-    val inboxCandidates = remember(allNotes, stateMap, categoryId) {
-        if (categoryId == "inbox") emptyList() else allNotes.filter { note ->
-            if (note.categoryId != "inbox") return@filter false
+    val collectableNotes = remember(allNotes, stateMap, categoryId) {
+        allNotes.filter { note ->
+            if (note.categoryId == categoryId) return@filter false
             val state = stateMap["note:${note.id}"]
             state?.trashedAt == null && state?.archived != true
         }.sortedByDescending { it.updatedAt }
@@ -108,23 +107,13 @@ fun FolderScreen(categoryId: String, back: () -> Unit, go: (String) -> Unit) {
             if (selectedIds.isNotEmpty()) {
                 TopAppBar(
                     title = { Text("已选 ${selectedIds.size} 条") },
-                    navigationIcon = {
-                        IconButton(onClick = { selectedIds = emptySet() }) {
-                            Icon(Icons.Default.Close, contentDescription = "取消选择")
-                        }
-                    },
-                    actions = {
-                        IconButton(onClick = { showMove = true }) {
-                            Icon(Icons.Default.FolderOpen, contentDescription = "移动到")
-                        }
-                    },
+                    navigationIcon = { IconButton(onClick = { selectedIds = emptySet() }) { Icon(Icons.Default.Close, contentDescription = "取消选择") } },
+                    actions = { IconButton(onClick = { showMove = true }) { Icon(Icons.Default.FolderOpen, contentDescription = "移动到") } },
                 )
             } else {
                 TopAppBar(
                     title = { Text(folder.name) },
-                    navigationIcon = {
-                        IconButton(onClick = back) { Icon(Icons.Default.ArrowBack, contentDescription = "返回") }
-                    },
+                    navigationIcon = { IconButton(onClick = back) { Icon(Icons.Default.ArrowBack, contentDescription = "返回") } },
                 )
             }
         },
@@ -176,11 +165,7 @@ fun FolderScreen(categoryId: String, back: () -> Unit, go: (String) -> Unit) {
                     singleLine = true,
                     placeholder = { Text("搜索当前文件夹") },
                     leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
-                    trailingIcon = {
-                        if (query.isNotBlank()) {
-                            IconButton(onClick = { query = "" }) { Icon(Icons.Default.Close, contentDescription = "清空") }
-                        }
-                    },
+                    trailingIcon = { if (query.isNotBlank()) IconButton(onClick = { query = "" }) { Icon(Icons.Default.Close, contentDescription = "清空") } },
                     shape = MaterialTheme.shapes.extraLarge,
                 )
             }
@@ -217,13 +202,9 @@ fun FolderScreen(categoryId: String, back: () -> Unit, go: (String) -> Unit) {
                         onClick = {
                             if (selectedIds.isNotEmpty()) {
                                 if (item.ownerType == "note") toggleNote(item.ownerId)
-                            } else {
-                                go(item.route)
-                            }
+                            } else go(item.route)
                         },
-                        onLongClick = {
-                            if (item.ownerType == "note") toggleNote(item.ownerId)
-                        },
+                        onLongClick = { if (item.ownerType == "note") toggleNote(item.ownerId) },
                     )
                 }
             }
@@ -240,8 +221,7 @@ fun FolderScreen(categoryId: String, back: () -> Unit, go: (String) -> Unit) {
                             if (q.isBlank()) {
                                 Text(
                                     if (categoryId == "inbox") "可以直接新建笔记，之后再移动到其他文件夹。"
-                                    else if (inboxCandidates.isEmpty()) "可以新建笔记、新建子文件夹；以后“待整理”里有内容时，也能从这里批量收纳。"
-                                    else "“待整理”里有 ${inboxCandidates.size} 条笔记可以收进来，也可以新建子文件夹。",
+                                    else "可以新建笔记、新建子文件夹，或从其他位置收纳已有笔记和文件夹。",
                                     style = MaterialTheme.typography.bodySmall,
                                 )
                             }
@@ -249,19 +229,21 @@ fun FolderScreen(categoryId: String, back: () -> Unit, go: (String) -> Unit) {
                     }
                 }
             }
-
             item { Spacer(Modifier.height(30.dp)) }
         }
     }
 
     if (showCollect) {
-        CollectExistingNotesDialog(
-            notes = inboxCandidates,
+        CollectExistingContentDialog(
+            notes = collectableNotes,
+            categories = categories,
+            destinationCategoryId = categoryId,
             destinationName = folder.name,
             onDismiss = { showCollect = false },
-            onConfirm = { ids ->
+            onConfirm = { noteIds, folderKeys ->
                 scope.launch {
-                    moveNotesToCategory(dao, allNotes, ids, categoryId)
+                    moveNotesToCategory(dao, allNotes, noteIds, categoryId)
+                    moveFoldersToCategory(dao, categories, folderKeys, categoryId)
                     showCollect = false
                 }
             },
@@ -363,10 +345,7 @@ private fun FolderRecordCard(
     onLongClick: () -> Unit,
 ) {
     Card(
-        modifier = Modifier.fillMaxWidth().combinedClickable(
-            onClick = onClick,
-            onLongClick = { if (item.ownerType == "note") onLongClick() },
-        ),
+        modifier = Modifier.fillMaxWidth().combinedClickable(onClick = onClick, onLongClick = { if (item.ownerType == "note") onLongClick() }),
         shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
     ) {
@@ -384,11 +363,8 @@ private fun FolderRecordCard(
                 }
                 if (item.date.isNotBlank()) Text(item.date, style = MaterialTheme.typography.bodySmall)
             }
-            if (selectionMode && item.ownerType == "note") {
-                Checkbox(checked = selected, onCheckedChange = { onClick() })
-            } else if (!selectionMode) {
-                Icon(Icons.Default.ChevronRight, contentDescription = null)
-            }
+            if (selectionMode && item.ownerType == "note") Checkbox(checked = selected, onCheckedChange = { onClick() })
+            else if (!selectionMode) Icon(Icons.Default.ChevronRight, contentDescription = null)
         }
     }
 }
