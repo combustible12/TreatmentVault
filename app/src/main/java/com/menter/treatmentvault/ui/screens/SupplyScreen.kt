@@ -17,12 +17,23 @@ import com.menter.treatmentvault.data.SupplyEntity
 import kotlinx.coroutines.launch
 
 @Composable
-fun SupplyScreen(back: () -> Unit) {
+fun SupplyScreen(back: () -> Unit, initialEditId: Long = 0L) {
     val dao = (androidx.compose.ui.platform.LocalContext.current.applicationContext as TreatmentVaultApplication).database.dao()
     val list by dao.supplies().collectAsState(emptyList())
     val scope = rememberCoroutineScope()
     var editorOpen by remember { mutableStateOf(false) }
     var editing by remember { mutableStateOf<SupplyEntity?>(null) }
+    var openedInitial by remember(initialEditId) { mutableStateOf(false) }
+
+    LaunchedEffect(initialEditId, list) {
+        if (!openedInitial && initialEditId > 0L) {
+            list.firstOrNull { it.id.toLong() == initialEditId }?.let {
+                editing = it
+                editorOpen = true
+                openedInitial = true
+            }
+        }
+    }
 
     Page("药品与用品", back) {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
