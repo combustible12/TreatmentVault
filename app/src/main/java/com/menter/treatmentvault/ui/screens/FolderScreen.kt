@@ -1,7 +1,6 @@
 package com.menter.treatmentvault.ui.screens
 
 import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -68,6 +67,8 @@ fun FolderScreen(categoryId: String, back: () -> Unit, go: (String) -> Unit) {
     var showCollect by remember { mutableStateOf(false) }
     var showNewFolder by remember { mutableStateOf(false) }
     var newFolderName by remember { mutableStateOf("") }
+    var ownershipItem by remember { mutableStateOf<UnifiedRecordItem?>(null) }
+    var renameFolder by remember { mutableStateOf<CategoryEntity?>(null) }
 
     val q = query.trim()
     val visibleChildren = remember(childFolders, q) {
@@ -98,7 +99,15 @@ fun FolderScreen(categoryId: String, back: () -> Unit, go: (String) -> Unit) {
                 )
             } else {
                 TopAppBar(
-                    title = { Text(folder.name) },
+                    title = {
+                        Text(
+                            folder.name,
+                            modifier = Modifier.combinedClickable(
+                                onClick = {},
+                                onLongClick = { renameFolder = folder },
+                            ),
+                        )
+                    },
                     navigationIcon = { IconButton(onClick = back) { Icon(Icons.Default.ArrowBack, contentDescription = "返回") } },
                 )
             }
@@ -163,6 +172,7 @@ fun FolderScreen(categoryId: String, back: () -> Unit, go: (String) -> Unit) {
                             if (isEmpty()) append("空文件夹")
                         },
                         onClick = { go("folder/${child.key}") },
+                        onLongClick = { renameFolder = child },
                     )
                 }
             }
@@ -177,7 +187,10 @@ fun FolderScreen(categoryId: String, back: () -> Unit, go: (String) -> Unit) {
                         selectionMode = selectedKeys.isNotEmpty(),
                         selected = item.key in selectedKeys,
                         onClick = { if (selectedKeys.isNotEmpty()) toggle(item) else go(item.route) },
-                        onLongClick = { toggle(item) },
+                        onLongClick = {
+                            if (selectedKeys.isNotEmpty()) toggle(item)
+                            else ownershipItem = item
+                        },
                     )
                 }
             }
@@ -204,6 +217,30 @@ fun FolderScreen(categoryId: String, back: () -> Unit, go: (String) -> Unit) {
             }
             item { Spacer(Modifier.height(24.dp)) }
         }
+    }
+
+    ownershipItem?.let { item ->
+        RecordFolderOwnershipDialog(
+            item = item,
+            categories = categories,
+            onDismiss = { ownershipItem = null },
+            onSelectForMove = {
+                toggle(item)
+                ownershipItem = null
+            },
+        )
+    }
+
+    renameFolder?.let { target ->
+        RenameCategoryDialog(
+            category = target,
+            categories = categories,
+            onDismiss = { renameFolder = null },
+            onRename = { newName ->
+                scope.launch { dao.saveCategory(target.copy(name = newName)) }
+                renameFolder = null
+            },
+        )
     }
 
     if (showCollect) {
@@ -285,10 +322,16 @@ fun FolderScreen(categoryId: String, back: () -> Unit, go: (String) -> Unit) {
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun FolderColorCard(folder: CategoryEntity, supporting: String, onClick: () -> Unit) {
+private fun FolderColorCard(
+    folder: CategoryEntity,
+    supporting: String,
+    onClick: () -> Unit,
+    onLongClick: () -> Unit,
+) {
     Card(
-        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
+        modifier = Modifier.fillMaxWidth().combinedClickable(onClick = onClick, onLongClick = onLongClick),
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
     ) {
