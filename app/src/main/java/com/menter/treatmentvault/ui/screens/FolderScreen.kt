@@ -20,17 +20,6 @@ import com.menter.treatmentvault.data.CategoryEntity
 import com.menter.treatmentvault.data.RecordStateEntity
 import kotlinx.coroutines.launch
 
-private fun systemRecordLabel(key: String): String = when (key) {
-    "exams" -> "检查专用记录"
-    "treatment" -> "治疗专用记录"
-    "supplies" -> "药品用品专用记录"
-    "symptoms" -> "症状专用记录"
-    "temperature" -> "体温专用记录"
-    "questions" -> "问诊专用记录"
-    "expenses" -> "费用专用记录"
-    else -> "专用记录"
-}
-
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun FolderScreen(categoryId: String, back: () -> Unit, go: (String) -> Unit) {
@@ -138,19 +127,10 @@ fun FolderScreen(categoryId: String, back: () -> Unit, go: (String) -> Unit) {
             }
 
             item {
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedButton(onClick = { showNewFolder = true }, modifier = Modifier.weight(1f)) {
-                        Icon(Icons.Default.CreateNewFolder, contentDescription = null)
-                        Spacer(Modifier.width(6.dp))
-                        Text("新建子文件夹")
-                    }
-                    if (folder.isSystem && folder.route.isNotBlank()) {
-                        OutlinedButton(onClick = { go(folder.route) }, modifier = Modifier.weight(1f)) {
-                            Icon(Icons.Default.Tune, contentDescription = null)
-                            Spacer(Modifier.width(6.dp))
-                            Text(systemRecordLabel(folder.key), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        }
-                    }
+                OutlinedButton(onClick = { showNewFolder = true }, modifier = Modifier.fillMaxWidth()) {
+                    Icon(Icons.Default.CreateNewFolder, contentDescription = null)
+                    Spacer(Modifier.width(6.dp))
+                    Text("新建子文件夹")
                 }
             }
 
