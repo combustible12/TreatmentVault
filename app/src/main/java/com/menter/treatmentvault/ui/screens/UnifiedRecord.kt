@@ -13,11 +13,12 @@ data class UnifiedRecordItem(
     val iconKey: String,
     val date: String,
     val updatedAt: Long,
+    val folderKeys: Set<String> = setOf(categoryKey),
 ) {
     val key: String get() = "$ownerType:$ownerId"
 }
 
-private fun defaultFolderKey(ownerType: String): String = when (ownerType) {
+internal fun defaultFolderKey(ownerType: String): String = when (ownerType) {
     "exam" -> "exams"
     "plan", "record" -> "treatment"
     "supply" -> "supplies"
@@ -44,18 +45,30 @@ fun buildUnifiedRecords(
     recordFolders: List<RecordFolderEntity> = emptyList(),
 ): List<UnifiedRecordItem> {
     val categoryMap = categories.associateBy { it.key }
-    val folderMap = recordFolders.associateBy { "${it.ownerType}:${it.ownerId}" }
+    val folderMap = recordFolders.groupBy { "${it.ownerType}:${it.ownerId}" }
     fun clean(value: String): String = richBodyPlainText(value).replace("\n", " ").trim()
     fun trimPreview(value: String): String = clean(value).let { if (it.length > 120) it.take(120) + "…" else it }
     fun section(key: String, fallback: String): String = categoryMap[key]?.name ?: fallback
     fun icon(key: String, fallback: String): String = categoryMap[key]?.iconKey ?: fallback
-    fun effectiveFolder(ownerType: String, ownerId: Long, fallback: String): String {
-        val mapped = folderMap["$ownerType:$ownerId"]?.folderKey
-        return if (mapped != null && categoryMap.containsKey(mapped)) mapped else fallback
+    fun explicitFolders(ownerType: String, ownerId: Long): LinkedHashSet<String> =
+        folderMap["$ownerType:$ownerId"].orEmpty()
+            .sortedWith(compareBy<RecordFolderEntity> { it.updatedAt }.thenBy { it.folderKey })
+            .map { it.folderKey }
+            .filter { categoryMap.containsKey(it) }
+            .toCollection(linkedSetOf())
+
+    fun typedFolders(ownerType: String, ownerId: Long, fallback: String): LinkedHashSet<String> {
+        val explicit = explicitFolders(ownerType, ownerId)
+        return if (explicit.isEmpty()) linkedSetOf(fallback) else explicit
     }
+
+    fun primaryFolder(folders: Set<String>, fallback: String): String =
+        folders.firstOrNull { categoryMap.containsKey(it) } ?: fallback
 
     return buildList {
         customEntries.forEach { item ->
+            val extraFolders = explicitFolders("note", item.id)
+            val folders = linkedSetOf(item.categoryId).apply { addAll(extraFolders.filter { it != item.categoryId }) }
             val category = categoryMap[item.categoryId]
             add(
                 UnifiedRecordItem(
@@ -69,52 +82,89 @@ fun buildUnifiedRecords(
                     iconKey = category?.iconKey ?: "note",
                     date = item.date,
                     updatedAt = item.updatedAt,
+                    folderKeys = folders,
                 )
             )
         }
         exams.forEach { item ->
-            val folder = effectiveFolder("exam", item.id, "exams")
-            add(UnifiedRecordItem("exam", item.id, item.name.ifBlank { "未命名检查" }, trimPreview(item.summary.ifBlank { item.notes }), section(folder, "检查报告"), folder, "exams/${item.id}", icon("exams", "description"), item.date, item.updatedAt))
+            val folders = typedFolders("exam", item.id, "exams")
+            val folder = primaryFolder(folders, "exams")
+            add(UnifiedRecordItem("exam", item.id, item.name.ifBlank { "未命名检查" }, trimPreview(item.summary.ifBlank { item.notes }), section(folder, "检查报告"), folder, "exams/${item.id}", icon("exams", "description"), item.date, item.updatedAt, folders))
         }
         plans.forEach { item ->
-            val folder = effectiveFolder("plan", item.id, "treatment")
-            add(UnifiedRecordItem("plan", item.id, item.name.ifBlank { "治疗方案" }, trimPreview(item.explanation.ifBlank { item.notes }), section(folder, "治疗方案与记录"), folder, "treatment/plan/${item.id}", icon("treatment", "medical"), item.date.ifBlank { item.startDate }, item.updatedAt))
+            val folders = typedFolders("plan", item.id, "treatment")
+            val folder = primaryFolder(folders, "treatment")
+            add(UnifiedRecordItem("plan", item.id, item.name.ifBlank { "治疗方案" }, trimPreview(item.explanation.ifBlank { item.notes }), section(folder, "治疗方案与记录"), folder, "treatment/plan/${item.id}", icon("treatment", "medical"), item.date.ifBlank { item.startDate }, item.updatedAt, folders))
         }
         records.forEach { item ->
-            val folder = effectiveFolder("record", item.id, "treatment")
+            val folders = typedFolders("record", item.id, "treatment")
+            val folder = primaryFolder(folders, "treatment")
             val title = listOf(item.type, item.date).filter { it.isNotBlank() }.joinToString(" · ").ifBlank { "治疗记录" }
-            add(UnifiedRecordItem("record", item.id, title, trimPreview(item.content.ifBlank { item.notes }), section(folder, "治疗方案与记录"), folder, "treatment/record/${item.id}", icon("treatment", "medical"), item.date, item.updatedAt))
+            add(UnifiedRecordItem("record", item.id, title, trimPreview(item.content.ifBlank { item.notes }), section(folder, "治疗方案与记录"), folder, "treatment/record/${item.id}", icon("treatment", "medical"), item.date, item.updatedAt, folders))
         }
         supplies.forEach { item ->
-            val folder = effectiveFolder("supply", item.id, "supplies")
-            add(UnifiedRecordItem("supply", item.id, item.name.ifBlank { "药品/用品" }, trimPreview(item.notes.ifBlank { item.purpose }), section(folder, "药品用品"), folder, "supplies/${item.id}", icon("supplies", "medication"), "", item.updatedAt))
+            val folders = typedFolders("supply", item.id, "supplies")
+            val folder = primaryFolder(folders, "supplies")
+            add(UnifiedRecordItem("supply", item.id, item.name.ifBlank { "药品/用品" }, trimPreview(item.notes.ifBlank { item.purpose }), section(folder, "药品用品"), folder, "supplies/${item.id}", icon("supplies", "medication"), "", item.updatedAt, folders))
         }
         symptoms.forEach { item ->
-            val folder = effectiveFolder("symptom", item.id, "symptoms")
+            val folders = typedFolders("symptom", item.id, "symptoms")
+            val folder = primaryFolder(folders, "symptoms")
             val structured = listOf(item.nausea, item.vomiting, item.diarrhea, item.constipation, item.urinaryFrequency, item.dysuria, item.pain, item.fatigue, item.bleeding, item.other).firstOrNull { it.isNotBlank() }.orEmpty()
-            add(UnifiedRecordItem("symptom", item.id, item.date.ifBlank { "症状记录" }, trimPreview(item.notes.ifBlank { structured }), section(folder, "症状记录"), folder, "symptoms/${item.id}", icon("symptoms", "heart"), item.date, item.updatedAt))
+            add(UnifiedRecordItem("symptom", item.id, item.date.ifBlank { "症状记录" }, trimPreview(item.notes.ifBlank { structured }), section(folder, "症状记录"), folder, "symptoms/${item.id}", icon("symptoms", "heart"), item.date, item.updatedAt, folders))
         }
         temperatures.forEach { item ->
-            val folder = effectiveFolder("temperature", item.id, "temperature")
-            add(UnifiedRecordItem("temperature", item.id, "${item.temperature}℃", trimPreview(item.notes), section(folder, "体温记录"), folder, "temperature/${item.id}", icon("temperature", "thermostat"), listOf(item.date, item.time).filter { it.isNotBlank() }.joinToString(" "), item.updatedAt))
+            val folders = typedFolders("temperature", item.id, "temperature")
+            val folder = primaryFolder(folders, "temperature")
+            add(UnifiedRecordItem("temperature", item.id, "${item.temperature}℃", trimPreview(item.notes), section(folder, "体温记录"), folder, "temperature/${item.id}", icon("temperature", "thermostat"), listOf(item.date, item.time).filter { it.isNotBlank() }.joinToString(" "), item.updatedAt, folders))
         }
         questions.forEach { item ->
-            val folder = effectiveFolder("question", item.id, "questions")
-            add(UnifiedRecordItem("question", item.id, item.question.ifBlank { "医生问诊" }, trimPreview(item.answer.ifBlank { item.notes }), section(folder, "医生问诊"), folder, "questions/${item.id}", icon("questions", "question"), item.date, item.updatedAt))
+            val folders = typedFolders("question", item.id, "questions")
+            val folder = primaryFolder(folders, "questions")
+            add(UnifiedRecordItem("question", item.id, item.question.ifBlank { "医生问诊" }, trimPreview(item.answer.ifBlank { item.notes }), section(folder, "医生问诊"), folder, "questions/${item.id}", icon("questions", "question"), item.date, item.updatedAt, folders))
         }
         expenses.forEach { item ->
-            val folder = effectiveFolder("expense", item.id, "expenses")
-            add(UnifiedRecordItem("expense", item.id, "${item.type.ifBlank { "费用" }} ¥${item.amount}", trimPreview(item.notes.ifBlank { item.merchant }), section(folder, "费用记录"), folder, "expenses/${item.id}", icon("expenses", "payments"), item.date, item.updatedAt))
+            val folders = typedFolders("expense", item.id, "expenses")
+            val folder = primaryFolder(folders, "expenses")
+            add(UnifiedRecordItem("expense", item.id, "${item.type.ifBlank { "费用" }} ¥${item.amount}", trimPreview(item.notes.ifBlank { item.merchant }), section(folder, "费用记录"), folder, "expenses/${item.id}", icon("expenses", "payments"), item.date, item.updatedAt, folders))
         }
         timeline.forEach { item ->
-            val folder = effectiveFolder("timeline", item.id, "timeline")
-            add(UnifiedRecordItem("timeline", item.id, item.title.ifBlank { item.type.ifBlank { "时间线记录" } }, trimPreview(item.content), section(folder, "总时间轴"), folder, "timeline/${item.id}", icon("timeline", "timeline"), item.date, item.updatedAt))
+            val folders = typedFolders("timeline", item.id, "timeline")
+            val folder = primaryFolder(folders, "timeline")
+            add(UnifiedRecordItem("timeline", item.id, item.title.ifBlank { item.type.ifBlank { "时间线记录" } }, trimPreview(item.content), section(folder, "总时间轴"), folder, "timeline/${item.id}", icon("timeline", "timeline"), item.date, item.updatedAt, folders))
         }
     }.sortedByDescending { it.updatedAt }
 }
 
 fun recordStateFor(item: UnifiedRecordItem, states: Map<String, RecordStateEntity>): RecordStateEntity =
     states[item.key] ?: RecordStateEntity(ownerType = item.ownerType, ownerId = item.ownerId)
+
+internal fun isTodo(state: RecordStateEntity): Boolean = state.displayType == "todo"
+
+suspend fun setUnifiedRecordFolders(
+    dao: AppDao,
+    item: UnifiedRecordItem,
+    requestedFolderKeys: Set<String>,
+) {
+    val now = System.currentTimeMillis()
+    dao.deleteRecordFolder(item.ownerType, item.ownerId)
+
+    if (item.ownerType == "note") {
+        val requiredPrimary = item.categoryKey
+        requestedFolderKeys.filter { it != requiredPrimary }.forEachIndexed { index, folderKey ->
+            dao.saveRecordFolder(RecordFolderEntity(item.ownerType, item.ownerId, folderKey, now + index))
+        }
+        return
+    }
+
+    val defaultFolder = defaultFolderKey(item.ownerType)
+    val selected = requestedFolderKeys.ifEmpty { setOf(defaultFolder) }
+    if (selected.size == 1 && defaultFolder in selected) return
+
+    selected.forEachIndexed { index, folderKey ->
+        dao.saveRecordFolder(RecordFolderEntity(item.ownerType, item.ownerId, folderKey, now + index))
+    }
+}
 
 suspend fun moveUnifiedRecordsToFolder(
     dao: AppDao,
@@ -127,6 +177,7 @@ suspend fun moveUnifiedRecordsToFolder(
     val notesById = allNotes.associateBy { it.id }
     val now = System.currentTimeMillis()
     allItems.filter { it.key in recordKeys }.forEachIndexed { index, item ->
+        dao.deleteRecordFolder(item.ownerType, item.ownerId)
         if (item.ownerType == "note") {
             val note = notesById[item.ownerId] ?: return@forEachIndexed
             if (note.categoryId != destinationFolderKey) {
@@ -134,9 +185,7 @@ suspend fun moveUnifiedRecordsToFolder(
             }
         } else {
             val defaultFolder = defaultFolderKey(item.ownerType)
-            if (destinationFolderKey == defaultFolder) {
-                dao.deleteRecordFolder(item.ownerType, item.ownerId)
-            } else {
+            if (destinationFolderKey != defaultFolder) {
                 dao.saveRecordFolder(
                     RecordFolderEntity(
                         ownerType = item.ownerType,
