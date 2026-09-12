@@ -1,0 +1,186 @@
+name: Apply TreatmentVault 0.17.0 source only
+
+on:
+  push:
+    paths:
+      - '.github/workflows/apply-v017-source.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.10.2'
+      - name: Apply source changes
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          def replace_once(path, old, new):
+              p = Path(path)
+              text = p.read_text(encoding='utf-8')
+              if old not in text:
+                  raise SystemExit(f'expected snippet not found in {path}: {old[:120]!r}')
+              p.write_text(text.replace(old, new, 1), encoding='utf-8')
+
+          def insert_before(path, marker, text_to_insert):
+              p = Path(path)
+              text = p.read_text(encoding='utf-8')
+              if marker not in text:
+                  raise SystemExit(f'marker not found in {path}: {marker!r}')
+              p.write_text(text.replace(marker, text_to_insert + marker, 1), encoding='utf-8')
+
+          replace_once('app/build.gradle.kts', 'versionCode = 28\n        versionName = "0.16.1"', 'versionCode = 29\n        versionName = "0.17.0"')
+
+          replace_once(
+              'app/src/main/java/com/menter/treatmentvault/data/RecordStateEntity.kt',
+              '    @ColumnInfo(defaultValue = "0") val completed: Boolean = false,\n    val updatedAt: Long = System.currentTimeMillis(),',
+              '    @ColumnInfo(defaultValue = "0") val completed: Boolean = false,\n    val customTitle: String? = null,\n    val updatedAt: Long = System.currentTimeMillis(),'
+          )
+
+          replace_once('app/src/main/java/com/menter/treatmentvault/data/AppDatabase.kt', '    version = 7,', '    version = 8,')
+          insert_before(
+              'app/src/main/java/com/menter/treatmentvault/data/AppDatabase.kt',
+              '        private fun createCategoryTables(db: SupportSQLiteDatabase) {',
+              '''        private val MIGRATION_7_8 = object : Migration(7, 8) {\n            override fun migrate(db: SupportSQLiteDatabase) {\n                db.execSQL("ALTER TABLE `RecordStateEntity` ADD COLUMN `customTitle` TEXT")\n            }\n        }\n\n'''
+          )
+          replace_once(
+              'app/src/main/java/com/menter/treatmentvault/data/AppDatabase.kt',
+              '.addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)',
+              '.addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8)'
+          )
+
+          insert_before(
+              'app/src/main/java/com/menter/treatmentvault/ui/screens/RecordPresentationUi.kt',
+              '@Composable\ninternal fun recordBackgroundColor',
+              '''internal fun recordDisplayTitle(item: UnifiedRecordItem, state: RecordStateEntity): String =\n    state.customTitle?.trim()?.takeIf { it.isNotEmpty() } ?: item.title\n\n'''
+          )
+
+          replace_once(
+              'app/src/main/java/com/menter/treatmentvault/ui/screens/RecordFolderUi.kt',
+              'import androidx.compose.ui.Modifier\nimport androidx.compose.ui.text.style.TextOverflow\nimport androidx.compose.ui.unit.dp\nimport com.menter.treatmentvault.data.CategoryEntity',
+              'import androidx.compose.ui.Modifier\nimport androidx.compose.ui.platform.LocalContext\nimport androidx.compose.ui.text.style.TextOverflow\nimport androidx.compose.ui.unit.dp\nimport com.menter.treatmentvault.TreatmentVaultApplication\nimport com.menter.treatmentvault.data.CategoryEntity\nimport com.menter.treatmentvault.data.RecordStateEntity\nimport kotlinx.coroutines.launch'
+          )
+          replace_once(
+              'app/src/main/java/com/menter/treatmentvault/ui/screens/RecordFolderUi.kt',
+              '''    val availableFolders = remember(categories) {\n        categories.filter { isFolderCategory(it) && !it.hidden }''',
+              '''    val app = LocalContext.current.applicationContext as TreatmentVaultApplication\n    val dao = app.database.dao()\n    val scope = rememberCoroutineScope()\n    var currentState by remember(item.key) { mutableStateOf<RecordStateEntity?>(null) }\n    var renaming by remember(item.key) { mutableStateOf(false) }\n    var renameText by remember(item.key) { mutableStateOf("") }\n\n    LaunchedEffect(item.key) {\n        currentState = dao.recordState(item.ownerType, item.ownerId)\n            ?: RecordStateEntity(ownerType = item.ownerType, ownerId = item.ownerId)\n        renameText = recordDisplayTitle(item, currentState!!)\n    }\n\n    val displayTitle = currentState?.let { recordDisplayTitle(item, it) } ?: item.title\n    val cleanRename = renameText.trim()\n\n    val availableFolders = remember(categories) {\n        categories.filter { isFolderCategory(it) && !it.hidden }'''
+          )
+          replace_once(
+              'app/src/main/java/com/menter/treatmentvault/ui/screens/RecordFolderUi.kt',
+              '        title = { Text(item.title, maxLines = 2, overflow = TextOverflow.Ellipsis) },',
+              '        title = { Text(if (renaming) "重命名" else displayTitle, maxLines = 2, overflow = TextOverflow.Ellipsis) },'
+          )
+          replace_once(
+              'app/src/main/java/com/menter/treatmentvault/ui/screens/RecordFolderUi.kt',
+              '''            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {\n                Text("归属文件夹", style = MaterialTheme.typography.titleSmall)\n                if (!managing) {''',
+              '''            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {\n                if (renaming) {\n                    OutlinedTextField(\n                        value = renameText,\n                        onValueChange = { renameText = it },\n                        modifier = Modifier.fillMaxWidth(),\n                        label = { Text("显示名称") },\n                        singleLine = true,\n                    )\n                    Text("只修改列表里的显示名称，不改变体温、金额、日期等原始记录字段。", style = MaterialTheme.typography.bodySmall)\n                } else {\n                    Text("归属文件夹", style = MaterialTheme.typography.titleSmall)\n                    if (!managing) {'''
+          )
+          replace_once(
+              'app/src/main/java/com/menter/treatmentvault/ui/screens/RecordFolderUi.kt',
+              '''                    if (onFoldersChange != null) {\n                        TextButton(onClick = { managing = true }, modifier = Modifier.fillMaxWidth()) {\n                            Text("管理归属文件夹")\n                        }\n                    }\n                } else {''',
+              '''                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {\n                        TextButton(\n                            onClick = { renameText = displayTitle; renaming = true },\n                            modifier = Modifier.weight(1f),\n                        ) { Text("重命名") }\n                        if (onFoldersChange != null) {\n                            TextButton(onClick = { managing = true }, modifier = Modifier.weight(1f)) {\n                                Text("管理归属")\n                            }\n                        }\n                    }\n                } else {'''
+          )
+          replace_once(
+              'app/src/main/java/com/menter/treatmentvault/ui/screens/RecordFolderUi.kt',
+              '''                    }\n                }\n            }\n        },\n        confirmButton = {\n            if (managing && onFoldersChange != null) {''',
+              '''                    }\n                }\n                }\n            }\n        },\n        confirmButton = {\n            if (renaming) {\n                TextButton(\n                    enabled = cleanRename.isNotBlank(),\n                    onClick = {\n                        val base = currentState ?: RecordStateEntity(ownerType = item.ownerType, ownerId = item.ownerId)\n                        val next = base.copy(\n                            customTitle = cleanRename.takeUnless { it == item.title },\n                            updatedAt = System.currentTimeMillis(),\n                        )\n                        scope.launch {\n                            dao.saveRecordState(next)\n                            currentState = next\n                            renaming = false\n                        }\n                    },\n                ) { Text("保存名称") }\n            } else if (managing && onFoldersChange != null) {'''
+          )
+          replace_once(
+              'app/src/main/java/com/menter/treatmentvault/ui/screens/RecordFolderUi.kt',
+              '''        dismissButton = when {\n            managing -> ({ TextButton(onClick = { managing = false; selected = item.folderKeys }) { Text("返回") } })''',
+              '''        dismissButton = when {\n            renaming -> ({ TextButton(onClick = { renaming = false; renameText = displayTitle }) { Text("返回") } })\n            managing -> ({ TextButton(onClick = { managing = false; selected = item.folderKeys }) { Text("返回") } })'''
+          )
+
+          replace_once(
+              'app/src/main/java/com/menter/treatmentvault/ui/screens/HomeScreen.kt',
+              '    var renameCategory by remember { mutableStateOf<CategoryEntity?>(null) }',
+              '    var renameCategory by remember { mutableStateOf<CategoryEntity?>(null) }\n    var addMenuOpen by remember { mutableStateOf(false) }'
+          )
+          replace_once(
+              'app/src/main/java/com/menter/treatmentvault/ui/screens/HomeScreen.kt',
+              '''    val recordSearch = remember(activeRecords, q) {\n        if (q.isBlank()) emptyList() else activeRecords.filter { item ->\n            listOf(item.title, item.preview, item.section, item.date).any { it.contains(q, true) }\n        }\n    }''',
+              '''    val recordSearch = remember(activeRecords, stateMap, q) {\n        if (q.isBlank()) emptyList() else activeRecords.filter { item ->\n            val state = recordStateFor(item, stateMap)\n            listOf(recordDisplayTitle(item, state), item.preview, item.section, item.date).any { it.contains(q, true) }\n        }\n    }'''
+          )
+          replace_once(
+              'app/src/main/java/com/menter/treatmentvault/ui/screens/HomeScreen.kt',
+              '            floatingActionButton = { FloatingActionButton(onClick = { go("note/new/inbox") }) { Icon(Icons.Default.Add, contentDescription = "新建记录") } },',
+              '''            floatingActionButton = {\n                Box {\n                    FloatingActionButton(onClick = { addMenuOpen = true }) { Icon(Icons.Default.Add, contentDescription = "新建") }\n                    DropdownMenu(expanded = addMenuOpen, onDismissRequest = { addMenuOpen = false }) {\n                        DropdownMenuItem(\n                            text = { Text("新建笔记") },\n                            leadingIcon = { Icon(Icons.Default.EditNote, contentDescription = null) },\n                            onClick = { addMenuOpen = false; go("note/new/inbox") },\n                        )\n                        DropdownMenuItem(\n                            text = { Text("新建类目") },\n                            leadingIcon = { Icon(Icons.Default.CreateNewFolder, contentDescription = null) },\n                            onClick = { addMenuOpen = false; showAddCategory = true },\n                        )\n                    }\n                }\n            },'''
+          )
+          replace_once(
+              'app/src/main/java/com/menter/treatmentvault/ui/screens/HomeScreen.kt',
+              '''                    items(categorySearch, key = { "category:${it.key}" }) { category ->\n                        ListItem(\n                            modifier = Modifier.fillMaxWidth().combinedClickable(\n                                onClick = { go(categoryRoute(category)) },\n                                onLongClick = { renameCategory = category },\n                            ),\n                            headlineContent = { Text(category.name) },\n                            supportingContent = { Text("分类 · 打开后查看该分类全部记录") },\n                            leadingContent = { Icon(categoryIcon(category.iconKey), null) },\n                            trailingContent = { Icon(Icons.Default.ChevronRight, null) },\n                        )\n                    }''',
+              '''                    items(categorySearch, key = { "category:${it.key}" }) { category ->\n                        HomeCategoryCard(\n                            category = category,\n                            depth = 0,\n                            supporting = "文件夹 · 打开后查看该分类全部记录",\n                            onClick = { go(categoryRoute(category)) },\n                            onLongClick = { renameCategory = category },\n                        )\n                    }'''
+          )
+          replace_once(
+              'app/src/main/java/com/menter/treatmentvault/ui/screens/HomeScreen.kt',
+              '''                    items(visibleCategories, key = { it.first.key }) { (category, depth) ->\n                        ListItem(\n                            modifier = Modifier.fillMaxWidth().combinedClickable(\n                                onClick = { go(categoryRoute(category)) },\n                                onLongClick = { renameCategory = category },\n                            ),\n                            headlineContent = { Text(category.name, maxLines = 1, overflow = TextOverflow.Ellipsis) },\n                            supportingContent = { val count = countFor(category); Text(if (count == 0) "暂无记录" else "$count 条") },\n                            leadingContent = { Row { if (depth > 0) Spacer(Modifier.width((depth * 18).dp)); Icon(categoryIcon(category.iconKey), null) } },\n                            trailingContent = { Icon(Icons.Default.ChevronRight, null) },\n                        )\n                    }''',
+              '''                    items(visibleCategories, key = { it.first.key }) { (category, depth) ->\n                        val count = countFor(category)\n                        HomeCategoryCard(\n                            category = category,\n                            depth = depth,\n                            supporting = if (count == 0) "文件夹 · 暂无记录" else "文件夹 · $count 条记录",\n                            onClick = { go(categoryRoute(category)) },\n                            onLongClick = { renameCategory = category },\n                        )\n                    }'''
+          )
+          replace_once(
+              'app/src/main/java/com/menter/treatmentvault/ui/screens/HomeScreen.kt',
+              '                Text(item.title, maxLines = 1, overflow = TextOverflow.Ellipsis, color = contentColor)',
+              '                Text(recordDisplayTitle(item, state), maxLines = 1, overflow = TextOverflow.Ellipsis, color = contentColor)'
+          )
+          insert_before(
+              'app/src/main/java/com/menter/treatmentvault/ui/screens/HomeScreen.kt',
+              '@OptIn(ExperimentalFoundationApi::class)\n@Composable\nprivate fun RecordListItem',
+              '''@OptIn(ExperimentalFoundationApi::class)\n@Composable\nprivate fun HomeCategoryCard(\n    category: CategoryEntity,\n    depth: Int,\n    supporting: String,\n    onClick: () -> Unit,\n    onLongClick: () -> Unit,\n) {\n    Card(\n        modifier = Modifier.fillMaxWidth().padding(start = (depth * 12).dp).combinedClickable(onClick = onClick, onLongClick = onLongClick),\n        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),\n        shape = MaterialTheme.shapes.large,\n    ) {\n        Row(\n            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),\n            verticalAlignment = Alignment.CenterVertically,\n            horizontalArrangement = Arrangement.spacedBy(12.dp),\n        ) {\n            Surface(\n                shape = MaterialTheme.shapes.medium,\n                color = MaterialTheme.colorScheme.secondary,\n                contentColor = MaterialTheme.colorScheme.onSecondary,\n            ) {\n                Box(Modifier.padding(9.dp)) { Icon(categoryIcon(category.iconKey), contentDescription = "文件夹") }\n            }\n            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {\n                Text(category.name, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)\n                Text(supporting, style = MaterialTheme.typography.labelSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)\n            }\n            Icon(Icons.Default.ChevronRight, contentDescription = null)\n        }\n    }\n}\n\n'''
+          )
+
+          replace_once(
+              'app/src/main/java/com/menter/treatmentvault/ui/screens/AllRecordsScreen.kt',
+              '            shelfMatch && (q.isBlank() || listOf(item.title, item.preview, item.section, item.date).any { it.contains(q, true) })',
+              '            shelfMatch && (q.isBlank() || listOf(recordDisplayTitle(item, state), item.preview, item.section, item.date).any { it.contains(q, true) })'
+          )
+          replace_once(
+              'app/src/main/java/com/menter/treatmentvault/ui/screens/AllRecordsScreen.kt',
+              '                item { Text("${filtered.size} 条记录 · 长按查看全部归属文件夹", style = MaterialTheme.typography.bodySmall) }',
+              '                item { Text("${filtered.size} 条记录 · 长按可重命名并查看全部归属文件夹", style = MaterialTheme.typography.bodySmall) }'
+          )
+          replace_once(
+              'app/src/main/java/com/menter/treatmentvault/ui/screens/AllRecordsScreen.kt',
+              '                Text(item.title, maxLines = 1, overflow = TextOverflow.Ellipsis, color = contentColor)',
+              '                Text(recordDisplayTitle(item, state), maxLines = 1, overflow = TextOverflow.Ellipsis, color = contentColor)'
+          )
+
+          replace_once(
+              'app/src/main/java/com/menter/treatmentvault/ui/screens/FolderScreen.kt',
+              '''    val visibleItems = remember(directItems, q) {\n        if (q.isBlank()) directItems else directItems.filter { item ->\n            listOf(item.title, item.preview, item.date, item.section).any { it.contains(q, true) }\n        }\n    }''',
+              '''    val visibleItems = remember(directItems, stateMap, q) {\n        if (q.isBlank()) directItems else directItems.filter { item ->\n            val state = recordStateFor(item, stateMap)\n            listOf(recordDisplayTitle(item, state), item.preview, item.date, item.section).any { it.contains(q, true) }\n        }\n    }'''
+          )
+          replace_once(
+              'app/src/main/java/com/menter/treatmentvault/ui/screens/FolderScreen.kt',
+              '                    Text(item.title, color = contentColor, style = MaterialTheme.typography.titleMedium, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))',
+              '                    Text(recordDisplayTitle(item, state), color = contentColor, style = MaterialTheme.typography.titleMedium, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))'
+          )
+
+          replace_once(
+              'app/src/main/java/com/menter/treatmentvault/ui/screens/StructureScreen.kt',
+              '        .map { item -> if (item.date.isBlank()) item.title else "${item.date} · ${item.title}" }',
+              '        .map { item ->\n            val title = recordDisplayTitle(item, recordStateFor(item, stateMap))\n            if (item.date.isBlank()) title else "${item.date} · $title"\n        }'
+          )
+          PY
+      - name: Run regression tests
+        run: gradle testDebugUnitTest --stacktrace
+      - name: Commit patched source
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app
+          git commit -m "TreatmentVault 0.17.0: home add menu and record rename"
+          git push origin HEAD:main
