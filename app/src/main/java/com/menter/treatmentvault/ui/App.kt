@@ -12,6 +12,7 @@ import com.menter.treatmentvault.ui.screens.*
     composable("exams"){ExamScreen{nav.popBackStack()}}
     composable("treatment"){TreatmentScreen{nav.popBackStack()}}
     composable("symptoms"){SymptomScreen{nav.popBackStack()}}
+    composable("temperature"){TemperatureScreen{nav.popBackStack()}}
     composable("questions"){QuestionScreen{nav.popBackStack()}}
     composable("expenses"){ExpenseScreen{nav.popBackStack()}}
     composable("timeline"){TimelineScreen{nav.popBackStack()}}

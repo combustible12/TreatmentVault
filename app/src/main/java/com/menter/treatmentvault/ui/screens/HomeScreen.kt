@@ -17,6 +17,7 @@ import androidx.compose.material.icons.filled.Medication
 import androidx.compose.material.icons.filled.MonitorHeart
 import androidx.compose.material.icons.filled.Payments
 import androidx.compose.material.icons.filled.QuestionAnswer
+import androidx.compose.material.icons.filled.Thermostat
 import androidx.compose.material.icons.filled.Timeline
 import androidx.compose.material.icons.filled.UploadFile
 import androidx.compose.material3.Card
@@ -39,6 +40,7 @@ fun HomeScreen(go: (String) -> Unit) {
         Triple("治疗方案与记录", "treatment", Icons.Default.MedicalServices),
         Triple("药品用品", "supplies", Icons.Default.Medication),
         Triple("症状记录", "symptoms", Icons.Default.MonitorHeart),
+        Triple("体温记录", "temperature", Icons.Default.Thermostat),
         Triple("医生问诊", "questions", Icons.Default.QuestionAnswer),
         Triple("费用记录", "expenses", Icons.Default.Payments),
         Triple("导入更新包", "import", Icons.Default.UploadFile),

@@ -30,6 +30,10 @@ interface AppDao {
     @Update suspend fun updateSymptom(v:SymptomEntity)
     @Query("SELECT * FROM SymptomEntity WHERE date=:date LIMIT 1") suspend fun findSymptom(date:String):SymptomEntity?
 
+    @Query("SELECT * FROM TemperatureEntity ORDER BY date DESC,time DESC,id DESC") fun temperatures():Flow<List<TemperatureEntity>>
+    @Insert suspend fun saveTemperature(v:TemperatureEntity):Long
+    @Delete suspend fun deleteTemperature(v:TemperatureEntity)
+
     @Query("SELECT * FROM QuestionEntity ORDER BY CASE status WHEN '待问' THEN 0 ELSE 1 END,date DESC,id DESC") fun questions():Flow<List<QuestionEntity>>
     @Insert suspend fun saveQuestion(v:QuestionEntity):Long
     @Update suspend fun updateQuestion(v:QuestionEntity)
@@ -52,9 +56,10 @@ interface AppDao {
     @Query("SELECT * FROM TreatmentPlanEntity") suspend fun allPlans():List<TreatmentPlanEntity>
     @Query("SELECT * FROM TreatmentRecordEntity") suspend fun allRecords():List<TreatmentRecordEntity>
     @Query("SELECT * FROM SymptomEntity") suspend fun allSymptoms():List<SymptomEntity>
+    @Query("SELECT * FROM TemperatureEntity") suspend fun allTemperatures():List<TemperatureEntity>
     @Query("SELECT * FROM QuestionEntity") suspend fun allQuestions():List<QuestionEntity>
     @Query("SELECT * FROM ExpenseEntity") suspend fun allExpenses():List<ExpenseEntity>
     @Query("SELECT * FROM TimelineEntity") suspend fun allTimeline():List<TimelineEntity>
 
-    @Query("DELETE FROM SupplyEntity") suspend fun clearSupplies(); @Query("DELETE FROM ExamEntity") suspend fun clearExams(); @Query("DELETE FROM TreatmentPlanEntity") suspend fun clearPlans(); @Query("DELETE FROM TreatmentRecordEntity") suspend fun clearRecords(); @Query("DELETE FROM SymptomEntity") suspend fun clearSymptoms(); @Query("DELETE FROM QuestionEntity") suspend fun clearQuestions(); @Query("DELETE FROM ExpenseEntity") suspend fun clearExpenses(); @Query("DELETE FROM TimelineEntity") suspend fun clearTimeline()
+    @Query("DELETE FROM SupplyEntity") suspend fun clearSupplies(); @Query("DELETE FROM ExamEntity") suspend fun clearExams(); @Query("DELETE FROM TreatmentPlanEntity") suspend fun clearPlans(); @Query("DELETE FROM TreatmentRecordEntity") suspend fun clearRecords(); @Query("DELETE FROM SymptomEntity") suspend fun clearSymptoms(); @Query("DELETE FROM TemperatureEntity") suspend fun clearTemperatures(); @Query("DELETE FROM QuestionEntity") suspend fun clearQuestions(); @Query("DELETE FROM ExpenseEntity") suspend fun clearExpenses(); @Query("DELETE FROM TimelineEntity") suspend fun clearTimeline()
 }
