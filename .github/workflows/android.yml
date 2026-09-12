@@ -86,7 +86,7 @@ jobs:
               "versionName": os.environ["VERSION_NAME"],
               "apkUrl": "https://raw.githubusercontent.com/combustible12/TreatmentVault-Updates/main/TreatmentVault-latest.apk",
               "sha256": os.environ["SHA"],
-              "notes": "修复再次打开记录时正文看起来消失的问题：富文本编辑器现在会在数据库记录异步加载完成后正确恢复文字与图片区块，同时避免用户输入时被重复重置。此修复作用于普通笔记以及共用该编辑器的检查、治疗等记录；不改数据库结构。"
+              "notes": "笔记整理体验重构：自定义文件夹内可直接从待整理多选收纳已有笔记；全部记录和文件夹内均支持长按普通笔记进入多选并批量移动；单条普通笔记也可直接移动。文件夹列表新增最近编辑/记录日期/标题排序，归档和回收站内容不再混入普通文件夹，列表预览会隐藏内部图片标记。移动只改变文件夹归属，不复制记录，不改正文、图片、收藏或置顶状态。"
           }
           with open("update-repo/update.json", "w", encoding="utf-8") as f:
               json.dump(data, f, ensure_ascii=False, indent=2)
