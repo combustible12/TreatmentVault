@@ -1,22 +1,13 @@
 package com.menter.treatmentvault.ui.screens
 
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.menter.treatmentvault.data.CategoryEntity
 
@@ -32,46 +23,119 @@ internal fun folderPathFor(categoryKey: String, categories: List<CategoryEntity>
     return reversed.asReversed()
 }
 
+internal fun folderPathText(categoryKey: String, categories: List<CategoryEntity>): String =
+    folderPathFor(categoryKey, categories).joinToString("  ›  ") { it.name }
+
 @Composable
 internal fun RecordFolderOwnershipDialog(
     item: UnifiedRecordItem,
     categories: List<CategoryEntity>,
     onDismiss: () -> Unit,
+    onFoldersChange: ((Set<String>) -> Unit)? = null,
     onSelectForMove: (() -> Unit)? = null,
 ) {
-    val path = remember(item.categoryKey, categories) { folderPathFor(item.categoryKey, categories) }
+    val availableFolders = remember(categories) {
+        categories.filter { isFolderCategory(it) && !it.hidden }
+            .sortedBy { folderPathText(it.key, categories).lowercase() }
+    }
+    val validCurrent = remember(item.folderKeys, categories) {
+        item.folderKeys.filter { key -> categories.any { it.key == key } }.toSet()
+    }
+    val currentFolders = remember(validCurrent, availableFolders) {
+        availableFolders.filter { it.key in validCurrent }
+    }
+    val requiredPrimary = if (item.ownerType == "note") item.categoryKey else null
+    var managing by remember(item.key) { mutableStateOf(false) }
+    var selected by remember(item.key, item.folderKeys) { mutableStateOf(item.folderKeys) }
+
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(item.title) },
+        title = { Text(item.title, maxLines = 2, overflow = TextOverflow.Ellipsis) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text("归属文件夹", style = MaterialTheme.typography.titleSmall)
-                if (path.isEmpty()) {
-                    Text("未找到有效文件夹归属", style = MaterialTheme.typography.bodyMedium)
-                } else {
-                    path.forEachIndexed { index, folder ->
-                        Text(
-                            text = buildString {
-                                repeat(index) { append("  ") }
-                                if (index > 0) append("↳ ")
-                                append(folder.name)
-                            },
-                            style = if (index == path.lastIndex) MaterialTheme.typography.bodyLarge else MaterialTheme.typography.bodyMedium,
-                        )
+                if (!managing) {
+                    if (currentFolders.isEmpty()) {
+                        Text("未找到有效文件夹归属", style = MaterialTheme.typography.bodyMedium)
+                    } else {
+                        currentFolders.forEach { folder ->
+                            val path = folderPathText(folder.key, categories).ifBlank { folder.name }
+                            Card(modifier = Modifier.fillMaxWidth()) {
+                                Column(Modifier.padding(horizontal = 12.dp, vertical = 9.dp)) {
+                                    Text(folder.name, style = MaterialTheme.typography.bodyLarge)
+                                    if (path != folder.name) {
+                                        Text(path, style = MaterialTheme.typography.labelMedium)
+                                    }
+                                }
+                            }
+                        }
                     }
-                    if (path.size > 1) {
-                        Spacer(Modifier.height(2.dp))
-                        Text(
-                            path.joinToString("  ›  ") { it.name },
-                            style = MaterialTheme.typography.labelMedium,
-                        )
+                    if (onFoldersChange != null) {
+                        TextButton(onClick = { managing = true }, modifier = Modifier.fillMaxWidth()) {
+                            Text("管理归属文件夹")
+                        }
+                    }
+                } else {
+                    Text(
+                        if (requiredPrimary != null) "当前笔记所在的主文件夹会保留；可以再勾选其他文件夹。"
+                        else "同一条记录可以同时出现在多个文件夹；至少保留一个归属。",
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                    LazyColumn(modifier = Modifier.fillMaxWidth().heightIn(max = 420.dp)) {
+                        items(availableFolders, key = { it.key }) { folder ->
+                            val checked = folder.key in selected || folder.key == requiredPrimary
+                            val locked = folder.key == requiredPrimary
+                            ListItem(
+                                modifier = Modifier.fillMaxWidth().clickable(enabled = !locked) {
+                                    selected = when {
+                                        folder.key !in selected -> selected + folder.key
+                                        item.ownerType != "note" && selected.size <= 1 -> selected
+                                        else -> selected - folder.key
+                                    }
+                                },
+                                headlineContent = { Text(folder.name, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                                supportingContent = {
+                                    val path = folderPathText(folder.key, categories)
+                                    if (path != folder.name) Text(path, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                },
+                                leadingContent = {
+                                    Checkbox(
+                                        checked = checked,
+                                        enabled = !locked,
+                                        onCheckedChange = { next ->
+                                            selected = when {
+                                                next -> selected + folder.key
+                                                item.ownerType != "note" && selected.size <= 1 -> selected
+                                                else -> selected - folder.key
+                                            }
+                                        },
+                                    )
+                                },
+                                trailingContent = { if (locked) Text("主文件夹", style = MaterialTheme.typography.labelSmall) },
+                            )
+                        }
                     }
                 }
             }
         },
-        confirmButton = { TextButton(onClick = onDismiss) { Text("关闭") } },
-        dismissButton = onSelectForMove?.let { action ->
-            { TextButton(onClick = action) { Text("选择并移动") } }
+        confirmButton = {
+            if (managing && onFoldersChange != null) {
+                TextButton(
+                    enabled = item.ownerType == "note" || selected.isNotEmpty(),
+                    onClick = {
+                        val next = if (requiredPrimary != null) selected + requiredPrimary else selected
+                        onFoldersChange(next)
+                        onDismiss()
+                    },
+                ) { Text("保存归属") }
+            } else {
+                TextButton(onClick = onDismiss) { Text("关闭") }
+            }
+        },
+        dismissButton = when {
+            managing -> ({ TextButton(onClick = { managing = false; selected = item.folderKeys }) { Text("返回") } })
+            onSelectForMove != null -> ({ TextButton(onClick = onSelectForMove) { Text("选择并移动") } })
+            else -> null
         },
     )
 }
