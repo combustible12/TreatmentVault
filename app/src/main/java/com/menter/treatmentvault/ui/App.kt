@@ -75,17 +75,25 @@ fun TreatmentVaultApp() {
             }
             composable("smart_input") { SmartInputScreen { nav.popBackStack() } }
 
-            composable("supplies") { SupplyScreen(back = { nav.popBackStack() }) }
+            // System category roots always open the unified folder UI. The specialized
+            // screens below are kept only for opening/editing one concrete structured record.
+            composable("supplies") {
+                FolderScreen(categoryId = "supplies", back = { nav.popBackStack() }, go = { nav.navigate(it) })
+            }
             composable("supplies/{itemId}") { entry ->
                 SupplyScreen(back = { nav.popBackStack() }, initialEditId = entry.arguments?.getString("itemId")?.toLongOrNull() ?: 0L)
             }
 
-            composable("exams") { ExamScreen(back = { nav.popBackStack() }) }
+            composable("exams") {
+                FolderScreen(categoryId = "exams", back = { nav.popBackStack() }, go = { nav.navigate(it) })
+            }
             composable("exams/{itemId}") { entry ->
                 ExamScreen(back = { nav.popBackStack() }, initialEditId = entry.arguments?.getString("itemId")?.toLongOrNull() ?: 0L)
             }
 
-            composable("treatment") { TreatmentScreen(back = { nav.popBackStack() }) }
+            composable("treatment") {
+                FolderScreen(categoryId = "treatment", back = { nav.popBackStack() }, go = { nav.navigate(it) })
+            }
             composable("treatment/plan/{itemId}") { entry ->
                 TreatmentScreen(back = { nav.popBackStack() }, initialPlanId = entry.arguments?.getString("itemId")?.toLongOrNull() ?: 0L)
             }
@@ -93,22 +101,30 @@ fun TreatmentVaultApp() {
                 TreatmentScreen(back = { nav.popBackStack() }, initialRecordId = entry.arguments?.getString("itemId")?.toLongOrNull() ?: 0L)
             }
 
-            composable("symptoms") { SymptomScreen(back = { nav.popBackStack() }) }
+            composable("symptoms") {
+                FolderScreen(categoryId = "symptoms", back = { nav.popBackStack() }, go = { nav.navigate(it) })
+            }
             composable("symptoms/{itemId}") { entry ->
                 SymptomScreen(back = { nav.popBackStack() }, initialEditId = entry.arguments?.getString("itemId")?.toLongOrNull() ?: 0L)
             }
 
-            composable("temperature") { TemperatureScreen(back = { nav.popBackStack() }) }
+            composable("temperature") {
+                FolderScreen(categoryId = "temperature", back = { nav.popBackStack() }, go = { nav.navigate(it) })
+            }
             composable("temperature/{itemId}") { entry ->
                 TemperatureScreen(back = { nav.popBackStack() }, initialEditId = entry.arguments?.getString("itemId")?.toLongOrNull() ?: 0L)
             }
 
-            composable("questions") { QuestionScreen(back = { nav.popBackStack() }) }
+            composable("questions") {
+                FolderScreen(categoryId = "questions", back = { nav.popBackStack() }, go = { nav.navigate(it) })
+            }
             composable("questions/{itemId}") { entry ->
                 QuestionScreen(back = { nav.popBackStack() }, initialEditId = entry.arguments?.getString("itemId")?.toLongOrNull() ?: 0L)
             }
 
-            composable("expenses") { ExpenseScreen(back = { nav.popBackStack() }) }
+            composable("expenses") {
+                FolderScreen(categoryId = "expenses", back = { nav.popBackStack() }, go = { nav.navigate(it) })
+            }
             composable("expenses/{itemId}") { entry ->
                 ExpenseScreen(back = { nav.popBackStack() }, initialEditId = entry.arguments?.getString("itemId")?.toLongOrNull() ?: 0L)
             }
