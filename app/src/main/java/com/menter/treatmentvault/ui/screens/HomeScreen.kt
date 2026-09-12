@@ -49,6 +49,7 @@ fun HomeScreen(go: (String) -> Unit) {
     val timeline by dao.timeline().collectAsState(emptyList())
     val notes by dao.allCustomEntriesFlow().collectAsState(emptyList())
     val states by dao.recordStates().collectAsState(emptyList())
+    val recordFolders by dao.recordFolders().collectAsState(emptyList())
 
     val scope = rememberCoroutineScope()
     val drawerState = rememberDrawerState(DrawerValue.Closed)
@@ -66,8 +67,8 @@ fun HomeScreen(go: (String) -> Unit) {
 
     val visibleCategories = remember(categories) { flattenHomeCategories(categories) }
     val customCategories = remember(categories) { categories.filterNot { it.isSystem }.sortedBy { it.sortOrder } }
-    val allRecords = remember(categories, supplies, exams, plans, records, symptoms, temperatures, questions, expenses, timeline, notes) {
-        buildUnifiedRecords(categories, supplies, exams, plans, records, symptoms, temperatures, questions, expenses, timeline, notes)
+    val allRecords = remember(categories, supplies, exams, plans, records, symptoms, temperatures, questions, expenses, timeline, notes, recordFolders) {
+        buildUnifiedRecords(categories, supplies, exams, plans, records, symptoms, temperatures, questions, expenses, timeline, notes, recordFolders)
     }
     val stateMap = remember(states) { states.associateBy { "${it.ownerType}:${it.ownerId}" } }
     val activeRecords = remember(allRecords, stateMap) {
@@ -123,24 +124,9 @@ fun HomeScreen(go: (String) -> Unit) {
                     Text("治疗笔记", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.padding(horizontal = 20.dp))
                     Text("所有内容都是记录，分类只是查看方式", style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp))
                     Spacer(Modifier.height(8.dp))
-                    NavigationDrawerItem(
-                        icon = { Icon(Icons.Default.Notes, contentDescription = null) },
-                        label = { Text("全部记录") },
-                        selected = false,
-                        onClick = { open("notes") },
-                    )
-                    NavigationDrawerItem(
-                        icon = { Icon(Icons.Default.Mic, contentDescription = null) },
-                        label = { Text("智能录入") },
-                        selected = false,
-                        onClick = { open("smart_input") },
-                    )
-                    NavigationDrawerItem(
-                        icon = { Icon(Icons.Default.AccountTree, contentDescription = null) },
-                        label = { Text("资料树") },
-                        selected = false,
-                        onClick = { open("structure") },
-                    )
+                    NavigationDrawerItem(icon = { Icon(Icons.Default.Notes, contentDescription = null) }, label = { Text("全部记录") }, selected = false, onClick = { open("notes") })
+                    NavigationDrawerItem(icon = { Icon(Icons.Default.Mic, contentDescription = null) }, label = { Text("智能录入") }, selected = false, onClick = { open("smart_input") })
+                    NavigationDrawerItem(icon = { Icon(Icons.Default.AccountTree, contentDescription = null) }, label = { Text("资料树") }, selected = false, onClick = { open("structure") })
                     HorizontalDivider(Modifier.padding(vertical = 8.dp))
                     Row(Modifier.fillMaxWidth().padding(start = 20.dp, end = 8.dp), horizontalArrangement = Arrangement.SpaceBetween) {
                         Text("分类", style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(top = 12.dp))
@@ -200,9 +186,7 @@ fun HomeScreen(go: (String) -> Unit) {
                 }
                 if (q.isNotBlank()) {
                     item { Text("搜索结果 · ${recordSearch.size + categorySearch.size}", style = MaterialTheme.typography.titleSmall) }
-                    items(recordSearch, key = { it.key }) { item ->
-                        RecordListItem(item = item, pinned = recordStateFor(item, stateMap).pinned, onClick = { go(item.route) })
-                    }
+                    items(recordSearch, key = { it.key }) { item -> RecordListItem(item = item, pinned = recordStateFor(item, stateMap).pinned, onClick = { go(item.route) }) }
                     items(categorySearch, key = { "category:${it.key}" }) { category ->
                         ListItem(
                             modifier = Modifier.fillMaxWidth().clickable { go(categoryRoute(category)) },
@@ -216,12 +200,8 @@ fun HomeScreen(go: (String) -> Unit) {
                 } else {
                     item {
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            FilledTonalButton(onClick = { go("note/new/inbox") }, modifier = Modifier.weight(1f)) {
-                                Icon(Icons.Default.EditNote, null); Spacer(Modifier.width(6.dp)); Text("新建记录")
-                            }
-                            FilledTonalButton(onClick = { go("smart_input") }, modifier = Modifier.weight(1f)) {
-                                Icon(Icons.Default.Mic, null); Spacer(Modifier.width(6.dp)); Text("智能录入")
-                            }
+                            FilledTonalButton(onClick = { go("note/new/inbox") }, modifier = Modifier.weight(1f)) { Icon(Icons.Default.EditNote, null); Spacer(Modifier.width(6.dp)); Text("新建记录") }
+                            FilledTonalButton(onClick = { go("smart_input") }, modifier = Modifier.weight(1f)) { Icon(Icons.Default.Mic, null); Spacer(Modifier.width(6.dp)); Text("智能录入") }
                         }
                     }
                     if (pinnedRecords.isNotEmpty()) {

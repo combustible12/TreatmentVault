@@ -86,7 +86,7 @@ jobs:
               "versionName": os.environ["VERSION_NAME"],
               "apkUrl": "https://raw.githubusercontent.com/combustible12/TreatmentVault-Updates/main/TreatmentVault-latest.apk",
               "sha256": os.environ["SHA"],
-              "notes": "收纳功能增强：任意资料文件夹中的“收纳已有”现在同时支持已有笔记和已有文件夹，可多选后移动进当前文件夹；例如可把“闽东医院报告”整个收进“检查报告”，原文件夹内的笔记和子文件夹一起保留。笔记也可从其他文件夹直接收纳，不再只限待整理。已加入循环嵌套保护，不能把父文件夹收进自己的子层级。本版不改数据库结构。"
+              "notes": "记录与文件夹彻底解耦：检查、治疗、药品、症状、体温、问诊、费用等专用记录现在都能像普通笔记一样自由移动到任意文件夹或子文件夹，仍保留原记录类型和专用字段。文件夹内长按可多选任意记录移动；“收纳已有”可从其他位置收纳任意记录和文件夹。新增记录位置映射及数据库 5→6 安全迁移，旧数据默认保持原位置；备份恢复同步保存记录位置，首页、搜索、全部记录和资料树同步显示移动后的文件夹归属。"
           }
           with open("update-repo/update.json", "w", encoding="utf-8") as f:
               json.dump(data, f, ensure_ascii=False, indent=2)

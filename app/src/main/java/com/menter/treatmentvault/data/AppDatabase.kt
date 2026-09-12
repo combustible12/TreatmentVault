@@ -12,9 +12,9 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         SupplyEntity::class, ExamEntity::class, TreatmentPlanEntity::class, TreatmentRecordEntity::class,
         SymptomEntity::class, TemperatureEntity::class, QuestionEntity::class, ExpenseEntity::class,
         TimelineEntity::class, ImportHistoryEntity::class, CategoryEntity::class, TagEntity::class,
-        CustomEntryEntity::class, AttachmentEntity::class, RecordStateEntity::class,
+        CustomEntryEntity::class, AttachmentEntity::class, RecordStateEntity::class, RecordFolderEntity::class,
     ],
-    version = 5,
+    version = 6,
     exportSchema = false,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -50,6 +50,13 @@ abstract class AppDatabase : RoomDatabase() {
                 db.execSQL("CREATE INDEX IF NOT EXISTS `index_RecordStateEntity_favorite` ON `RecordStateEntity` (`favorite`)")
                 db.execSQL("CREATE INDEX IF NOT EXISTS `index_RecordStateEntity_archived` ON `RecordStateEntity` (`archived`)")
                 db.execSQL("CREATE INDEX IF NOT EXISTS `index_RecordStateEntity_trashedAt` ON `RecordStateEntity` (`trashedAt`)")
+            }
+        }
+
+        private val MIGRATION_5_6 = object : Migration(5, 6) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("CREATE TABLE IF NOT EXISTS `RecordFolderEntity` (`ownerType` TEXT NOT NULL, `ownerId` INTEGER NOT NULL, `folderKey` TEXT NOT NULL, `updatedAt` INTEGER NOT NULL, PRIMARY KEY(`ownerType`,`ownerId`))")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_RecordFolderEntity_folderKey` ON `RecordFolderEntity` (`folderKey`)")
             }
         }
 
@@ -94,7 +101,7 @@ abstract class AppDatabase : RoomDatabase() {
 
         fun get(context: Context): AppDatabase = INSTANCE ?: synchronized(this) {
             INSTANCE ?: Room.databaseBuilder(context.applicationContext, AppDatabase::class.java, "treatment_vault.db")
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
                 .addCallback(object : Callback() {
                     override fun onCreate(db: SupportSQLiteDatabase) {
                         super.onCreate(db)

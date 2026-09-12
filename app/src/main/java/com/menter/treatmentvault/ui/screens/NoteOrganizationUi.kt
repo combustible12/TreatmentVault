@@ -97,7 +97,7 @@ private fun collectableFolders(
 }
 
 @Composable
-fun MoveNotesDialog(
+fun MoveRecordsDialog(
     categories: List<CategoryEntity>,
     count: Int,
     currentCategoryId: String? = null,
@@ -113,7 +113,7 @@ fun MoveNotesDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("移动 $count 条笔记") },
+        title = { Text("移动 $count 条记录") },
         text = {
             if (targets.isEmpty()) {
                 Text("目前没有其他可用文件夹。可以先新建一个文件夹。")
@@ -139,33 +139,40 @@ fun MoveNotesDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = { destination?.let(onMove) }, enabled = destination != null) {
-                Text("移动")
-            }
+            TextButton(onClick = { destination?.let(onMove) }, enabled = destination != null) { Text("移动") }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("取消") } },
     )
 }
 
 @Composable
+fun MoveNotesDialog(
+    categories: List<CategoryEntity>,
+    count: Int,
+    currentCategoryId: String? = null,
+    onDismiss: () -> Unit,
+    onMove: (String) -> Unit,
+) = MoveRecordsDialog(categories, count, currentCategoryId, onDismiss, onMove)
+
+@Composable
 fun CollectExistingContentDialog(
-    notes: List<CustomEntryEntity>,
+    records: List<UnifiedRecordItem>,
     categories: List<CategoryEntity>,
     destinationCategoryId: String,
     destinationName: String,
     onDismiss: () -> Unit,
-    onConfirm: (Set<Long>, Set<String>) -> Unit,
+    onConfirm: (Set<String>, Set<String>) -> Unit,
 ) {
     val folders = remember(categories, destinationCategoryId) {
         collectableFolders(categories, destinationCategoryId)
     }
-    var section by remember { mutableStateOf("notes") }
-    var selectedNotes by remember(notes) { mutableStateOf<Set<Long>>(emptySet()) }
+    var section by remember { mutableStateOf("records") }
+    var selectedRecords by remember(records) { mutableStateOf<Set<String>>(emptySet()) }
     var selectedFolders by remember(folders) { mutableStateOf<Set<String>>(emptySet()) }
-    val selectedCount = selectedNotes.size + selectedFolders.size
+    val selectedCount = selectedRecords.size + selectedFolders.size
     val currentAllSelected = when (section) {
         "folders" -> folders.isNotEmpty() && selectedFolders.size == folders.size
-        else -> notes.isNotEmpty() && selectedNotes.size == notes.size
+        else -> records.isNotEmpty() && selectedRecords.size == records.size
     }
 
     AlertDialog(
@@ -174,14 +181,14 @@ fun CollectExistingContentDialog(
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(
-                    "把已有笔记或已有文件夹移动到“$destinationName”。移动原内容，不复制；文件夹里的内容会整棵一起保留。",
+                    "把已有记录或已有文件夹移动到“$destinationName”。检查、治疗等专用记录也能移动，类型和原字段都会保留。",
                     style = MaterialTheme.typography.bodySmall,
                 )
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     FilterChip(
-                        selected = section == "notes",
-                        onClick = { section = "notes" },
-                        label = { Text("笔记 ${notes.size}") },
+                        selected = section == "records",
+                        onClick = { section = "records" },
+                        label = { Text("记录 ${records.size}") },
                     )
                     FilterChip(
                         selected = section == "folders",
@@ -190,10 +197,10 @@ fun CollectExistingContentDialog(
                     )
                 }
 
-                val currentCount = if (section == "folders") folders.size else notes.size
+                val currentCount = if (section == "folders") folders.size else records.size
                 if (currentCount == 0) {
                     Text(
-                        if (section == "folders") "目前没有可收纳的其他文件夹。" else "目前没有可收纳的其他笔记。",
+                        if (section == "folders") "目前没有可收纳的其他文件夹。" else "目前没有可收纳的其他记录。",
                         modifier = Modifier.padding(vertical = 18.dp),
                     )
                 } else {
@@ -202,12 +209,10 @@ fun CollectExistingContentDialog(
                             if (section == "folders") {
                                 selectedFolders = if (currentAllSelected) emptySet() else folders.map { it.key }.toSet()
                             } else {
-                                selectedNotes = if (currentAllSelected) emptySet() else notes.map { it.id }.toSet()
+                                selectedRecords = if (currentAllSelected) emptySet() else records.map { it.key }.toSet()
                             }
                         }
-                    ) {
-                        Text(if (currentAllSelected) "取消全选" else "全选 $currentCount 项")
-                    }
+                    ) { Text(if (currentAllSelected) "取消全选" else "全选 $currentCount 项") }
 
                     LazyColumn(modifier = Modifier.fillMaxWidth().heightIn(max = 390.dp)) {
                         if (section == "folders") {
@@ -232,28 +237,24 @@ fun CollectExistingContentDialog(
                                 )
                             }
                         } else {
-                            items(notes, key = { it.id }) { note ->
-                                val plain = richBodyPlainText(note.content)
-                                val title = note.title.ifBlank {
-                                    plain.lineSequence().firstOrNull().orEmpty().take(42).ifBlank { "未命名笔记" }
-                                }
-                                val source = categories.firstOrNull { it.key == note.categoryId }
+                            items(records, key = { it.key }) { record ->
+                                val source = categories.firstOrNull { it.key == record.categoryKey }
                                 ListItem(
                                     modifier = Modifier.fillMaxWidth().clickable {
-                                        selectedNotes = if (note.id in selectedNotes) selectedNotes - note.id else selectedNotes + note.id
+                                        selectedRecords = if (record.key in selectedRecords) selectedRecords - record.key else selectedRecords + record.key
                                     },
-                                    headlineContent = { Text(title, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                                    headlineContent = { Text(record.title, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                                     supportingContent = {
                                         Column {
                                             source?.let { Text(categoryPath(it, categories), maxLines = 1, overflow = TextOverflow.Ellipsis) }
-                                            if (plain.isNotBlank()) Text(plain, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                            if (record.preview.isNotBlank()) Text(record.preview, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                         }
                                     },
                                     leadingContent = {
                                         Checkbox(
-                                            checked = note.id in selectedNotes,
+                                            checked = record.key in selectedRecords,
                                             onCheckedChange = { checked ->
-                                                selectedNotes = if (checked) selectedNotes + note.id else selectedNotes - note.id
+                                                selectedRecords = if (checked) selectedRecords + record.key else selectedRecords - record.key
                                             },
                                         )
                                     },
@@ -266,7 +267,7 @@ fun CollectExistingContentDialog(
         },
         confirmButton = {
             TextButton(
-                onClick = { onConfirm(selectedNotes, selectedFolders) },
+                onClick = { onConfirm(selectedRecords, selectedFolders) },
                 enabled = selectedCount > 0,
             ) { Text(if (selectedCount > 0) "收纳 $selectedCount 项" else "收纳") }
         },
@@ -289,10 +290,7 @@ fun CollectExistingNotesDialog(
         title = { Text("收纳已有笔记") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(
-                    "选择已有笔记，移动到“$destinationName”。移动不会复制，也不会改动正文、图片、收藏或置顶状态。",
-                    style = MaterialTheme.typography.bodySmall,
-                )
+                Text("选择已有笔记，移动到“$destinationName”。", style = MaterialTheme.typography.bodySmall)
                 if (notes.isEmpty()) {
                     Text("暂时没有可收纳的笔记。", modifier = Modifier.padding(vertical = 18.dp))
                 } else {
@@ -310,9 +308,7 @@ fun CollectExistingNotesDialog(
                                     selected = if (note.id in selected) selected - note.id else selected + note.id
                                 },
                                 headlineContent = { Text(title, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-                                supportingContent = {
-                                    if (plain.isNotBlank()) Text(plain, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                                },
+                                supportingContent = { if (plain.isNotBlank()) Text(plain, maxLines = 2, overflow = TextOverflow.Ellipsis) },
                                 leadingContent = {
                                     Checkbox(
                                         checked = note.id in selected,
@@ -328,9 +324,7 @@ fun CollectExistingNotesDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = { onConfirm(selected) }, enabled = selected.isNotEmpty()) {
-                Text("移入 $destinationName")
-            }
+            TextButton(onClick = { onConfirm(selected) }, enabled = selected.isNotEmpty()) { Text("移入 $destinationName") }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("取消") } },
     )

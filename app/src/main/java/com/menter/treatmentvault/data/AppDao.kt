@@ -108,6 +108,14 @@ interface AppDao {
     @Query("DELETE FROM RecordStateEntity WHERE ownerType=:ownerType AND ownerId=:ownerId") suspend fun deleteRecordState(ownerType:String, ownerId:Long)
     @Query("DELETE FROM RecordStateEntity") suspend fun clearRecordStates()
 
+    @Query("SELECT * FROM RecordFolderEntity") fun recordFolders():Flow<List<RecordFolderEntity>>
+    @Query("SELECT * FROM RecordFolderEntity") suspend fun allRecordFolders():List<RecordFolderEntity>
+    @Query("SELECT * FROM RecordFolderEntity WHERE ownerType=:ownerType AND ownerId=:ownerId LIMIT 1") suspend fun recordFolder(ownerType:String, ownerId:Long):RecordFolderEntity?
+    @Insert(onConflict=OnConflictStrategy.REPLACE) suspend fun saveRecordFolder(v:RecordFolderEntity)
+    @Query("DELETE FROM RecordFolderEntity WHERE ownerType=:ownerType AND ownerId=:ownerId") suspend fun deleteRecordFolder(ownerType:String, ownerId:Long)
+    @Query("DELETE FROM RecordFolderEntity WHERE folderKey=:folderKey") suspend fun clearRecordFoldersForFolder(folderKey:String)
+    @Query("DELETE FROM RecordFolderEntity") suspend fun clearRecordFolders()
+
     @Query("SELECT * FROM SupplyEntity") suspend fun allSupplies():List<SupplyEntity>
     @Query("SELECT * FROM ExamEntity") suspend fun allExams():List<ExamEntity>
     @Query("SELECT * FROM TreatmentPlanEntity") suspend fun allPlans():List<TreatmentPlanEntity>

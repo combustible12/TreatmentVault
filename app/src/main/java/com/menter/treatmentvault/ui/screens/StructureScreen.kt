@@ -15,7 +15,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.menter.treatmentvault.TreatmentVaultApplication
 import com.menter.treatmentvault.data.CategoryEntity
-import com.menter.treatmentvault.data.CustomEntryEntity
 
 private val nonDataCategoryKeys = setOf("smart_input", "import", "settings")
 
@@ -35,6 +34,8 @@ fun StructureScreen(back: () -> Unit, go: (String) -> Unit) {
     val expenses by dao.expenses().collectAsState(initial = emptyList())
     val timeline by dao.timeline().collectAsState(initial = emptyList())
     val customEntries by dao.allCustomEntriesFlow().collectAsState(initial = emptyList())
+    val states by dao.recordStates().collectAsState(initial = emptyList())
+    val recordFolders by dao.recordFolders().collectAsState(initial = emptyList())
 
     val dataCategories = remember(categories) {
         categories.filter { !it.hidden && (!it.isSystem || it.key !in nonDataCategoryKeys) }
@@ -53,37 +54,29 @@ fun StructureScreen(back: () -> Unit, go: (String) -> Unit) {
             dataCategories.filterNot { it.key in included }.sortedBy { it.sortOrder }.forEach { add(it to 0) }
         }
     }
+    val stateMap = remember(states) { states.associateBy { "${it.ownerType}:${it.ownerId}" } }
+    val allItems = remember(categories, supplies, exams, plans, records, symptoms, temperatures, questions, expenses, timeline, customEntries, recordFolders) {
+        buildUnifiedRecords(categories, supplies, exams, plans, records, symptoms, temperatures, questions, expenses, timeline, customEntries, recordFolders)
+    }
+    val activeItems = remember(allItems, stateMap) {
+        allItems.filter { item ->
+            val state = recordStateFor(item, stateMap)
+            state.trashedAt == null && !state.archived
+        }
+    }
     var expanded by remember { mutableStateOf<Set<String>>(emptySet()) }
 
-    fun children(category: CategoryEntity): List<String> = when (category.key) {
-        "timeline" -> timeline.map { "${it.date} · ${it.title}" }
-        "exams" -> exams.map { "${it.date} · ${it.name}" } + customEntries.filter { it.categoryId == category.key }.map { entryLabel(it) }
-        "treatment" -> plans.map { "方案 · ${it.name}" } + records.map {
-            "${it.date} · ${it.type}${if (it.content.isBlank()) "" else " · ${it.content.take(30)}"}"
-        } + customEntries.filter { it.categoryId == category.key }.map { entryLabel(it) }
-        "supplies" -> supplies.map { it.name } + customEntries.filter { it.categoryId == category.key }.map { entryLabel(it) }
-        "symptoms" -> symptoms.map {
-            val detail = it.notes.ifBlank { it.other.ifBlank { "症状记录" } }
-            "${it.date} · ${detail.take(36)}"
-        } + customEntries.filter { it.categoryId == category.key }.map { entryLabel(it) }
-        "temperature" -> temperatures.map { "${it.date} ${it.time} · ${it.temperature}℃" } + customEntries.filter { it.categoryId == category.key }.map { entryLabel(it) }
-        "questions" -> questions.map { "${it.status} · ${it.question.take(42)}" } + customEntries.filter { it.categoryId == category.key }.map { entryLabel(it) }
-        "expenses" -> expenses.map { "${it.date} · ${it.type} · ¥${it.amount}" } + customEntries.filter { it.categoryId == category.key }.map { entryLabel(it) }
-        else -> customEntries.filter { it.categoryId == category.key }.map { entryLabel(it) }
-    }
+    fun children(category: CategoryEntity): List<String> = activeItems
+        .filter { it.categoryKey == category.key }
+        .sortedByDescending { it.updatedAt }
+        .map { item -> if (item.date.isBlank()) item.title else "${item.date} · ${item.title}" }
 
     Page("资料树", back) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Icon(Icons.Default.AccountTree, contentDescription = null)
             Text("治疗资料库 → 文件夹 → 子文件夹 → 记录", style = MaterialTheme.typography.titleSmall)
         }
-        Text(
-            "这里按真实文件夹层级显示。展开文件夹看直属记录，点“进入”打开对应文件夹。",
-            style = MaterialTheme.typography.bodySmall,
-        )
+        Text("这里按真实文件夹层级显示。结构化记录移动到子文件夹后，资料树也会同步位置。", style = MaterialTheme.typography.bodySmall)
 
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             OutlinedButton(onClick = { expanded = dataCategories.map { it.key }.toSet() }) { Text("全部展开") }
@@ -91,10 +84,7 @@ fun StructureScreen(back: () -> Unit, go: (String) -> Unit) {
         }
 
         Card(modifier = Modifier.fillMaxWidth()) {
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(14.dp),
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-            ) {
+            Row(modifier = Modifier.fillMaxWidth().padding(14.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 Icon(Icons.Default.AccountTree, contentDescription = null)
                 Column {
                     Text("治疗资料库", style = MaterialTheme.typography.titleMedium)
@@ -114,10 +104,9 @@ fun StructureScreen(back: () -> Unit, go: (String) -> Unit) {
                 Card(modifier = Modifier.fillMaxWidth().padding(start = (depth * 18).dp)) {
                     Column {
                         Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable { expanded = if (isExpanded) expanded - category.key else expanded + category.key }
-                                .padding(horizontal = 10.dp, vertical = 9.dp),
+                            modifier = Modifier.fillMaxWidth().clickable {
+                                expanded = if (isExpanded) expanded - category.key else expanded + category.key
+                            }.padding(horizontal = 10.dp, vertical = 9.dp),
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
                         ) {
                             Icon(if (isExpanded) Icons.Default.ExpandMore else Icons.Default.ChevronRight, contentDescription = if (isExpanded) "收起" else "展开")
@@ -152,11 +141,4 @@ fun StructureScreen(back: () -> Unit, go: (String) -> Unit) {
             }
         }
     }
-}
-
-private fun entryLabel(entry: CustomEntryEntity): String {
-    val title = entry.title.ifBlank {
-        richBodyPlainText(entry.content).lineSequence().firstOrNull().orEmpty().take(40).ifBlank { "未命名记录" }
-    }
-    return if (entry.date.isBlank()) title else "${entry.date} · $title"
 }

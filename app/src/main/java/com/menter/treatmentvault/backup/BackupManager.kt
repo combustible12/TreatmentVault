@@ -25,6 +25,7 @@ data class Snapshot(
     val tags: List<TagEntity>? = null,
     val attachments: List<AttachmentEntity>? = null,
     val recordStates: List<RecordStateEntity>? = null,
+    val recordFolders: List<RecordFolderEntity>? = null,
 )
 
 class BackupManager(private val context: Context, private val db: AppDatabase) {
@@ -36,7 +37,7 @@ class BackupManager(private val context: Context, private val db: AppDatabase) {
         val snap = Snapshot(
             dao.allSupplies(), dao.allExams(), dao.allPlans(), dao.allRecords(), dao.allSymptoms(),
             dao.allTemperatures(), dao.allQuestions(), dao.allExpenses(), dao.allTimeline(),
-            dao.allCategories(), dao.allCustomEntries(), dao.allTags(), dao.allAttachments(), dao.allRecordStates(),
+            dao.allCategories(), dao.allCustomEntries(), dao.allTags(), dao.allAttachments(), dao.allRecordStates(), dao.allRecordFolders(),
         )
         ZipOutputStream(context.contentResolver.openOutputStream(uri)).use { z ->
             z.putNextEntry(ZipEntry("backup.json"))
@@ -70,7 +71,7 @@ class BackupManager(private val context: Context, private val db: AppDatabase) {
         val snap = gson.fromJson(json ?: error("无 backup.json"), Snapshot::class.java)
         db.withTransaction {
             dao.clearSupplies(); dao.clearExams(); dao.clearPlans(); dao.clearRecords(); dao.clearSymptoms()
-            dao.clearTemperatures(); dao.clearQuestions(); dao.clearExpenses(); dao.clearTimeline(); dao.clearAttachments(); dao.clearRecordStates()
+            dao.clearTemperatures(); dao.clearQuestions(); dao.clearExpenses(); dao.clearTimeline(); dao.clearAttachments(); dao.clearRecordStates(); dao.clearRecordFolders()
             snap.supplies.forEach { dao.saveSupply(it) }; snap.exams.forEach { dao.saveExam(it) }
             snap.plans.forEach { dao.savePlan(it) }; snap.records.forEach { dao.saveRecord(it) }
             snap.symptoms.forEach { dao.saveSymptom(it) }; snap.temperatures.orEmpty().forEach { dao.saveTemperature(it) }
@@ -81,6 +82,7 @@ class BackupManager(private val context: Context, private val db: AppDatabase) {
             snap.tags?.let { list -> dao.clearTags(); list.forEach { dao.saveTag(it) } }
             snap.attachments.orEmpty().forEach { dao.saveAttachment(it) }
             snap.recordStates.orEmpty().forEach { dao.saveRecordState(it) }
+            snap.recordFolders.orEmpty().forEach { dao.saveRecordFolder(it) }
         }
         files.forEach { (fileName, bytes) -> File(attachmentDir, fileName).writeBytes(bytes) }
     }

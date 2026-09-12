@@ -48,12 +48,13 @@ fun FolderScreen(categoryId: String, back: () -> Unit, go: (String) -> Unit) {
     val timeline by dao.timeline().collectAsState(initial = emptyList())
     val allNotes by dao.allCustomEntriesFlow().collectAsState(initial = emptyList())
     val states by dao.recordStates().collectAsState(initial = emptyList())
+    val recordFolders by dao.recordFolders().collectAsState(initial = emptyList())
     val scope = rememberCoroutineScope()
 
     val folder = categories.firstOrNull { it.key == categoryId }
     val stateMap = remember(states) { states.associateBy { "${it.ownerType}:${it.ownerId}" } }
-    val allItems = remember(categories, supplies, exams, plans, treatmentRecords, symptoms, temperatures, questions, expenses, timeline, allNotes) {
-        buildUnifiedRecords(categories, supplies, exams, plans, treatmentRecords, symptoms, temperatures, questions, expenses, timeline, allNotes)
+    val allItems = remember(categories, supplies, exams, plans, treatmentRecords, symptoms, temperatures, questions, expenses, timeline, allNotes, recordFolders) {
+        buildUnifiedRecords(categories, supplies, exams, plans, treatmentRecords, symptoms, temperatures, questions, expenses, timeline, allNotes, recordFolders)
     }
     val activeItems = remember(allItems, stateMap) {
         allItems.filter { item ->
@@ -68,16 +69,12 @@ fun FolderScreen(categoryId: String, back: () -> Unit, go: (String) -> Unit) {
     val directItems = remember(activeItems, categoryId) {
         activeItems.filter { it.categoryKey == categoryId }.sortedByDescending { it.updatedAt }
     }
-    val collectableNotes = remember(allNotes, stateMap, categoryId) {
-        allNotes.filter { note ->
-            if (note.categoryId == categoryId) return@filter false
-            val state = stateMap["note:${note.id}"]
-            state?.trashedAt == null && state?.archived != true
-        }.sortedByDescending { it.updatedAt }
+    val collectableRecords = remember(activeItems, categoryId) {
+        activeItems.filter { it.categoryKey != categoryId }.sortedByDescending { it.updatedAt }
     }
 
     var query by remember(categoryId) { mutableStateOf("") }
-    var selectedIds by remember(categoryId) { mutableStateOf<Set<Long>>(emptySet()) }
+    var selectedKeys by remember(categoryId) { mutableStateOf<Set<String>>(emptySet()) }
     var showMove by remember { mutableStateOf(false) }
     var showCollect by remember { mutableStateOf(false) }
     var showNewFolder by remember { mutableStateOf(false) }
@@ -93,8 +90,8 @@ fun FolderScreen(categoryId: String, back: () -> Unit, go: (String) -> Unit) {
         }
     }
 
-    fun toggleNote(id: Long) {
-        selectedIds = if (id in selectedIds) selectedIds - id else selectedIds + id
+    fun toggle(item: UnifiedRecordItem) {
+        selectedKeys = if (item.key in selectedKeys) selectedKeys - item.key else selectedKeys + item.key
     }
 
     if (folder == null) {
@@ -104,10 +101,10 @@ fun FolderScreen(categoryId: String, back: () -> Unit, go: (String) -> Unit) {
 
     Scaffold(
         topBar = {
-            if (selectedIds.isNotEmpty()) {
+            if (selectedKeys.isNotEmpty()) {
                 TopAppBar(
-                    title = { Text("已选 ${selectedIds.size} 条") },
-                    navigationIcon = { IconButton(onClick = { selectedIds = emptySet() }) { Icon(Icons.Default.Close, contentDescription = "取消选择") } },
+                    title = { Text("已选 ${selectedKeys.size} 条") },
+                    navigationIcon = { IconButton(onClick = { selectedKeys = emptySet() }) { Icon(Icons.Default.Close, contentDescription = "取消选择") } },
                     actions = { IconButton(onClick = { showMove = true }) { Icon(Icons.Default.FolderOpen, contentDescription = "移动到") } },
                 )
             } else {
@@ -197,14 +194,10 @@ fun FolderScreen(categoryId: String, back: () -> Unit, go: (String) -> Unit) {
                     FolderRecordCard(
                         item = item,
                         state = state,
-                        selectionMode = selectedIds.isNotEmpty(),
-                        selected = item.ownerType == "note" && item.ownerId in selectedIds,
-                        onClick = {
-                            if (selectedIds.isNotEmpty()) {
-                                if (item.ownerType == "note") toggleNote(item.ownerId)
-                            } else go(item.route)
-                        },
-                        onLongClick = { if (item.ownerType == "note") toggleNote(item.ownerId) },
+                        selectionMode = selectedKeys.isNotEmpty(),
+                        selected = item.key in selectedKeys,
+                        onClick = { if (selectedKeys.isNotEmpty()) toggle(item) else go(item.route) },
+                        onLongClick = { toggle(item) },
                     )
                 }
             }
@@ -221,7 +214,7 @@ fun FolderScreen(categoryId: String, back: () -> Unit, go: (String) -> Unit) {
                             if (q.isBlank()) {
                                 Text(
                                     if (categoryId == "inbox") "可以直接新建笔记，之后再移动到其他文件夹。"
-                                    else "可以新建笔记、新建子文件夹，或从其他位置收纳已有笔记和文件夹。",
+                                    else "可以新建笔记、新建子文件夹，或从其他位置收纳已有记录和文件夹。",
                                     style = MaterialTheme.typography.bodySmall,
                                 )
                             }
@@ -235,14 +228,14 @@ fun FolderScreen(categoryId: String, back: () -> Unit, go: (String) -> Unit) {
 
     if (showCollect) {
         CollectExistingContentDialog(
-            notes = collectableNotes,
+            records = collectableRecords,
             categories = categories,
             destinationCategoryId = categoryId,
             destinationName = folder.name,
             onDismiss = { showCollect = false },
-            onConfirm = { noteIds, folderKeys ->
+            onConfirm = { recordKeys, folderKeys ->
                 scope.launch {
-                    moveNotesToCategory(dao, allNotes, noteIds, categoryId)
+                    moveUnifiedRecordsToFolder(dao, allNotes, allItems, recordKeys, categoryId)
                     moveFoldersToCategory(dao, categories, folderKeys, categoryId)
                     showCollect = false
                 }
@@ -250,16 +243,16 @@ fun FolderScreen(categoryId: String, back: () -> Unit, go: (String) -> Unit) {
         )
     }
 
-    if (showMove && selectedIds.isNotEmpty()) {
-        MoveNotesDialog(
+    if (showMove && selectedKeys.isNotEmpty()) {
+        MoveRecordsDialog(
             categories = categories,
-            count = selectedIds.size,
+            count = selectedKeys.size,
             currentCategoryId = categoryId,
             onDismiss = { showMove = false },
             onMove = { destination ->
                 scope.launch {
-                    moveNotesToCategory(dao, allNotes, selectedIds, destination)
-                    selectedIds = emptySet()
+                    moveUnifiedRecordsToFolder(dao, allNotes, allItems, selectedKeys, destination)
+                    selectedKeys = emptySet()
                     showMove = false
                 }
             },
@@ -345,7 +338,7 @@ private fun FolderRecordCard(
     onLongClick: () -> Unit,
 ) {
     Card(
-        modifier = Modifier.fillMaxWidth().combinedClickable(onClick = onClick, onLongClick = { if (item.ownerType == "note") onLongClick() }),
+        modifier = Modifier.fillMaxWidth().combinedClickable(onClick = onClick, onLongClick = onLongClick),
         shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
     ) {
@@ -363,8 +356,8 @@ private fun FolderRecordCard(
                 }
                 if (item.date.isNotBlank()) Text(item.date, style = MaterialTheme.typography.bodySmall)
             }
-            if (selectionMode && item.ownerType == "note") Checkbox(checked = selected, onCheckedChange = { onClick() })
-            else if (!selectionMode) Icon(Icons.Default.ChevronRight, contentDescription = null)
+            if (selectionMode) Checkbox(checked = selected, onCheckedChange = { onClick() })
+            else Icon(Icons.Default.ChevronRight, contentDescription = null)
         }
     }
 }
