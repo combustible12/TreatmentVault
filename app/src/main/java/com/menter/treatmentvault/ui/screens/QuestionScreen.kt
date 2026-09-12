@@ -16,12 +16,23 @@ import com.menter.treatmentvault.data.QuestionEntity
 import kotlinx.coroutines.launch
 
 @Composable
-fun QuestionScreen(back: () -> Unit) {
+fun QuestionScreen(back: () -> Unit, initialEditId: Long = 0L) {
     val dao = (androidx.compose.ui.platform.LocalContext.current.applicationContext as TreatmentVaultApplication).database.dao()
     val list by dao.questions().collectAsState(emptyList())
     val scope = rememberCoroutineScope()
     var editorOpen by remember { mutableStateOf(false) }
     var editing by remember { mutableStateOf<QuestionEntity?>(null) }
+    var openedInitial by remember(initialEditId) { mutableStateOf(false) }
+
+    LaunchedEffect(initialEditId, list) {
+        if (!openedInitial && initialEditId > 0L) {
+            list.firstOrNull { it.id.toLong() == initialEditId }?.let {
+                editing = it
+                editorOpen = true
+                openedInitial = true
+            }
+        }
+    }
 
     Page("医生问诊", back) {
         Text("问题当标题，下面直接记医生回答、照片和补充内容。医院、医生、状态等放到更多信息。", style = MaterialTheme.typography.bodySmall)
