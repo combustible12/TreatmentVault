@@ -242,54 +242,60 @@ private fun UnifiedRecordRow(
         },
         leadingContent = { Icon(categoryIcon(item.iconKey), contentDescription = null, tint = contentColor) },
         trailingContent = {
-            if (selectionMode) {
-                Checkbox(checked = selected, onCheckedChange = { onOpen() })
-            } else {
-                Box {
-                    IconButton(onClick = { menuOpen = true }) { Icon(Icons.Default.MoreVert, contentDescription = "更多", tint = contentColor) }
-                    DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                        if (shelf == RecordShelf.TRASH) {
-                            DropdownMenuItem(
-                                text = { Text("恢复") },
-                                leadingIcon = { Icon(Icons.Default.RestoreFromTrash, contentDescription = null) },
-                                onClick = { menuOpen = false; onStateChange(state.copy(trashedAt = null, archived = false)) },
-                            )
-                            DropdownMenuItem(
-                                text = { Text("永久删除") },
-                                leadingIcon = { Icon(Icons.Default.DeleteForever, contentDescription = null) },
-                                onClick = { menuOpen = false; confirmDelete = true },
-                            )
-                        } else {
-                            DropdownMenuItem(
-                                text = { Text(if (isTodo(state)) "切换为普通条目" else "切换为待办事项") },
-                                leadingIcon = { Icon(if (isTodo(state)) Icons.Default.Notes else Icons.Default.CheckBox, contentDescription = null) },
-                                onClick = { menuOpen = false; onStateChange(toggleTodoDisplay(state)) },
-                            )
-                            DropdownMenuItem(
-                                text = { Text("移动到文件夹") },
-                                leadingIcon = { Icon(Icons.Default.FolderOpen, contentDescription = null) },
-                                onClick = { menuOpen = false; onMoveRequested() },
-                            )
-                            DropdownMenuItem(
-                                text = { Text(if (state.pinned) "取消置顶" else "置顶") },
-                                leadingIcon = { Icon(Icons.Default.PushPin, contentDescription = null) },
-                                onClick = { menuOpen = false; onStateChange(state.copy(pinned = !state.pinned)) },
-                            )
-                            DropdownMenuItem(
-                                text = { Text(if (state.favorite) "取消收藏" else "收藏") },
-                                leadingIcon = { Icon(if (state.favorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder, contentDescription = null) },
-                                onClick = { menuOpen = false; onStateChange(state.copy(favorite = !state.favorite)) },
-                            )
-                            DropdownMenuItem(
-                                text = { Text(if (state.archived) "取消归档" else "归档") },
-                                leadingIcon = { Icon(Icons.Default.Archive, contentDescription = null) },
-                                onClick = { menuOpen = false; onStateChange(state.copy(archived = !state.archived)) },
-                            )
-                            DropdownMenuItem(
-                                text = { Text("移到回收站") },
-                                leadingIcon = { Icon(Icons.Default.DeleteOutline, contentDescription = null) },
-                                onClick = { menuOpen = false; onStateChange(state.copy(trashedAt = System.currentTimeMillis(), archived = false, pinned = false)) },
-                            )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(2.dp),
+            ) {
+                RecordThumbnail(item.thumbnailFileName, size = 48.dp)
+                if (selectionMode) {
+                    Checkbox(checked = selected, onCheckedChange = { onOpen() })
+                } else {
+                    Box {
+                        IconButton(onClick = { menuOpen = true }) { Icon(Icons.Default.MoreVert, contentDescription = "更多", tint = contentColor) }
+                        DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                            if (shelf == RecordShelf.TRASH) {
+                                DropdownMenuItem(
+                                    text = { Text("恢复") },
+                                    leadingIcon = { Icon(Icons.Default.RestoreFromTrash, contentDescription = null) },
+                                    onClick = { menuOpen = false; onStateChange(state.copy(trashedAt = null, archived = false)) },
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("永久删除") },
+                                    leadingIcon = { Icon(Icons.Default.DeleteForever, contentDescription = null) },
+                                    onClick = { menuOpen = false; confirmDelete = true },
+                                )
+                            } else {
+                                DropdownMenuItem(
+                                    text = { Text(if (isTodo(state)) "切换为普通条目" else "切换为待办事项") },
+                                    leadingIcon = { Icon(if (isTodo(state)) Icons.Default.Notes else Icons.Default.CheckBox, contentDescription = null) },
+                                    onClick = { menuOpen = false; onStateChange(toggleTodoDisplay(state)) },
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("移动到文件夹") },
+                                    leadingIcon = { Icon(Icons.Default.FolderOpen, contentDescription = null) },
+                                    onClick = { menuOpen = false; onMoveRequested() },
+                                )
+                                DropdownMenuItem(
+                                    text = { Text(if (state.pinned) "取消置顶" else "置顶") },
+                                    leadingIcon = { Icon(Icons.Default.PushPin, contentDescription = null) },
+                                    onClick = { menuOpen = false; onStateChange(state.copy(pinned = !state.pinned)) },
+                                )
+                                DropdownMenuItem(
+                                    text = { Text(if (state.favorite) "取消收藏" else "收藏") },
+                                    leadingIcon = { Icon(if (state.favorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder, contentDescription = null) },
+                                    onClick = { menuOpen = false; onStateChange(state.copy(favorite = !state.favorite)) },
+                                )
+                                DropdownMenuItem(
+                                    text = { Text(if (state.archived) "取消归档" else "归档") },
+                                    leadingIcon = { Icon(Icons.Default.Archive, contentDescription = null) },
+                                    onClick = { menuOpen = false; onStateChange(state.copy(archived = !state.archived)) },
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("移到回收站") },
+                                    leadingIcon = { Icon(Icons.Default.DeleteOutline, contentDescription = null) },
+                                    onClick = { menuOpen = false; onStateChange(state.copy(trashedAt = System.currentTimeMillis(), archived = false, pinned = false)) },
+                                )
+                            }
                         }
                     }
                 }
