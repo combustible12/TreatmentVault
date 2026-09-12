@@ -12,9 +12,9 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         SupplyEntity::class, ExamEntity::class, TreatmentPlanEntity::class, TreatmentRecordEntity::class,
         SymptomEntity::class, TemperatureEntity::class, QuestionEntity::class, ExpenseEntity::class,
         TimelineEntity::class, ImportHistoryEntity::class, CategoryEntity::class, TagEntity::class,
-        CustomEntryEntity::class, AttachmentEntity::class,
+        CustomEntryEntity::class, AttachmentEntity::class, RecordStateEntity::class,
     ],
-    version = 4,
+    version = 5,
     exportSchema = false,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -40,6 +40,16 @@ abstract class AppDatabase : RoomDatabase() {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("CREATE TABLE IF NOT EXISTS `AttachmentEntity` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `ownerType` TEXT NOT NULL, `ownerId` INTEGER NOT NULL, `fileName` TEXT NOT NULL, `createdAt` INTEGER NOT NULL)")
                 db.execSQL("CREATE INDEX IF NOT EXISTS `index_AttachmentEntity_ownerType_ownerId` ON `AttachmentEntity` (`ownerType`, `ownerId`)")
+            }
+        }
+
+        private val MIGRATION_4_5 = object : Migration(4, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("CREATE TABLE IF NOT EXISTS `RecordStateEntity` (`ownerType` TEXT NOT NULL, `ownerId` INTEGER NOT NULL, `pinned` INTEGER NOT NULL, `favorite` INTEGER NOT NULL, `archived` INTEGER NOT NULL, `trashedAt` INTEGER, `updatedAt` INTEGER NOT NULL, PRIMARY KEY(`ownerType`,`ownerId`))")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_RecordStateEntity_pinned` ON `RecordStateEntity` (`pinned`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_RecordStateEntity_favorite` ON `RecordStateEntity` (`favorite`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_RecordStateEntity_archived` ON `RecordStateEntity` (`archived`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_RecordStateEntity_trashedAt` ON `RecordStateEntity` (`trashedAt`)")
             }
         }
 
@@ -84,7 +94,7 @@ abstract class AppDatabase : RoomDatabase() {
 
         fun get(context: Context): AppDatabase = INSTANCE ?: synchronized(this) {
             INSTANCE ?: Room.databaseBuilder(context.applicationContext, AppDatabase::class.java, "treatment_vault.db")
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
                 .addCallback(object : Callback() {
                     override fun onCreate(db: SupportSQLiteDatabase) {
                         super.onCreate(db)
