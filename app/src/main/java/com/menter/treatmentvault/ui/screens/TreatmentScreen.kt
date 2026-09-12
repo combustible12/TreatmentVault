@@ -17,16 +17,36 @@ import com.menter.treatmentvault.data.TreatmentRecordEntity
 import kotlinx.coroutines.launch
 
 @Composable
-fun TreatmentScreen(back: () -> Unit) {
+fun TreatmentScreen(back: () -> Unit, initialPlanId: Long = 0L, initialRecordId: Long = 0L) {
     val dao = (androidx.compose.ui.platform.LocalContext.current.applicationContext as TreatmentVaultApplication).database.dao()
     val plans by dao.plans().collectAsState(emptyList())
     val records by dao.records().collectAsState(emptyList())
     val scope = rememberCoroutineScope()
-    var tab by remember { mutableIntStateOf(0) }
+    var tab by remember { mutableIntStateOf(if (initialRecordId > 0L) 1 else 0) }
     var editingPlan by remember { mutableStateOf<TreatmentPlanEntity?>(null) }
     var editingRecord by remember { mutableStateOf<TreatmentRecordEntity?>(null) }
     var planEditorOpen by remember { mutableStateOf(false) }
     var recordEditorOpen by remember { mutableStateOf(false) }
+    var openedInitial by remember(initialPlanId, initialRecordId) { mutableStateOf(false) }
+
+    LaunchedEffect(initialPlanId, initialRecordId, plans, records) {
+        if (!openedInitial) {
+            when {
+                initialPlanId > 0L -> plans.firstOrNull { it.id.toLong() == initialPlanId }?.let {
+                    tab = 0
+                    editingPlan = it
+                    planEditorOpen = true
+                    openedInitial = true
+                }
+                initialRecordId > 0L -> records.firstOrNull { it.id.toLong() == initialRecordId }?.let {
+                    tab = 1
+                    editingRecord = it
+                    recordEditorOpen = true
+                    openedInitial = true
+                }
+            }
+        }
+    }
 
     Page("治疗方案与记录", back) {
         TabRow(selectedTabIndex = tab) {
