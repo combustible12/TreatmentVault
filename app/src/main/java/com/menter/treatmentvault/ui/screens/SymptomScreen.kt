@@ -75,6 +75,7 @@ fun SymptomScreen(back: () -> Unit, initialEditId: Long = 0L) {
         var other by remember(initial?.id, editorOpen) { mutableStateOf(initial?.other.orEmpty()) }
         var notes by remember(initial?.id, editorOpen) { mutableStateOf(initial?.notes.orEmpty()) }
         var pendingFiles by remember(initial?.id, editorOpen) { mutableStateOf<List<String>>(emptyList()) }
+        var removedFiles by remember(initial?.id, editorOpen) { mutableStateOf<Set<String>>(emptySet()) }
         var detailsOpen by remember(initial?.id, editorOpen) { mutableStateOf(false) }
 
         FullScreenEditorDialog(
@@ -109,8 +110,9 @@ fun SymptomScreen(back: () -> Unit, initialEditId: Long = 0L) {
                         updatedAt = System.currentTimeMillis(),
                     )
                     val id = if (initial == null) dao.saveSymptom(value) else { dao.updateSymptom(value); value.id }
-                    reconcileRichAttachments(context, dao, "symptom", id, notes)
+                    reconcileRichAttachments(context, dao, "symptom", id, notes, removedFiles)
                     pendingFiles = emptyList()
+                    removedFiles = emptySet()
                     editorOpen = false
                 }
             },
@@ -125,6 +127,8 @@ fun SymptomScreen(back: () -> Unit, initialEditId: Long = 0L) {
                         onValueChange = { notes = it },
                         pendingFiles = pendingFiles,
                         onPendingFilesChange = { pendingFiles = it },
+                        removedFiles = removedFiles,
+                        onRemovedFilesChange = { removedFiles = it },
                         sessionKey = "symptom-${initial?.id ?: "new"}",
                     )
                 }
