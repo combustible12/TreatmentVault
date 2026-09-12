@@ -75,9 +75,7 @@ fun TimelineScreen(back: () -> Unit, go: (String) -> Unit, initialEditId: Long =
 
     val items = remember(timeline, exams, plans, records, symptoms, temperatures, questions, expenses, notes) {
         buildList {
-            timeline.forEach { value ->
-                add(TimelineDisplayItem("timeline-${value.id}", dateForTimeline(value.date, value.updatedAt), value.type.ifBlank { "记录" }, value.title.ifBlank { "时间线记录" }, value.content, value.updatedAt, source = value))
-            }
+            timeline.forEach { value -> add(TimelineDisplayItem("timeline-${value.id}", dateForTimeline(value.date, value.updatedAt), value.type.ifBlank { "记录" }, value.title.ifBlank { "时间线记录" }, value.content, value.updatedAt, source = value)) }
             exams.forEach { value -> add(TimelineDisplayItem("exam-${value.id}", dateForTimeline(value.date, value.updatedAt), "检查", value.name, timelinePreview(value.summary, value.notes), value.updatedAt, "exams/${value.id}")) }
             plans.forEach { value -> add(TimelineDisplayItem("plan-${value.id}", dateForTimeline(value.date.ifBlank { value.startDate }, value.updatedAt), "治疗方案", value.name, timelinePreview(value.explanation, value.notes), value.updatedAt, "treatment/plan/${value.id}")) }
             records.forEach { value -> add(TimelineDisplayItem("record-${value.id}", dateForTimeline(value.date, value.updatedAt), value.type.ifBlank { "治疗记录" }, value.type.ifBlank { "治疗记录" }, timelinePreview(value.content, value.notes), value.updatedAt, "treatment/record/${value.id}")) }
@@ -142,6 +140,7 @@ fun TimelineScreen(back: () -> Unit, go: (String) -> Unit, initialEditId: Long =
         var date by remember(initial?.id, editorOpen) { mutableStateOf(initial?.date?.ifBlank { LocalDate.now().toString() } ?: LocalDate.now().toString()) }
         var type by remember(initial?.id, editorOpen) { mutableStateOf(initial?.type.orEmpty().ifBlank { "记录" }) }
         var pendingFiles by remember(initial?.id, editorOpen) { mutableStateOf<List<String>>(emptyList()) }
+        var removedFiles by remember(initial?.id, editorOpen) { mutableStateOf<Set<String>>(emptySet()) }
 
         FullScreenEditorDialog(
             title = if (initial == null) "新增时间线记录" else "编辑时间线记录",
@@ -166,8 +165,9 @@ fun TimelineScreen(back: () -> Unit, go: (String) -> Unit, initialEditId: Long =
                         updatedAt = System.currentTimeMillis(),
                     )
                     val id = if (initial == null) dao.saveTimeline(value) else { dao.updateTimeline(value); value.id }
-                    reconcileRichAttachments(context, dao, "timeline", id, body)
+                    reconcileRichAttachments(context, dao, "timeline", id, body, removedFiles)
                     pendingFiles = emptyList()
+                    removedFiles = emptySet()
                     editorOpen = false
                 }
             },
@@ -183,6 +183,8 @@ fun TimelineScreen(back: () -> Unit, go: (String) -> Unit, initialEditId: Long =
                         onValueChange = { body = it },
                         pendingFiles = pendingFiles,
                         onPendingFilesChange = { pendingFiles = it },
+                        removedFiles = removedFiles,
+                        onRemovedFilesChange = { removedFiles = it },
                         sessionKey = "timeline-${initial?.id ?: "new"}",
                     )
                 }
