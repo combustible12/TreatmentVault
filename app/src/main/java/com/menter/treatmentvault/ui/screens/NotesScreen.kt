@@ -11,12 +11,18 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.menter.treatmentvault.TreatmentVaultApplication
 import com.menter.treatmentvault.data.CategoryEntity
 import com.menter.treatmentvault.data.CustomEntryEntity
 import com.menter.treatmentvault.data.RecordStateEntity
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -29,13 +35,17 @@ private fun noteTitle(note: CustomEntryEntity): String =
 fun NoteEditorScreen(noteId: Long, initialCategoryId: String?, back: () -> Unit) {
     val app = androidx.compose.ui.platform.LocalContext.current.applicationContext as TreatmentVaultApplication
     val dao = app.database.dao()
+    val lifecycleOwner = LocalLifecycleOwner.current
     val categories by dao.categories().collectAsState(initial = emptyList())
     val noteFlow = remember(noteId) { if (noteId > 0) dao.customEntry(noteId) else flowOf(null) }
     val existing by noteFlow.collectAsState(initial = null)
     val scope = rememberCoroutineScope()
     val today = remember { SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date()) }
+    val saveMutex = remember(noteId) { Mutex() }
 
     var loadedId by remember(noteId) { mutableStateOf<Long?>(null) }
+    var initialized by remember(noteId) { mutableStateOf(noteId == 0L) }
+    var persistedId by rememberSaveable(noteId) { mutableLongStateOf(noteId.coerceAtLeast(0L)) }
     var title by rememberSaveable(noteId) { mutableStateOf("") }
     var content by rememberSaveable(noteId) { mutableStateOf("") }
     var date by rememberSaveable(noteId) { mutableStateOf(today) }
@@ -45,6 +55,13 @@ fun NoteEditorScreen(noteId: Long, initialCategoryId: String?, back: () -> Unit)
     var confirmTrash by remember { mutableStateOf(false) }
     var pendingFiles by remember(noteId) { mutableStateOf<List<String>>(emptyList()) }
     var saving by remember { mutableStateOf(false) }
+    var leaving by remember { mutableStateOf(false) }
+    var revision by remember(noteId) { mutableLongStateOf(0L) }
+    var savedRevision by remember(noteId) { mutableLongStateOf(0L) }
+
+    fun markDirty() {
+        revision += 1L
+    }
 
     val folderCategories = remember(categories, categoryId) {
         categories
@@ -65,27 +82,35 @@ fun NoteEditorScreen(noteId: Long, initialCategoryId: String?, back: () -> Unit)
         val note = existing ?: return@LaunchedEffect
         if (loadedId != note.id) {
             loadedId = note.id
+            persistedId = note.id
             title = note.title
             content = note.content
             date = note.date
             tags = note.tags
             categoryId = note.categoryId
+            initialized = true
+            revision = 0L
+            savedRevision = 0L
         }
     }
 
     val selectedCategory = folderCategories.firstOrNull { it.key == categoryId }
         ?: categories.firstOrNull { it.key == categoryId }
-    val canSave = title.isNotBlank() || richBodyPlainText(content).isNotBlank() || pendingFiles.isNotEmpty()
+    val hasContent = noteDraftHasContent(title, content, pendingFiles)
+    val shouldPersist = shouldPersistNote(persistedId, title, content, pendingFiles)
+    val dirty = revision > savedRevision
 
-    fun saveAndBack() {
-        if (saving) return
-        if (!canSave) { back(); return }
-        saving = true
+    suspend fun persistLatest() = saveMutex.withLock {
+        if (!initialized || !shouldPersist) return@withLock persistedId
         val safeCategory = categoryId.ifBlank {
             folderCategories.firstOrNull { it.key == "inbox" }?.key ?: folderCategories.firstOrNull()?.key ?: "inbox"
         }
+        if (safeCategory.isBlank()) return@withLock persistedId
+
+        val targetRevision = revision
+        val pendingSnapshot = pendingFiles.distinct()
         val value = CustomEntryEntity(
-            id = existing?.id ?: 0,
+            id = persistedId,
             categoryId = safeCategory,
             date = date.trim(),
             title = title.trim(),
@@ -93,10 +118,52 @@ fun NoteEditorScreen(noteId: Long, initialCategoryId: String?, back: () -> Unit)
             tags = tags.trim(),
             updatedAt = System.currentTimeMillis(),
         )
-        scope.launch {
-            val savedId = if (value.id == 0L) dao.saveCustomEntry(value) else { dao.updateCustomEntry(value); value.id }
-            savePendingAttachments(dao, "note", savedId, pendingFiles)
+
+        saving = true
+        try {
+            val savedId = if (value.id == 0L) {
+                dao.saveCustomEntry(value)
+            } else {
+                dao.updateCustomEntry(value)
+                value.id
+            }
+            persistedId = savedId
+            if (pendingSnapshot.isNotEmpty()) {
+                savePendingAttachments(dao, "note", savedId, pendingSnapshot)
+                pendingFiles = pendingFiles.filterNot { it in pendingSnapshot }
+            }
+            if (revision == targetRevision) savedRevision = targetRevision
+            savedId
+        } finally {
             saving = false
+        }
+    }
+
+    LaunchedEffect(revision, initialized, categoryId, persistedId) {
+        if (!initialized || !dirty || !shouldPersist) return@LaunchedEffect
+        delay(600)
+        persistLatest()
+    }
+
+    val persistOnStop by rememberUpdatedState(newValue = {
+        scope.launch {
+            if (initialized && dirty && shouldPersist) persistLatest()
+        }
+    })
+
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_STOP) persistOnStop()
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
+    fun saveAndBack() {
+        if (leaving) return
+        leaving = true
+        scope.launch {
+            if (initialized && dirty && shouldPersist) persistLatest()
             back()
         }
     }
@@ -106,57 +173,132 @@ fun NoteEditorScreen(noteId: Long, initialCategoryId: String?, back: () -> Unit)
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(if (noteId > 0) "编辑记录" else "新建记录") },
+                title = { Text(if (noteId > 0 || persistedId > 0) "编辑记录" else "新建记录") },
                 navigationIcon = { IconButton(onClick = { saveAndBack() }) { Icon(Icons.Default.ArrowBack, contentDescription = "返回并保存") } },
                 actions = {
-                    if (existing != null) IconButton(onClick = { confirmTrash = true }) { Icon(Icons.Default.DeleteOutline, contentDescription = "移到回收站") }
-                    if (saving) CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
-                    else TextButton(onClick = { saveAndBack() }, enabled = canSave) { Text("完成") }
+                    if (persistedId > 0L) IconButton(onClick = { confirmTrash = true }) { Icon(Icons.Default.DeleteOutline, contentDescription = "移到回收站") }
+                    when {
+                        saving -> CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                        dirty -> Text("待保存", style = MaterialTheme.typography.labelSmall)
+                        persistedId > 0L -> Icon(Icons.Default.CloudDone, contentDescription = "已自动保存", modifier = Modifier.size(18.dp))
+                    }
+                    TextButton(onClick = { saveAndBack() }, enabled = initialized && !leaving) { Text("完成") }
                 },
             )
         },
     ) { padding ->
-        LazyColumn(
-            modifier = Modifier.fillMaxSize().padding(padding),
-            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            item { OutlinedTextField(value = title, onValueChange = { title = it }, modifier = Modifier.fillMaxWidth(), placeholder = { Text("标题") }, singleLine = true, textStyle = MaterialTheme.typography.titleLarge) }
-            item {
-                RichNoteBodyEditor(
-                    dao = dao,
-                    ownerType = "note",
-                    ownerId = existing?.id ?: 0L,
-                    value = content,
-                    onValueChange = { content = it },
-                    pendingFiles = pendingFiles,
-                    onPendingFilesChange = { pendingFiles = it },
-                )
+        if (!initialized) {
+            Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = androidx.compose.ui.Alignment.Center) {
+                CircularProgressIndicator()
             }
-            item {
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Box(Modifier.weight(1f)) {
-                        OutlinedButton(onClick = { categoryMenu = true }, modifier = Modifier.fillMaxWidth()) {
-                            Icon(categoryIcon(selectedCategory?.iconKey ?: "note"), contentDescription = null)
-                            Spacer(Modifier.width(6.dp))
-                            Text(selectedCategory?.name ?: "选择文件夹", maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        }
-                        DropdownMenu(expanded = categoryMenu, onDismissRequest = { categoryMenu = false }) {
-                            folderCategories.forEach { category ->
-                                DropdownMenuItem(
-                                    text = { Text(category.name) },
-                                    leadingIcon = { Icon(categoryIcon(category.iconKey), contentDescription = null) },
-                                    onClick = { categoryId = category.key; categoryMenu = false },
-                                )
+        } else {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize().padding(padding),
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                item {
+                    OutlinedTextField(
+                        value = title,
+                        onValueChange = {
+                            if (title != it) {
+                                title = it
+                                markDirty()
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        placeholder = { Text("标题") },
+                        singleLine = true,
+                        textStyle = MaterialTheme.typography.titleLarge,
+                    )
+                }
+                item {
+                    RichNoteBodyEditor(
+                        dao = dao,
+                        ownerType = "note",
+                        ownerId = persistedId,
+                        value = content,
+                        onValueChange = {
+                            if (content != it) {
+                                content = it
+                                markDirty()
+                            }
+                        },
+                        pendingFiles = pendingFiles,
+                        onPendingFilesChange = {
+                            if (pendingFiles != it) {
+                                pendingFiles = it
+                                markDirty()
+                            }
+                        },
+                    )
+                }
+                item {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Box(Modifier.weight(1f)) {
+                            OutlinedButton(onClick = { categoryMenu = true }, modifier = Modifier.fillMaxWidth()) {
+                                Icon(categoryIcon(selectedCategory?.iconKey ?: "note"), contentDescription = null)
+                                Spacer(Modifier.width(6.dp))
+                                Text(selectedCategory?.name ?: "选择文件夹", maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            }
+                            DropdownMenu(expanded = categoryMenu, onDismissRequest = { categoryMenu = false }) {
+                                folderCategories.forEach { category ->
+                                    DropdownMenuItem(
+                                        text = { Text(category.name) },
+                                        leadingIcon = { Icon(categoryIcon(category.iconKey), contentDescription = null) },
+                                        onClick = {
+                                            if (categoryId != category.key) {
+                                                categoryId = category.key
+                                                markDirty()
+                                            }
+                                            categoryMenu = false
+                                        },
+                                    )
+                                }
                             }
                         }
+                        OutlinedTextField(
+                            value = date,
+                            onValueChange = {
+                                if (date != it) {
+                                    date = it
+                                    markDirty()
+                                }
+                            },
+                            modifier = Modifier.weight(1f),
+                            label = { Text("日期") },
+                            singleLine = true,
+                        )
                     }
-                    OutlinedTextField(value = date, onValueChange = { date = it }, modifier = Modifier.weight(1f), label = { Text("日期") }, singleLine = true)
                 }
+                item {
+                    OutlinedTextField(
+                        value = tags,
+                        onValueChange = {
+                            if (tags != it) {
+                                tags = it
+                                markDirty()
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        placeholder = { Text("标签，例如：化疗, 便秘, 待问") },
+                        singleLine = true,
+                        leadingIcon = { Icon(Icons.Default.Tag, contentDescription = null) },
+                    )
+                }
+                item {
+                    Text(
+                        when {
+                            saving -> "正在自动保存…"
+                            dirty -> "内容有变化，稍后自动保存；退出或切到后台前会再保存一次。"
+                            hasContent || persistedId > 0L -> "已自动保存。文字、图片顺序和文件夹位置都会按当前状态保存。"
+                            else -> "开始输入后会自动保存。"
+                        },
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
+                item { Spacer(Modifier.height(20.dp)) }
             }
-            item { OutlinedTextField(value = tags, onValueChange = { tags = it }, modifier = Modifier.fillMaxWidth(), placeholder = { Text("标签，例如：化疗, 便秘, 待问") }, singleLine = true, leadingIcon = { Icon(Icons.Default.Tag, contentDescription = null) }) }
-            item { Text("返回时会自动保存；删除的内容先进入回收站。", style = MaterialTheme.typography.bodySmall) }
-            item { Spacer(Modifier.height(20.dp)) }
         }
     }
 
@@ -164,12 +306,17 @@ fun NoteEditorScreen(noteId: Long, initialCategoryId: String?, back: () -> Unit)
         AlertDialog(
             onDismissRequest = { confirmTrash = false },
             title = { Text("移到回收站？") },
-            text = { Text(noteTitle(existing ?: CustomEntryEntity(categoryId = categoryId)) + "\n之后可以在“全部记录 → 回收站”恢复。") },
+            text = {
+                val currentTitle = title.ifBlank { richBodyPlainText(content).lineSequence().firstOrNull().orEmpty().take(48).ifBlank { "未命名记录" } }
+                Text(currentTitle + "\n之后可以在“全部记录 → 回收站”恢复。")
+            },
             confirmButton = {
                 TextButton(onClick = {
-                    val note = existing ?: return@TextButton
                     scope.launch {
-                        dao.saveRecordState(RecordStateEntity(ownerType = "note", ownerId = note.id, trashedAt = System.currentTimeMillis()))
+                        if (dirty && shouldPersist) persistLatest()
+                        if (persistedId > 0L) {
+                            dao.saveRecordState(RecordStateEntity(ownerType = "note", ownerId = persistedId, trashedAt = System.currentTimeMillis()))
+                        }
                         confirmTrash = false
                         back()
                     }
