@@ -17,7 +17,8 @@ import kotlinx.coroutines.launch
 
 @Composable
 fun ExamScreen(back: () -> Unit, initialEditId: Long = 0L) {
-    val dao = (androidx.compose.ui.platform.LocalContext.current.applicationContext as TreatmentVaultApplication).database.dao()
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val dao = (context.applicationContext as TreatmentVaultApplication).database.dao()
     val list by dao.exams().collectAsState(emptyList())
     val scope = rememberCoroutineScope()
     var editorOpen by remember { mutableStateOf(false) }
@@ -74,9 +75,13 @@ fun ExamScreen(back: () -> Unit, initialEditId: Long = 0L) {
         FullScreenEditorDialog(
             title = if (initial == null) "新增检查笔记" else "编辑检查笔记",
             onDismiss = { editorOpen = false },
-            canSave = name.isNotBlank() || richBodyPlainText(body).isNotBlank() || pendingFiles.isNotEmpty(),
+            canSave = name.isNotBlank() || richBodyHasContent(body) || pendingFiles.isNotEmpty(),
+            hasPersistedRecord = initial != null,
             onSave = {
-                if (name.isBlank() && richBodyPlainText(body).isBlank() && pendingFiles.isEmpty()) return@FullScreenEditorDialog
+                if (initial == null && name.isBlank() && !richBodyHasContent(body) && pendingFiles.isEmpty()) {
+                    editorOpen = false
+                    return@FullScreenEditorDialog
+                }
                 scope.launch {
                     val value = ExamEntity(
                         id = initial?.id ?: 0,
@@ -92,7 +97,8 @@ fun ExamScreen(back: () -> Unit, initialEditId: Long = 0L) {
                         updatedAt = System.currentTimeMillis(),
                     )
                     val id = if (initial == null) dao.saveExam(value) else { dao.updateExam(value); value.id }
-                    savePendingAttachments(dao, "exam", id, pendingFiles)
+                    reconcileRichAttachments(context, dao, "exam", id, body)
+                    pendingFiles = emptyList()
                     editorOpen = false
                 }
             },
@@ -108,6 +114,7 @@ fun ExamScreen(back: () -> Unit, initialEditId: Long = 0L) {
                         onValueChange = { body = it },
                         pendingFiles = pendingFiles,
                         onPendingFilesChange = { pendingFiles = it },
+                        sessionKey = "exam-${initial?.id ?: "new"}",
                     )
                 }
                 item {
