@@ -9,6 +9,11 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
         with: { distribution: temurin, java-version: '17' }
+      - name: Restore fixed debug keystore
+        run: |
+          mkdir -p "$HOME/.android"
+          base64 --decode .github/keystore/treatmentvault-debug.keystore.b64 > "$HOME/.android/debug.keystore"
+          chmod 600 "$HOME/.android/debug.keystore"
       - uses: gradle/actions/setup-gradle@v4
         with: { gradle-version: '8.10.2' }
       - run: gradle assembleDebug --stacktrace
