@@ -9,6 +9,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
@@ -33,7 +34,8 @@ private fun noteTitle(note: CustomEntryEntity): String =
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun NoteEditorScreen(noteId: Long, initialCategoryId: String?, back: () -> Unit) {
-    val app = androidx.compose.ui.platform.LocalContext.current.applicationContext as TreatmentVaultApplication
+    val context = LocalContext.current
+    val app = context.applicationContext as TreatmentVaultApplication
     val dao = app.database.dao()
     val lifecycleOwner = LocalLifecycleOwner.current
     val categories by dao.categories().collectAsState(initial = emptyList())
@@ -59,13 +61,10 @@ fun NoteEditorScreen(noteId: Long, initialCategoryId: String?, back: () -> Unit)
     var revision by remember(noteId) { mutableLongStateOf(0L) }
     var savedRevision by remember(noteId) { mutableLongStateOf(0L) }
 
-    fun markDirty() {
-        revision += 1L
-    }
+    fun markDirty() { revision += 1L }
 
     val folderCategories = remember(categories, categoryId) {
-        categories
-            .filter { isFolderCategory(it) && (!it.hidden || it.key == categoryId) }
+        categories.filter { isFolderCategory(it) && (!it.hidden || it.key == categoryId) }
             .sortedWith(compareBy({ it.parentId != null }, { it.sortOrder }, { it.name }))
     }
 
@@ -121,17 +120,10 @@ fun NoteEditorScreen(noteId: Long, initialCategoryId: String?, back: () -> Unit)
 
         saving = true
         try {
-            val savedId = if (value.id == 0L) {
-                dao.saveCustomEntry(value)
-            } else {
-                dao.updateCustomEntry(value)
-                value.id
-            }
+            val savedId = if (value.id == 0L) dao.saveCustomEntry(value) else { dao.updateCustomEntry(value); value.id }
             persistedId = savedId
-            if (pendingSnapshot.isNotEmpty()) {
-                savePendingAttachments(dao, "note", savedId, pendingSnapshot)
-                pendingFiles = pendingFiles.filterNot { it in pendingSnapshot }
-            }
+            reconcileRichAttachments(context, dao, "note", savedId, value.content)
+            if (pendingSnapshot.isNotEmpty()) pendingFiles = pendingFiles.filterNot { it in pendingSnapshot }
             if (revision == targetRevision) savedRevision = targetRevision
             savedId
         } finally {
@@ -146,15 +138,11 @@ fun NoteEditorScreen(noteId: Long, initialCategoryId: String?, back: () -> Unit)
     }
 
     val persistOnStop by rememberUpdatedState(newValue = {
-        scope.launch {
-            if (initialized && dirty && shouldPersist) persistLatest()
-        }
+        scope.launch { if (initialized && dirty && shouldPersist) persistLatest() }
     })
 
     DisposableEffect(lifecycleOwner) {
-        val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_STOP) persistOnStop()
-        }
+        val observer = LifecycleEventObserver { _, event -> if (event == Lifecycle.Event.ON_STOP) persistOnStop() }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
@@ -188,9 +176,7 @@ fun NoteEditorScreen(noteId: Long, initialCategoryId: String?, back: () -> Unit)
         },
     ) { padding ->
         if (!initialized) {
-            Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = androidx.compose.ui.Alignment.Center) {
-                CircularProgressIndicator()
-            }
+            Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = androidx.compose.ui.Alignment.Center) { CircularProgressIndicator() }
         } else {
             LazyColumn(
                 modifier = Modifier.fillMaxSize().padding(padding),
@@ -200,12 +186,7 @@ fun NoteEditorScreen(noteId: Long, initialCategoryId: String?, back: () -> Unit)
                 item {
                     OutlinedTextField(
                         value = title,
-                        onValueChange = {
-                            if (title != it) {
-                                title = it
-                                markDirty()
-                            }
-                        },
+                        onValueChange = { if (title != it) { title = it; markDirty() } },
                         modifier = Modifier.fillMaxWidth(),
                         placeholder = { Text("标题") },
                         singleLine = true,
@@ -217,20 +198,11 @@ fun NoteEditorScreen(noteId: Long, initialCategoryId: String?, back: () -> Unit)
                         dao = dao,
                         ownerType = "note",
                         ownerId = persistedId,
+                        sessionKey = "note-editor-$noteId",
                         value = content,
-                        onValueChange = {
-                            if (content != it) {
-                                content = it
-                                markDirty()
-                            }
-                        },
+                        onValueChange = { if (content != it) { content = it; markDirty() } },
                         pendingFiles = pendingFiles,
-                        onPendingFilesChange = {
-                            if (pendingFiles != it) {
-                                pendingFiles = it
-                                markDirty()
-                            }
-                        },
+                        onPendingFilesChange = { if (pendingFiles != it) { pendingFiles = it; markDirty() } },
                     )
                 }
                 item {
@@ -246,25 +218,14 @@ fun NoteEditorScreen(noteId: Long, initialCategoryId: String?, back: () -> Unit)
                                     DropdownMenuItem(
                                         text = { Text(category.name) },
                                         leadingIcon = { Icon(categoryIcon(category.iconKey), contentDescription = null) },
-                                        onClick = {
-                                            if (categoryId != category.key) {
-                                                categoryId = category.key
-                                                markDirty()
-                                            }
-                                            categoryMenu = false
-                                        },
+                                        onClick = { if (categoryId != category.key) { categoryId = category.key; markDirty() }; categoryMenu = false },
                                     )
                                 }
                             }
                         }
                         OutlinedTextField(
                             value = date,
-                            onValueChange = {
-                                if (date != it) {
-                                    date = it
-                                    markDirty()
-                                }
-                            },
+                            onValueChange = { if (date != it) { date = it; markDirty() } },
                             modifier = Modifier.weight(1f),
                             label = { Text("日期") },
                             singleLine = true,
@@ -274,12 +235,7 @@ fun NoteEditorScreen(noteId: Long, initialCategoryId: String?, back: () -> Unit)
                 item {
                     OutlinedTextField(
                         value = tags,
-                        onValueChange = {
-                            if (tags != it) {
-                                tags = it
-                                markDirty()
-                            }
-                        },
+                        onValueChange = { if (tags != it) { tags = it; markDirty() } },
                         modifier = Modifier.fillMaxWidth(),
                         placeholder = { Text("标签，例如：化疗, 便秘, 待问") },
                         singleLine = true,
@@ -314,9 +270,7 @@ fun NoteEditorScreen(noteId: Long, initialCategoryId: String?, back: () -> Unit)
                 TextButton(onClick = {
                     scope.launch {
                         if (dirty && shouldPersist) persistLatest()
-                        if (persistedId > 0L) {
-                            dao.saveRecordState(RecordStateEntity(ownerType = "note", ownerId = persistedId, trashedAt = System.currentTimeMillis()))
-                        }
+                        if (persistedId > 0L) dao.saveRecordState(RecordStateEntity(ownerType = "note", ownerId = persistedId, trashedAt = System.currentTimeMillis()))
                         confirmTrash = false
                         back()
                     }
