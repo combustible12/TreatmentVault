@@ -37,12 +37,14 @@ private fun flattenVisibleCategories(categories: List<CategoryEntity>): List<Pai
     val visible = categories.filterNot { it.hidden }
     val byParent = visible.groupBy { it.parentId }
     val result = mutableListOf<Pair<CategoryEntity, Int>>()
+
     fun visit(parent: String?, depth: Int) {
         byParent[parent].orEmpty().sortedBy { it.sortOrder }.forEach { category ->
             result += category to depth
             visit(category.key, depth + 1)
         }
     }
+
     visit(null, 0)
     val included = result.map { it.first.key }.toSet()
     visible.filterNot { it.key in included }.sortedBy { it.sortOrder }.forEach { result += it to 0 }
@@ -166,6 +168,10 @@ fun HomeScreen(go: (String) -> Unit) {
     val scope = rememberCoroutineScope()
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     var query by rememberSaveable { mutableStateOf("") }
+    var showAddCategory by rememberSaveable { mutableStateOf(false) }
+    var newCategoryName by rememberSaveable { mutableStateOf("") }
+    var newCategoryParentId by rememberSaveable { mutableStateOf<String?>(null) }
+    var parentMenuOpen by remember { mutableStateOf(false) }
 
     LaunchedEffect(categories) {
         if (categories.none { it.key == "inbox" }) {
@@ -186,6 +192,7 @@ fun HomeScreen(go: (String) -> Unit) {
     val visibleCategories = remember(categories) { flattenVisibleCategories(categories) }
     val recentNotes = remember(customEntries) { customEntries.sortedByDescending { it.updatedAt }.take(6) }
     val customCounts = remember(customEntries) { customEntries.groupingBy { it.categoryId }.eachCount() }
+    val customCategories = remember(categories) { categories.filterNot { it.isSystem }.sortedBy { it.sortOrder } }
     val searchResults = remember(
         query, categories, supplies, exams, plans, records, symptoms,
         temperatures, questions, expenses, timeline, customEntries,
@@ -211,6 +218,35 @@ fun HomeScreen(go: (String) -> Unit) {
         "questions" -> questions.size
         "expenses" -> expenses.size
         else -> customCounts[category.key] ?: 0
+    }
+
+    fun createCategory() {
+        val name = newCategoryName.trim()
+        if (name.isBlank()) return
+        val duplicate = categories.any {
+            it.parentId == newCategoryParentId && it.name.equals(name, ignoreCase = true)
+        }
+        if (duplicate) return
+
+        val key = "category_${System.currentTimeMillis()}"
+        val nextOrder = (categories.filter { it.parentId == newCategoryParentId }.maxOfOrNull { it.sortOrder } ?: 0) + 10
+        scope.launch {
+            dao.saveCategory(
+                CategoryEntity(
+                    key = key,
+                    name = name,
+                    iconKey = "folder",
+                    sortOrder = nextOrder,
+                    isSystem = false,
+                    smartEnabled = true,
+                    smartKeywords = name,
+                    parentId = newCategoryParentId,
+                )
+            )
+            newCategoryName = ""
+            newCategoryParentId = null
+            showAddCategory = false
+        }
     }
 
     ModalNavigationDrawer(
@@ -241,7 +277,15 @@ fun HomeScreen(go: (String) -> Unit) {
                         onClick = { open("structure") },
                     )
                     HorizontalDivider(Modifier.padding(vertical = 8.dp))
-                    Text("分类", style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(start = 20.dp, end = 8.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                    ) {
+                        Text("分类", style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(top = 12.dp))
+                        IconButton(onClick = { showAddCategory = true }) {
+                            Icon(Icons.Default.Add, contentDescription = "新建类目")
+                        }
+                    }
 
                     LazyColumn(
                         modifier = Modifier.fillMaxWidth().weight(1f),
@@ -407,7 +451,14 @@ fun HomeScreen(go: (String) -> Unit) {
                         }
                     }
                     item {
-                        Text("分类", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 4.dp))
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text("分类", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 12.dp))
+                            TextButton(onClick = { showAddCategory = true }) {
+                                Icon(Icons.Default.Add, contentDescription = null)
+                                Spacer(Modifier.width(4.dp))
+                                Text("新建类目")
+                            }
+                        }
                     }
                     items(visibleCategories, key = { it.first.key }) { pair ->
                         val category = pair.first
@@ -432,5 +483,87 @@ fun HomeScreen(go: (String) -> Unit) {
                 }
             }
         }
+    }
+
+    if (showAddCategory) {
+        val cleanName = newCategoryName.trim()
+        val duplicate = categories.any {
+            it.parentId == newCategoryParentId && it.name.equals(cleanName, ignoreCase = true)
+        }
+        val parentName = customCategories.firstOrNull { it.key == newCategoryParentId }?.name
+
+        AlertDialog(
+            onDismissRequest = {
+                showAddCategory = false
+                newCategoryName = ""
+                newCategoryParentId = null
+                parentMenuOpen = false
+            },
+            title = { Text("新建类目") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    OutlinedTextField(
+                        value = newCategoryName,
+                        onValueChange = { newCategoryName = it },
+                        label = { Text("类目名称") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        isError = duplicate,
+                        supportingText = {
+                            if (duplicate) Text("同一级已经有这个类目")
+                        },
+                    )
+                    Box(Modifier.fillMaxWidth()) {
+                        OutlinedButton(
+                            onClick = { parentMenuOpen = true },
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            Icon(Icons.Default.AccountTree, contentDescription = null)
+                            Spacer(Modifier.width(6.dp))
+                            Text(if (parentName == null) "顶级类目" else "上级：$parentName")
+                            Spacer(Modifier.weight(1f))
+                            Icon(Icons.Default.ArrowDropDown, contentDescription = null)
+                        }
+                        DropdownMenu(
+                            expanded = parentMenuOpen,
+                            onDismissRequest = { parentMenuOpen = false },
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text("顶级类目") },
+                                onClick = {
+                                    newCategoryParentId = null
+                                    parentMenuOpen = false
+                                },
+                            )
+                            customCategories.filterNot { it.key == "inbox" }.forEach { category ->
+                                DropdownMenuItem(
+                                    text = { Text(category.name) },
+                                    leadingIcon = { Icon(categoryIcon(category.iconKey), contentDescription = null) },
+                                    onClick = {
+                                        newCategoryParentId = category.key
+                                        parentMenuOpen = false
+                                    },
+                                )
+                            }
+                        }
+                    }
+                    Text("创建后会立刻出现在首页，并参与智能录入分类。", style = MaterialTheme.typography.bodySmall)
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = { createCategory() },
+                    enabled = cleanName.isNotBlank() && !duplicate,
+                ) { Text("创建") }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    showAddCategory = false
+                    newCategoryName = ""
+                    newCategoryParentId = null
+                    parentMenuOpen = false
+                }) { Text("取消") }
+            },
+        )
     }
 }
