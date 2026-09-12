@@ -88,7 +88,7 @@ jobs:
               "versionName": os.environ["VERSION_NAME"],
               "apkUrl": "https://raw.githubusercontent.com/combustible12/TreatmentVault-Updates/main/TreatmentVault-latest.apk",
               "sha256": os.environ["SHA"],
-              "notes": "长按交互统一：长按笔记/记录名称会显示它当前归属文件夹以及完整上级路径；长按文件夹/类目名称可直接重命名，系统类目只改显示名称、不改内部 key，因此已有记录归属和智能分类结构不会被改断。全部记录页保留批量移动能力，可从归属弹窗进入选择。新增文件夹路径回归测试，防止层级路径漏显示或异常循环。"
+              "notes": "新版记录管理：一条记录可同时归属多个文件夹，长按可查看全部归属和完整路径并直接管理；全局普通/待办显示类型，未完成待办高亮、完成后变灰但保留；首页搜索把分类结果置顶；长图点击后使用高清原图查看并支持缩放；正文中的 http/https 链接会自动识别并可直接打开。数据库从 0.15.3 平滑迁移，旧归属和旧备份兼容。"
           }
           with open("update-repo/update.json", "w", encoding="utf-8") as f:
               json.dump(data, f, ensure_ascii=False, indent=2)
