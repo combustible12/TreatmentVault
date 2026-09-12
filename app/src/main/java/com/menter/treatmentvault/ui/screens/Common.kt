@@ -71,10 +71,26 @@ private fun serializeRichBody(blocks: List<RichBlock>): String = blocks.joinToSt
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun Page(title: String, onBack: () -> Unit, content: @Composable ColumnScope.() -> Unit) {
+    val categoryKey = when (title) {
+        "智能录入" -> "smart_input"
+        "总时间轴" -> "timeline"
+        "检查报告" -> "exams"
+        "治疗方案与记录" -> "treatment"
+        "药品用品" -> "supplies"
+        "症状记录" -> "symptoms"
+        "体温记录" -> "temperature"
+        "医生问诊" -> "questions"
+        "费用记录" -> "expenses"
+        "导入更新包" -> "import"
+        "备份与恢复" -> "settings"
+        else -> null
+    }
+    val displayTitle = categoryKey?.let { categoryDisplayName(it, title) } ?: title
+
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(title) },
+                title = { Text(displayTitle) },
                 navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回") } },
             )
         },
