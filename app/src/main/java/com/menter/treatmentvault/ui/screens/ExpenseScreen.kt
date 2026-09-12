@@ -67,6 +67,7 @@ fun ExpenseScreen(back: () -> Unit, initialEditId: Long = 0L) {
         var reimbursed by remember(initial?.id, editorOpen) { mutableStateOf(initial?.reimbursedAmount?.toString().orEmpty()) }
         var notes by remember(initial?.id, editorOpen) { mutableStateOf(initial?.notes.orEmpty()) }
         var pendingFiles by remember(initial?.id, editorOpen) { mutableStateOf<List<String>>(emptyList()) }
+        var removedFiles by remember(initial?.id, editorOpen) { mutableStateOf<Set<String>>(emptySet()) }
         var detailsOpen by remember(initial?.id, editorOpen) { mutableStateOf(false) }
 
         FullScreenEditorDialog(
@@ -95,8 +96,9 @@ fun ExpenseScreen(back: () -> Unit, initialEditId: Long = 0L) {
                         updatedAt = System.currentTimeMillis(),
                     )
                     val id = if (initial == null) dao.saveExpense(value) else { dao.updateExpense(value); value.id }
-                    reconcileRichAttachments(context, dao, "expense", id, notes)
+                    reconcileRichAttachments(context, dao, "expense", id, notes, removedFiles)
                     pendingFiles = emptyList()
+                    removedFiles = emptySet()
                     editorOpen = false
                 }
             },
@@ -112,6 +114,8 @@ fun ExpenseScreen(back: () -> Unit, initialEditId: Long = 0L) {
                         onValueChange = { notes = it },
                         pendingFiles = pendingFiles,
                         onPendingFilesChange = { pendingFiles = it },
+                        removedFiles = removedFiles,
+                        onRemovedFilesChange = { removedFiles = it },
                         label = "说明与票据",
                         sessionKey = "expense-${initial?.id ?: "new"}",
                     )
