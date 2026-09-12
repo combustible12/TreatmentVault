@@ -36,6 +36,8 @@ gradle assembleDebug
 
 本地 Android Studio 使用 JDK 17、Gradle 8.10.2、compileSdk 35。
 
+当前仓库已配置自动构建，后续提交会触发 APK 构建检查。
+
 ## 数据原则
 
 - Room/SQLite 本地存储
