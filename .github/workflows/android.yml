@@ -16,8 +16,20 @@ jobs:
           chmod 600 "$HOME/.android/debug.keystore"
       - uses: gradle/actions/setup-gradle@v4
         with: { gradle-version: '8.10.2' }
-      - run: gradle assembleDebug --stacktrace
+      - name: Build APK
+        run: gradle assembleDebug --stacktrace
+      - name: Verify install package
+        run: |
+          APK="app/build/outputs/apk/debug/app-debug.apk"
+          BUILD_TOOLS="$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -1)"
+          "$BUILD_TOOLS/apksigner" verify --verbose --print-certs "$APK"
+          "$BUILD_TOOLS/zipalign" -c -v 4 "$APK"
+          "$BUILD_TOOLS/aapt2" dump badging "$APK" | tee app/build/outputs/apk/debug/apk-info.txt
+          sha256sum "$APK" | tee app/build/outputs/apk/debug/app-debug.apk.sha256
       - uses: actions/upload-artifact@v4
         with:
           name: TreatmentVault-debug-apk
-          path: app/build/outputs/apk/debug/app-debug.apk
+          path: |
+            app/build/outputs/apk/debug/app-debug.apk
+            app/build/outputs/apk/debug/app-debug.apk.sha256
+            app/build/outputs/apk/debug/apk-info.txt
