@@ -2,12 +2,11 @@ package com.menter.treatmentvault.ui.screens
 
 import android.content.Context
 import android.net.Uri
+import android.webkit.WebView
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.rememberTransformableState
-import androidx.compose.foundation.gestures.transformable
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -17,10 +16,12 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import coil.compose.AsyncImage
@@ -32,6 +33,33 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.util.UUID
+
+private val webUrlRegex = Regex("(?i)\\bhttps?://[^\\s<>\\\"']+")
+
+private fun detectedWebUrls(text: String): List<String> = webUrlRegex.findAll(text)
+    .map { it.value.trimEnd('.', ',', '，', '。', ';', '；', ':', '：', ')', '）', ']', '】') }
+    .filter { it.isNotBlank() }
+    .distinct()
+    .toList()
+
+@Composable
+private fun DetectedLinkActions(text: String) {
+    val links = remember(text) { detectedWebUrls(text) }
+    if (links.isEmpty()) return
+    val uriHandler = LocalUriHandler.current
+    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        links.forEach { url ->
+            TextButton(
+                onClick = { runCatching { uriHandler.openUri(url) } },
+                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+            ) {
+                Icon(Icons.Default.OpenInNew, contentDescription = null, modifier = Modifier.size(16.dp))
+                Spacer(Modifier.width(6.dp))
+                Text(url, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+        }
+    }
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -70,7 +98,10 @@ fun Field(value: String, on: (String) -> Unit, label: String) {
 
 @Composable
 fun NoteBodyField(value: String, on: (String) -> Unit, label: String = "正文") {
-    OutlinedTextField(value = value, onValueChange = on, label = { Text(label) }, modifier = Modifier.fillMaxWidth(), minLines = 7)
+    Column {
+        OutlinedTextField(value = value, onValueChange = on, label = { Text(label) }, modifier = Modifier.fillMaxWidth(), minLines = 7)
+        DetectedLinkActions(value)
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -232,17 +263,22 @@ fun RichNoteBodyEditor(
 
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Text(label, style = MaterialTheme.typography.titleSmall)
-        Text("文字和图片的当前顺序就是保存顺序；附件只负责存文件，不再反向改动排版。", style = MaterialTheme.typography.bodySmall)
+        Text("文字、图片和链接按当前顺序保存；图片点开看原图，正文中的网页链接可直接打开。", style = MaterialTheme.typography.bodySmall)
         blocks.forEachIndexed { index, block ->
             key(block.key) {
                 when (block) {
-                    is RichBlock.TextBlock -> OutlinedTextField(
-                        value = block.text,
-                        onValueChange = { next -> blocks[index] = block.copy(text = next); sync() },
-                        modifier = Modifier.fillMaxWidth(),
-                        placeholder = { Text(if (index == 0) "直接写内容…" else "继续写…") },
-                        minLines = 3,
-                    )
+                    is RichBlock.TextBlock -> {
+                        Column {
+                            OutlinedTextField(
+                                value = block.text,
+                                onValueChange = { next -> blocks[index] = block.copy(text = next); sync() },
+                                modifier = Modifier.fillMaxWidth(),
+                                placeholder = { Text(if (index == 0) "直接写内容或粘贴链接…" else "继续写…") },
+                                minLines = 3,
+                            )
+                            DetectedLinkActions(block.text)
+                        }
+                    }
                     is RichBlock.ImageBlock -> {
                         val file = attachmentFile(context, block.fileName)
                         if (file.isFile) NoteImagePreview(file = file, onOpen = { previewFile = file })
@@ -300,33 +336,43 @@ suspend fun reconcileRichAttachments(
 @Composable
 private fun NoteImagePreview(file: File, onOpen: () -> Unit) {
     Card(modifier = Modifier.fillMaxWidth().heightIn(min = 220.dp, max = 520.dp).clickable(onClick = onOpen)) {
-        AsyncImage(model = file, contentDescription = "图片，点击放大", modifier = Modifier.fillMaxWidth().heightIn(min = 220.dp, max = 520.dp), contentScale = ContentScale.Fit)
+        AsyncImage(model = file, contentDescription = "图片，点击查看高清原图", modifier = Modifier.fillMaxWidth().heightIn(min = 220.dp, max = 520.dp), contentScale = ContentScale.Fit)
     }
 }
 
 @Composable
 private fun FullScreenImageViewer(file: File, onDismiss: () -> Unit) {
-    var scale by remember(file) { mutableFloatStateOf(1f) }
-    var offsetX by remember(file) { mutableFloatStateOf(0f) }
-    var offsetY by remember(file) { mutableFloatStateOf(0f) }
-    val transformState = rememberTransformableState { zoomChange, panChange, _ ->
-        val nextScale = (scale * zoomChange).coerceIn(1f, 6f)
-        scale = nextScale
-        if (nextScale <= 1.01f) { offsetX = 0f; offsetY = 0f } else { offsetX += panChange.x; offsetY += panChange.y }
+    val context = LocalContext.current
+    val webView = remember(file.absolutePath) {
+        WebView(context).apply {
+            setBackgroundColor(android.graphics.Color.BLACK)
+            settings.javaScriptEnabled = false
+            settings.allowFileAccess = true
+            settings.builtInZoomControls = true
+            settings.displayZoomControls = false
+            settings.setSupportZoom(true)
+            settings.useWideViewPort = true
+            settings.loadWithOverviewMode = true
+            loadUrl(Uri.fromFile(file).toString())
+        }
+    }
+    DisposableEffect(webView) {
+        onDispose {
+            webView.stopLoading()
+            webView.destroy()
+        }
     }
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
-            AsyncImage(
-                model = file,
-                contentDescription = "大图预览",
-                modifier = Modifier.fillMaxSize().graphicsLayer(scaleX = scale, scaleY = scale, translationX = offsetX, translationY = offsetY).transformable(transformState),
-                contentScale = ContentScale.Fit,
+            AndroidView(
+                factory = { webView },
+                modifier = Modifier.fillMaxSize(),
             )
             FilledIconButton(
                 onClick = onDismiss,
                 modifier = Modifier.align(Alignment.TopEnd).statusBarsPadding().padding(16.dp),
                 colors = IconButtonDefaults.filledIconButtonColors(containerColor = Color(0xAA2A2A2A), contentColor = Color.White),
-            ) { Icon(Icons.Default.Close, contentDescription = "关闭大图") }
+            ) { Icon(Icons.Default.Close, contentDescription = "关闭高清原图") }
         }
     }
 }

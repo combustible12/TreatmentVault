@@ -1,5 +1,6 @@
 package com.menter.treatmentvault.data
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.Index
 
@@ -19,5 +20,7 @@ data class RecordStateEntity(
     val favorite: Boolean = false,
     val archived: Boolean = false,
     val trashedAt: Long? = null,
+    @ColumnInfo(defaultValue = "'normal'") val displayType: String? = "normal",
+    @ColumnInfo(defaultValue = "0") val completed: Boolean = false,
     val updatedAt: Long = System.currentTimeMillis(),
 )

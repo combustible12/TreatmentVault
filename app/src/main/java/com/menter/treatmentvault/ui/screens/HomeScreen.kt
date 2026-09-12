@@ -10,11 +10,13 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.menter.treatmentvault.TreatmentVaultApplication
 import com.menter.treatmentvault.data.CategoryEntity
+import com.menter.treatmentvault.data.RecordStateEntity
 import kotlinx.coroutines.launch
 
 private fun flattenHomeCategories(categories: List<CategoryEntity>): List<Pair<CategoryEntity, Int>> {
@@ -101,7 +103,10 @@ fun HomeScreen(go: (String) -> Unit) {
     }
 
     fun categoryRoute(category: CategoryEntity): String = categoryOpenRoute(category)
-    fun countFor(category: CategoryEntity): Int = allRecords.count { it.categoryKey == category.key }
+    fun countFor(category: CategoryEntity): Int = allRecords.count { category.key in it.folderKeys }
+    fun saveState(next: RecordStateEntity) {
+        scope.launch { dao.saveRecordState(next.copy(updatedAt = System.currentTimeMillis())) }
+    }
 
     fun createCategory() {
         val name = newCategoryName.trim()
@@ -197,13 +202,8 @@ fun HomeScreen(go: (String) -> Unit) {
                 }
                 if (q.isNotBlank()) {
                     item { Text("搜索结果 · ${recordSearch.size + categorySearch.size}", style = MaterialTheme.typography.titleSmall) }
-                    items(recordSearch, key = { it.key }) { item ->
-                        RecordListItem(
-                            item = item,
-                            pinned = recordStateFor(item, stateMap).pinned,
-                            onClick = { go(item.route) },
-                            onLongClick = { ownershipItem = item },
-                        )
+                    if (categorySearch.isNotEmpty()) {
+                        item { Text("分类", style = MaterialTheme.typography.labelLarge) }
                     }
                     items(categorySearch, key = { "category:${it.key}" }) { category ->
                         ListItem(
@@ -215,6 +215,19 @@ fun HomeScreen(go: (String) -> Unit) {
                             supportingContent = { Text("分类 · 打开后查看该分类全部记录") },
                             leadingContent = { Icon(categoryIcon(category.iconKey), null) },
                             trailingContent = { Icon(Icons.Default.ChevronRight, null) },
+                        )
+                    }
+                    if (recordSearch.isNotEmpty()) {
+                        item { Text("记录", style = MaterialTheme.typography.labelLarge) }
+                    }
+                    items(recordSearch, key = { it.key }) { item ->
+                        val state = recordStateFor(item, stateMap)
+                        RecordListItem(
+                            item = item,
+                            state = state,
+                            onClick = { go(item.route) },
+                            onLongClick = { ownershipItem = item },
+                            onStateChange = ::saveState,
                         )
                     }
                     if (recordSearch.isEmpty() && categorySearch.isEmpty()) item { Text("没有找到匹配内容", modifier = Modifier.padding(vertical = 20.dp)) }
@@ -233,7 +246,7 @@ fun HomeScreen(go: (String) -> Unit) {
                             }
                         }
                         items(pinnedRecords, key = { "pinned:${it.key}" }) { item ->
-                            RecordListItem(item, true, { go(item.route) }, { ownershipItem = item })
+                            RecordListItem(item, recordStateFor(item, stateMap), { go(item.route) }, { ownershipItem = item }, ::saveState)
                         }
                     }
                     item {
@@ -246,7 +259,7 @@ fun HomeScreen(go: (String) -> Unit) {
                         item { Card(Modifier.fillMaxWidth()) { Column(Modifier.padding(16.dp)) { Text("还没有记录", style = MaterialTheme.typography.titleSmall); Text("先随手记下来，不用先决定放哪里。", style = MaterialTheme.typography.bodySmall) } } }
                     } else {
                         items(recentRecords, key = { "recent:${it.key}" }) { item ->
-                            RecordListItem(item, recordStateFor(item, stateMap).pinned, { go(item.route) }, { ownershipItem = item })
+                            RecordListItem(item, recordStateFor(item, stateMap), { go(item.route) }, { ownershipItem = item }, ::saveState)
                         }
                     }
                     item {
@@ -277,6 +290,7 @@ fun HomeScreen(go: (String) -> Unit) {
             item = item,
             categories = categories,
             onDismiss = { ownershipItem = null },
+            onFoldersChange = { folders -> scope.launch { setUnifiedRecordFolders(dao, item, folders) } },
         )
     }
 
@@ -325,25 +339,44 @@ fun HomeScreen(go: (String) -> Unit) {
 @Composable
 private fun RecordListItem(
     item: UnifiedRecordItem,
-    pinned: Boolean,
+    state: RecordStateEntity,
     onClick: () -> Unit,
     onLongClick: () -> Unit,
+    onStateChange: (RecordStateEntity) -> Unit,
 ) {
+    var menuOpen by remember(item.key) { mutableStateOf(false) }
+    val contentColor = recordContentColor(state)
+
     ListItem(
         modifier = Modifier.fillMaxWidth().combinedClickable(onClick = onClick, onLongClick = onLongClick),
+        colors = ListItemDefaults.colors(containerColor = recordBackgroundColor(state)),
         headlineContent = {
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                if (pinned) Icon(Icons.Default.PushPin, null, modifier = Modifier.size(16.dp))
-                Text(item.title, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                if (isTodo(state)) {
+                    Checkbox(checked = state.completed, onCheckedChange = { onStateChange(state.copy(completed = it)) })
+                }
+                if (state.pinned) Icon(Icons.Default.PushPin, null, modifier = Modifier.size(16.dp), tint = contentColor)
+                Text(item.title, maxLines = 1, overflow = TextOverflow.Ellipsis, color = contentColor)
             }
         },
         supportingContent = {
             Column {
-                Text(item.section, style = MaterialTheme.typography.labelSmall)
-                if (item.preview.isNotBlank()) Text(item.preview, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                Text(item.section, style = MaterialTheme.typography.labelSmall, color = contentColor)
+                if (item.preview.isNotBlank()) Text(item.preview, maxLines = 2, overflow = TextOverflow.Ellipsis, color = contentColor)
             }
         },
-        leadingContent = { Icon(categoryIcon(item.iconKey), null) },
-        trailingContent = { Icon(Icons.Default.ChevronRight, null) },
+        leadingContent = { Icon(categoryIcon(item.iconKey), null, tint = contentColor) },
+        trailingContent = {
+            Box {
+                IconButton(onClick = { menuOpen = true }) { Icon(Icons.Default.MoreVert, contentDescription = "更多", tint = contentColor) }
+                DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                    DropdownMenuItem(
+                        text = { Text(if (isTodo(state)) "切换为普通条目" else "切换为待办事项") },
+                        leadingIcon = { Icon(if (isTodo(state)) Icons.Default.Notes else Icons.Default.CheckBox, contentDescription = null) },
+                        onClick = { menuOpen = false; onStateChange(toggleTodoDisplay(state)) },
+                    )
+                }
+            }
+        },
     )
 }

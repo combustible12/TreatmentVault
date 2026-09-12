@@ -55,10 +55,11 @@ fun FolderScreen(categoryId: String, back: () -> Unit, go: (String) -> Unit) {
             .sortedWith(compareBy<CategoryEntity> { it.sortOrder }.thenBy { it.name })
     }
     val directItems = remember(activeItems, categoryId) {
-        activeItems.filter { it.categoryKey == categoryId }.sortedByDescending { it.updatedAt }
+        activeItems.filter { categoryId in it.folderKeys }
+            .sortedWith(compareByDescending<UnifiedRecordItem> { isTodo(recordStateFor(it, stateMap)) && !recordStateFor(it, stateMap).completed }.thenByDescending { it.updatedAt })
     }
     val collectableRecords = remember(activeItems, categoryId) {
-        activeItems.filter { it.categoryKey != categoryId }.sortedByDescending { it.updatedAt }
+        activeItems.filter { categoryId !in it.folderKeys }.sortedByDescending { it.updatedAt }
     }
 
     var query by remember(categoryId) { mutableStateOf("") }
@@ -82,6 +83,10 @@ fun FolderScreen(categoryId: String, back: () -> Unit, go: (String) -> Unit) {
 
     fun toggle(item: UnifiedRecordItem) {
         selectedKeys = if (item.key in selectedKeys) selectedKeys - item.key else selectedKeys + item.key
+    }
+
+    fun saveState(next: RecordStateEntity) {
+        scope.launch { dao.saveRecordState(next.copy(updatedAt = System.currentTimeMillis())) }
     }
 
     if (folder == null) {
@@ -159,7 +164,7 @@ fun FolderScreen(categoryId: String, back: () -> Unit, go: (String) -> Unit) {
             if (visibleChildren.isNotEmpty()) {
                 item { Text("子文件夹", style = MaterialTheme.typography.titleMedium) }
                 items(visibleChildren, key = { "folder:${it.key}" }) { child ->
-                    val recordCount = activeItems.count { it.categoryKey == child.key }
+                    val recordCount = activeItems.count { child.key in it.folderKeys }
                     val subfolderCount = categories.count { it.parentId == child.key && isFolderCategory(it) && !it.hidden }
                     FolderColorCard(
                         folder = child,
@@ -191,6 +196,7 @@ fun FolderScreen(categoryId: String, back: () -> Unit, go: (String) -> Unit) {
                             if (selectedKeys.isNotEmpty()) toggle(item)
                             else ownershipItem = item
                         },
+                        onStateChange = ::saveState,
                     )
                 }
             }
@@ -224,6 +230,7 @@ fun FolderScreen(categoryId: String, back: () -> Unit, go: (String) -> Unit) {
             item = item,
             categories = categories,
             onDismiss = { ownershipItem = null },
+            onFoldersChange = { folders -> scope.launch { setUnifiedRecordFolders(dao, item, folders) } },
             onSelectForMove = {
                 toggle(item)
                 ownershipItem = null
@@ -359,28 +366,46 @@ private fun FolderRecordCard(
     selected: Boolean,
     onClick: () -> Unit,
     onLongClick: () -> Unit,
+    onStateChange: (RecordStateEntity) -> Unit,
 ) {
+    var menuOpen by remember(item.key) { mutableStateOf(false) }
+    val contentColor = recordContentColor(state)
     Card(
         modifier = Modifier.fillMaxWidth().combinedClickable(onClick = onClick, onLongClick = onLongClick),
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
+        colors = CardDefaults.cardColors(containerColor = recordBackgroundColor(state, MaterialTheme.colorScheme.surfaceContainerHigh)),
     ) {
         Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            Icon(categoryIcon(item.iconKey), contentDescription = null, modifier = Modifier.size(23.dp))
+            Icon(categoryIcon(item.iconKey), contentDescription = null, modifier = Modifier.size(23.dp), tint = contentColor)
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
                 Row(horizontalArrangement = Arrangement.spacedBy(5.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text(item.title, style = MaterialTheme.typography.titleMedium, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
-                    if (state.pinned) Icon(Icons.Default.PushPin, contentDescription = null, modifier = Modifier.size(14.dp))
-                    if (state.favorite) Icon(Icons.Default.Favorite, contentDescription = null, modifier = Modifier.size(14.dp))
+                    if (isTodo(state)) {
+                        Checkbox(checked = state.completed, onCheckedChange = { onStateChange(state.copy(completed = it)) })
+                    }
+                    Text(item.title, color = contentColor, style = MaterialTheme.typography.titleMedium, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+                    if (state.pinned) Icon(Icons.Default.PushPin, contentDescription = null, modifier = Modifier.size(14.dp), tint = contentColor)
+                    if (state.favorite) Icon(Icons.Default.Favorite, contentDescription = null, modifier = Modifier.size(14.dp), tint = contentColor)
                 }
-                if (item.date.isNotBlank()) Text(item.date, style = MaterialTheme.typography.labelSmall, maxLines = 1)
+                if (item.date.isNotBlank()) Text(item.date, color = contentColor, style = MaterialTheme.typography.labelSmall, maxLines = 1)
             }
-            if (selectionMode) Checkbox(checked = selected, onCheckedChange = { onClick() })
-            else Icon(Icons.Default.ChevronRight, contentDescription = null, modifier = Modifier.size(22.dp))
+            if (selectionMode) {
+                Checkbox(checked = selected, onCheckedChange = { onClick() })
+            } else {
+                Box {
+                    IconButton(onClick = { menuOpen = true }) { Icon(Icons.Default.MoreVert, contentDescription = "更多", tint = contentColor) }
+                    DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                        DropdownMenuItem(
+                            text = { Text(if (isTodo(state)) "切换为普通条目" else "切换为待办事项") },
+                            leadingIcon = { Icon(if (isTodo(state)) Icons.Default.Notes else Icons.Default.CheckBox, contentDescription = null) },
+                            onClick = { menuOpen = false; onStateChange(toggleTodoDisplay(state)) },
+                        )
+                    }
+                }
+            }
         }
     }
 }

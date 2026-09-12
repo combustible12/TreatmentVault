@@ -14,7 +14,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         TimelineEntity::class, ImportHistoryEntity::class, CategoryEntity::class, TagEntity::class,
         CustomEntryEntity::class, AttachmentEntity::class, RecordStateEntity::class, RecordFolderEntity::class,
     ],
-    version = 6,
+    version = 7,
     exportSchema = false,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -60,6 +60,19 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_6_7 = object : Migration(6, 7) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `RecordStateEntity` ADD COLUMN `displayType` TEXT DEFAULT 'normal'")
+                db.execSQL("ALTER TABLE `RecordStateEntity` ADD COLUMN `completed` INTEGER NOT NULL DEFAULT 0")
+
+                db.execSQL("CREATE TABLE IF NOT EXISTS `RecordFolderEntity_new` (`ownerType` TEXT NOT NULL, `ownerId` INTEGER NOT NULL, `folderKey` TEXT NOT NULL, `updatedAt` INTEGER NOT NULL, PRIMARY KEY(`ownerType`,`ownerId`,`folderKey`))")
+                db.execSQL("INSERT OR IGNORE INTO `RecordFolderEntity_new` (`ownerType`,`ownerId`,`folderKey`,`updatedAt`) SELECT `ownerType`,`ownerId`,`folderKey`,`updatedAt` FROM `RecordFolderEntity`")
+                db.execSQL("DROP TABLE `RecordFolderEntity`")
+                db.execSQL("ALTER TABLE `RecordFolderEntity_new` RENAME TO `RecordFolderEntity`")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_RecordFolderEntity_folderKey` ON `RecordFolderEntity` (`folderKey`)")
+            }
+        }
+
         private fun createCategoryTables(db: SupportSQLiteDatabase) {
             db.execSQL("CREATE TABLE IF NOT EXISTS `CategoryEntity` (`key` TEXT NOT NULL, `name` TEXT NOT NULL, `route` TEXT NOT NULL, `iconKey` TEXT NOT NULL, `sortOrder` INTEGER NOT NULL, `hidden` INTEGER NOT NULL, `isSystem` INTEGER NOT NULL, `smartEnabled` INTEGER NOT NULL, `smartKeywords` TEXT NOT NULL, `parentId` TEXT, `updatedAt` INTEGER NOT NULL, PRIMARY KEY(`key`))")
             db.execSQL("CREATE TABLE IF NOT EXISTS `TagEntity` (`key` TEXT NOT NULL, `name` TEXT NOT NULL, `colorKey` TEXT NOT NULL, `updatedAt` INTEGER NOT NULL, PRIMARY KEY(`key`))")
@@ -101,7 +114,7 @@ abstract class AppDatabase : RoomDatabase() {
 
         fun get(context: Context): AppDatabase = INSTANCE ?: synchronized(this) {
             INSTANCE ?: Room.databaseBuilder(context.applicationContext, AppDatabase::class.java, "treatment_vault.db")
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
                 .addCallback(object : Callback() {
                     override fun onCreate(db: SupportSQLiteDatabase) {
                         super.onCreate(db)
