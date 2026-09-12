@@ -20,7 +20,8 @@ import java.util.Locale
 
 @Composable
 fun SymptomScreen(back: () -> Unit, initialEditId: Long = 0L) {
-    val dao = (androidx.compose.ui.platform.LocalContext.current.applicationContext as TreatmentVaultApplication).database.dao()
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val dao = (context.applicationContext as TreatmentVaultApplication).database.dao()
     val list by dao.symptoms().collectAsState(emptyList())
     val scope = rememberCoroutineScope()
     var editorOpen by remember { mutableStateOf(false) }
@@ -79,9 +80,13 @@ fun SymptomScreen(back: () -> Unit, initialEditId: Long = 0L) {
         FullScreenEditorDialog(
             title = if (initial == null) "记录症状" else "编辑症状",
             onDismiss = { editorOpen = false },
-            canSave = richBodyPlainText(notes).isNotBlank() || pendingFiles.isNotEmpty() || date.isNotBlank(),
+            canSave = richBodyHasContent(notes) || pendingFiles.isNotEmpty() || date.isNotBlank(),
+            hasPersistedRecord = initial != null,
             onSave = {
-                if (richBodyPlainText(notes).isBlank() && pendingFiles.isEmpty() && date.isBlank()) return@FullScreenEditorDialog
+                if (initial == null && !richBodyHasContent(notes) && pendingFiles.isEmpty() && date.isBlank()) {
+                    editorOpen = false
+                    return@FullScreenEditorDialog
+                }
                 scope.launch {
                     val value = SymptomEntity(
                         id = initial?.id ?: 0,
@@ -104,7 +109,8 @@ fun SymptomScreen(back: () -> Unit, initialEditId: Long = 0L) {
                         updatedAt = System.currentTimeMillis(),
                     )
                     val id = if (initial == null) dao.saveSymptom(value) else { dao.updateSymptom(value); value.id }
-                    savePendingAttachments(dao, "symptom", id, pendingFiles)
+                    reconcileRichAttachments(context, dao, "symptom", id, notes)
+                    pendingFiles = emptyList()
                     editorOpen = false
                 }
             },
@@ -112,9 +118,14 @@ fun SymptomScreen(back: () -> Unit, initialEditId: Long = 0L) {
             LazyColumn(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp), contentPadding = PaddingValues(bottom = 24.dp)) {
                 item {
                     RichNoteBodyEditor(
-                        dao = dao, ownerType = "symptom", ownerId = initial?.id ?: 0L,
-                        value = notes, onValueChange = { notes = it },
-                        pendingFiles = pendingFiles, onPendingFilesChange = { pendingFiles = it },
+                        dao = dao,
+                        ownerType = "symptom",
+                        ownerId = initial?.id ?: 0L,
+                        value = notes,
+                        onValueChange = { notes = it },
+                        pendingFiles = pendingFiles,
+                        onPendingFilesChange = { pendingFiles = it },
+                        sessionKey = "symptom-${initial?.id ?: "new"}",
                     )
                 }
                 item {
