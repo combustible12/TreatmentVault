@@ -1,0 +1,40 @@
+{
+  "version": 1,
+  "packageId": "20260912-001",
+  "createdAt": "2026-09-12T11:30:00+08:00",
+  "items": [
+    {
+      "type": "supply",
+      "action": "upsert",
+      "data": {
+        "name": "电子体温计",
+        "stages": [
+          "化疗期",
+          "化疗后"
+        ],
+        "purpose": "监测发热",
+        "necessity": "必买",
+        "purchaseStatus": "待购",
+        "quantity": 1
+      }
+    },
+    {
+      "type": "question",
+      "action": "upsert",
+      "data": {
+        "question": "放疗前皮肤需要提前使用保护剂吗？",
+        "date": "2026-09-12",
+        "status": "待问"
+      }
+    },
+    {
+      "type": "timeline",
+      "action": "upsert",
+      "data": {
+        "date": "2026-09-12",
+        "type": "准备",
+        "title": "整理化疗/放疗用品"
+      }
+    }
+  ]
+}
