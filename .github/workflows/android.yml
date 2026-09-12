@@ -4,6 +4,10 @@ on:
   push:
   workflow_dispatch:
 
+concurrency:
+  group: treatmentvault-main-build
+  cancel-in-progress: true
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -54,28 +58,55 @@ jobs:
           VERSION_NAME="$(grep -oP 'versionName = "\K[^"]+' app/build.gradle.kts | head -1)"
           SHA="$(sha256sum "$APK" | awk '{print $1}')"
           AUTH="$(printf 'x-access-token:%s' "$UPDATE_REPO_TOKEN" | base64 -w0)"
-          git -c http.https://github.com/.extraheader="AUTHORIZATION: basic $AUTH" clone https://github.com/combustible12/TreatmentVault-Updates.git update-repo
-          cp "$APK" update-repo/TreatmentVault-latest.apk
           export VERSION_CODE VERSION_NAME SHA
-          python3 - <<'PY'
+
+          for ATTEMPT in 1 2 3; do
+            rm -rf update-repo
+            git -c http.https://github.com/.extraheader="AUTHORIZATION: basic $AUTH" clone https://github.com/combustible12/TreatmentVault-Updates.git update-repo
+
+            REMOTE_CODE="$(python3 - <<'PY'
+          import json
+          try:
+              with open('update-repo/update.json', encoding='utf-8') as f:
+                  print(int(json.load(f).get('versionCode', 0)))
+          except Exception:
+              print(0)
+          PY
+          )"
+            if [ "$REMOTE_CODE" -gt "$VERSION_CODE" ]; then
+              echo "Update channel already has newer versionCode=$REMOTE_CODE; skipping older build $VERSION_CODE."
+              exit 0
+            fi
+
+            cp "$APK" update-repo/TreatmentVault-latest.apk
+            python3 - <<'PY'
           import json, os
           data = {
               "versionCode": int(os.environ["VERSION_CODE"]),
               "versionName": os.environ["VERSION_NAME"],
               "apkUrl": "https://raw.githubusercontent.com/combustible12/TreatmentVault-Updates/main/TreatmentVault-latest.apk",
               "sha256": os.environ["SHA"],
-              "notes": "底层记录体系重构：全部记录、最近记录和首页搜索统一包含普通笔记、检查、治疗、药品用品、症状、体温、问诊、费用和时间线；所有入口直接打开具体记录。新增全局置顶、收藏、归档和回收站，删除先进入回收站并可恢复，记录状态跟随完整备份恢复。"
+              "notes": "类目管理修正：默认类目和自建类目现在都可编辑、改名、改图标、调整上级、排序、隐藏和删除；删除类目不会删除任何记录，自建类目中的笔记会安全迁移到待整理或其他可见类目；可一键恢复默认类目。默认类目改名后，页面标题以及全部记录、搜索中的分类名称和图标会同步更新。"
           }
           with open("update-repo/update.json", "w", encoding="utf-8") as f:
               json.dump(data, f, ensure_ascii=False, indent=2)
               f.write("\n")
           PY
-          cd update-repo
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add TreatmentVault-latest.apk update.json
-          if git diff --cached --quiet; then
-            exit 0
-          fi
-          git commit -m "Publish TreatmentVault ${VERSION_NAME}"
-          git -c http.https://github.com/.extraheader="AUTHORIZATION: basic $AUTH" push
+            cd update-repo
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add TreatmentVault-latest.apk update.json
+            if git diff --cached --quiet; then
+              exit 0
+            fi
+            git commit -m "Publish TreatmentVault ${VERSION_NAME}"
+            if git -c http.https://github.com/.extraheader="AUTHORIZATION: basic $AUTH" push; then
+              exit 0
+            fi
+            cd ..
+            echo "Publish conflict on attempt $ATTEMPT; retrying from latest update-channel head."
+            sleep $((ATTEMPT * 2))
+          done
+
+          echo "Failed to publish after retries."
+          exit 1
