@@ -17,6 +17,21 @@ fun TreatmentVaultApp() {
         val nav = rememberNavController()
         NavHost(nav, "home") {
             composable("home") { HomeScreen { nav.navigate(it) } }
+            composable("notes") { AllNotesScreen(back = { nav.popBackStack() }, go = { nav.navigate(it) }) }
+            composable("note/new/{categoryId}") { entry ->
+                NoteEditorScreen(
+                    noteId = 0L,
+                    initialCategoryId = entry.arguments?.getString("categoryId"),
+                    back = { nav.popBackStack() },
+                )
+            }
+            composable("note/{noteId}") { entry ->
+                NoteEditorScreen(
+                    noteId = entry.arguments?.getString("noteId")?.toLongOrNull() ?: 0L,
+                    initialCategoryId = null,
+                    back = { nav.popBackStack() },
+                )
+            }
             composable("categories") { CategoryManagementScreen { nav.popBackStack() } }
             composable("structure") { StructureScreen(back = { nav.popBackStack() }, go = { nav.navigate(it) }) }
             composable("update") { UpdateScreen { nav.popBackStack() } }

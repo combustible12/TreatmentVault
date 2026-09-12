@@ -1,27 +1,20 @@
 package com.menter.treatmentvault.ui.screens
 
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items as gridItems
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
-import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.menter.treatmentvault.TreatmentVaultApplication
 import com.menter.treatmentvault.data.*
 import kotlinx.coroutines.launch
-import kotlin.math.abs
 
 private data class HomeSearchHit(
     val title: String,
@@ -39,6 +32,22 @@ private fun previewText(value: String, max: Int = 90): String {
 
 private fun matchesHomeQuery(query: String, vararg values: Any?): Boolean =
     values.any { it?.toString()?.contains(query, ignoreCase = true) == true }
+
+private fun flattenVisibleCategories(categories: List<CategoryEntity>): List<Pair<CategoryEntity, Int>> {
+    val visible = categories.filterNot { it.hidden }
+    val byParent = visible.groupBy { it.parentId }
+    val result = mutableListOf<Pair<CategoryEntity, Int>>()
+    fun visit(parent: String?, depth: Int) {
+        byParent[parent].orEmpty().sortedBy { it.sortOrder }.forEach { category ->
+            result += category to depth
+            visit(category.key, depth + 1)
+        }
+    }
+    visit(null, 0)
+    val included = result.map { it.first.key }.toSet()
+    visible.filterNot { it.key in included }.sortedBy { it.sortOrder }.forEach { result += it to 0 }
+    return result
+}
 
 private fun buildHomeSearchResults(
     query: String,
@@ -59,104 +68,78 @@ private fun buildHomeSearchResults(
     val categoryMap = categories.associateBy { it.key }
 
     return buildList {
-        categories.forEach { category ->
-            if (matchesHomeQuery(q, category.name, category.smartKeywords)) {
-                add(
-                    HomeSearchHit(
-                        title = category.name,
-                        subtitle = if (category.hidden) "已隐藏类目" else "打开类目",
-                        section = "类目",
-                        route = if (category.isSystem) category.route else "custom/${category.key}",
-                        iconKey = category.iconKey,
-                        updatedAt = category.updatedAt,
-                    )
-                )
+        customEntries.forEach { item ->
+            val category = categoryMap[item.categoryId]
+            val categoryName = category?.name ?: "笔记"
+            if (matchesHomeQuery(q, categoryName, item.date, item.title, item.content, item.tags)) {
+                add(HomeSearchHit(
+                    item.title.ifBlank { previewText(item.content, 42).ifBlank { "未命名笔记" } },
+                    previewText(listOf(item.date, item.content, item.tags).filter { it.isNotBlank() }.joinToString(" · ")),
+                    categoryName,
+                    "note/${item.id}",
+                    category?.iconKey ?: "note",
+                    item.updatedAt,
+                ))
             }
         }
-
+        categories.forEach { category ->
+            if (matchesHomeQuery(q, category.name, category.smartKeywords)) {
+                add(HomeSearchHit(
+                    category.name,
+                    if (category.isSystem) "打开资料分类" else "打开笔记分类",
+                    "分类",
+                    if (category.isSystem) category.route else "custom/${category.key}",
+                    category.iconKey,
+                    category.updatedAt,
+                ))
+            }
+        }
         supplies.forEach { item ->
             if (matchesHomeQuery(q, item.name, item.stages, item.purpose, item.necessity, item.purchaseStatus, item.usage, item.notes)) {
                 add(HomeSearchHit(item.name, previewText(listOf(item.purchaseStatus, item.purpose, item.notes).filter { it.isNotBlank() }.joinToString(" · ")), "药品用品", "supplies", "medication", item.updatedAt))
             }
         }
-
         exams.forEach { item ->
             if (matchesHomeQuery(q, item.name, item.date, item.hospital, item.type, item.summary, item.keyData, item.doctorExplanation, item.notes)) {
                 add(HomeSearchHit(item.name, previewText(listOf(item.date, item.hospital, item.summary).filter { it.isNotBlank() }.joinToString(" · ")), "检查报告", "exams", "description", item.updatedAt))
             }
         }
-
         plans.forEach { item ->
             if (matchesHomeQuery(q, item.name, item.category, item.hospital, item.doctor, item.date, item.medicines, item.dose, item.cycle, item.sessions, item.startDate, item.expectedEnd, item.explanation, item.notes)) {
                 add(HomeSearchHit(item.name, previewText(listOf(item.date, item.doctor, item.explanation).filter { it.isNotBlank() }.joinToString(" · ")), "治疗方案", "treatment", "medical", item.updatedAt))
             }
         }
-
         records.forEach { item ->
             if (matchesHomeQuery(q, item.date, item.type, item.hospital, item.doctor, item.content, item.medicines, item.sideEffects, item.condition, item.notes)) {
                 add(HomeSearchHit(listOf(item.type, item.date).filter { it.isNotBlank() }.joinToString(" · ").ifBlank { "治疗记录" }, previewText(item.content.ifBlank { item.notes }), "治疗记录", "treatment", "medical", item.updatedAt))
             }
         }
-
         symptoms.forEach { item ->
             if (matchesHomeQuery(q, item.date, item.temperature, item.weight, item.appetite, item.nausea, item.vomiting, item.diarrhea, item.constipation, item.bowelCount, item.urinaryFrequency, item.dysuria, item.pain, item.fatigue, item.bleeding, item.other, item.notes)) {
                 add(HomeSearchHit("症状记录 ${item.date}", previewText(listOf(item.constipation, item.urinaryFrequency, item.pain, item.other, item.notes).filter { it.isNotBlank() }.joinToString(" · ")), "症状记录", "symptoms", "heart", item.updatedAt))
             }
         }
-
         temperatures.forEach { item ->
             if (matchesHomeQuery(q, item.date, item.time, item.temperature, item.measurementSite, item.notes)) {
                 add(HomeSearchHit("${item.temperature}℃", previewText(listOf(item.date, item.time, item.measurementSite, item.notes).filter { it.isNotBlank() }.joinToString(" · ")), "体温记录", "temperature", "thermostat", item.updatedAt))
             }
         }
-
         questions.forEach { item ->
             if (matchesHomeQuery(q, item.question, item.date, item.hospital, item.doctor, item.answer, item.status, item.followUp, item.notes)) {
                 add(HomeSearchHit(item.question, previewText(listOf(item.status, item.date, item.doctor, item.answer).filter { it.isNotBlank() }.joinToString(" · ")), "医生问诊", "questions", "question", item.updatedAt))
             }
         }
-
         expenses.forEach { item ->
             if (matchesHomeQuery(q, item.date, item.type, item.amount, item.merchant, item.insuranceAmount, item.selfPayAmount, item.reimbursedAmount, item.notes)) {
                 add(HomeSearchHit("${item.type} ¥${item.amount}", previewText(listOf(item.date, item.merchant, item.notes).filter { it.isNotBlank() }.joinToString(" · ")), "费用记录", "expenses", "payments", item.updatedAt))
             }
         }
-
         timeline.forEach { item ->
             if (matchesHomeQuery(q, item.date, item.type, item.title, item.content, item.sourceType)) {
                 add(HomeSearchHit(item.title.ifBlank { item.type }, previewText(listOf(item.date, item.content).filter { it.isNotBlank() }.joinToString(" · ")), "总时间轴", "timeline", "timeline", item.updatedAt))
             }
         }
-
-        customEntries.forEach { item ->
-            val category = categoryMap[item.categoryId]
-            val categoryName = category?.name ?: "自定义记录"
-            if (matchesHomeQuery(q, categoryName, item.date, item.title, item.content, item.tags)) {
-                add(
-                    HomeSearchHit(
-                        title = item.title.ifBlank { previewText(item.content, 40).ifBlank { "未命名记录" } },
-                        subtitle = previewText(listOf(item.date, item.content, item.tags).filter { it.isNotBlank() }.joinToString(" · ")),
-                        section = categoryName,
-                        route = "custom/${item.categoryId}",
-                        iconKey = category?.iconKey ?: "folder",
-                        updatedAt = item.updatedAt,
-                    )
-                )
-            }
-        }
     }.sortedByDescending { it.updatedAt }
-}
-
-private suspend fun persistVisibleHomeOrder(
-    allCategories: List<CategoryEntity>,
-    orderedVisible: List<CategoryEntity>,
-    save: suspend (CategoryEntity) -> Unit,
-) {
-    val slots = allCategories.filterNot { it.hidden }.map { it.sortOrder }.sorted()
-    val now = System.currentTimeMillis()
-    orderedVisible.forEachIndexed { index, category ->
-        save(category.copy(sortOrder = slots.getOrElse(index) { index * 10 }, updatedAt = now + index))
-    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -164,7 +147,6 @@ private suspend fun persistVisibleHomeOrder(
 fun HomeScreen(go: (String) -> Unit) {
     val app = androidx.compose.ui.platform.LocalContext.current.applicationContext as TreatmentVaultApplication
     val dao = app.database.dao()
-
     val categories by dao.categories().collectAsState(initial = emptyList())
     val supplies by dao.supplies().collectAsState(initial = emptyList())
     val exams by dao.exams().collectAsState(initial = emptyList())
@@ -178,179 +160,262 @@ fun HomeScreen(go: (String) -> Unit) {
     val customEntries by dao.allCustomEntriesFlow().collectAsState(initial = emptyList())
 
     val scope = rememberCoroutineScope()
-    val haptic = LocalHapticFeedback.current
+    val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     var query by rememberSaveable { mutableStateOf("") }
-    var draggingKey by remember { mutableStateOf<String?>(null) }
-    var localVisible by remember { mutableStateOf<List<CategoryEntity>>(emptyList()) }
 
-    LaunchedEffect(categories, draggingKey) {
-        if (draggingKey == null) localVisible = categories.filterNot { it.hidden }
-    }
-    val latestVisible by rememberUpdatedState(localVisible)
-    val latestCategories by rememberUpdatedState(categories)
-
-    val searchResults = buildHomeSearchResults(
-        query, categories, supplies, exams, plans, records, symptoms,
-        temperatures, questions, expenses, timeline, customEntries,
-    )
-
-    Scaffold(
-        topBar = {
-            CenterAlignedTopAppBar(
-                title = { Text("治疗资料库") },
-                actions = {
-                    IconButton(onClick = { go("structure") }) {
-                        Icon(Icons.Default.AccountTree, contentDescription = "资料树")
-                    }
-                    IconButton(onClick = { go("categories") }) {
-                        Icon(Icons.Default.Settings, contentDescription = "类目管理")
-                    }
-                    IconButton(onClick = { go("update") }) {
-                        Icon(Icons.Default.SystemUpdateAlt, contentDescription = "检查更新")
-                    }
-                },
+    LaunchedEffect(categories) {
+        if (categories.none { it.key == "inbox" }) {
+            dao.saveCategory(
+                CategoryEntity(
+                    key = "inbox",
+                    name = "待整理",
+                    iconKey = "note",
+                    sortOrder = 5,
+                    isSystem = false,
+                    smartEnabled = false,
+                    smartKeywords = "",
+                )
             )
         }
-    ) { padding ->
-        Column(
-            modifier = Modifier.fillMaxSize().padding(padding),
-            verticalArrangement = Arrangement.spacedBy(6.dp),
-        ) {
-            OutlinedTextField(
-                value = query,
-                onValueChange = { query = it },
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
-                singleLine = true,
-                label = { Text("搜索全部资料") },
-                placeholder = { Text("标题、正文、标签、医生、医院、药品、费用……") },
-                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
-                trailingIcon = {
-                    if (query.isNotBlank()) {
-                        IconButton(onClick = { query = "" }) {
-                            Icon(Icons.Default.Close, contentDescription = "清空搜索")
-                        }
-                    }
-                },
-            )
+    }
 
-            if (query.isNotBlank()) {
-                Text(
-                    "全局搜索 · ${searchResults.size} 条结果",
-                    style = MaterialTheme.typography.bodySmall,
-                    modifier = Modifier.padding(horizontal = 14.dp),
+    val visibleCategories = remember(categories) { flattenVisibleCategories(categories) }
+    val recentNotes = remember(customEntries) { customEntries.sortedByDescending { it.updatedAt }.take(6) }
+    val customCounts = remember(customEntries) { customEntries.groupingBy { it.categoryId }.eachCount() }
+    val searchResults = remember(
+        query, categories, supplies, exams, plans, records, symptoms,
+        temperatures, questions, expenses, timeline, customEntries,
+    ) {
+        buildHomeSearchResults(query, categories, supplies, exams, plans, records, symptoms, temperatures, questions, expenses, timeline, customEntries)
+    }
+
+    fun open(route: String) {
+        if (route.isBlank()) return
+        scope.launch {
+            if (drawerState.isOpen) drawerState.close()
+            go(route)
+        }
+    }
+
+    fun countFor(category: CategoryEntity): Int = when (category.key) {
+        "timeline" -> timeline.size
+        "exams" -> exams.size
+        "treatment" -> plans.size + records.size
+        "supplies" -> supplies.size
+        "symptoms" -> symptoms.size
+        "temperature" -> temperatures.size
+        "questions" -> questions.size
+        "expenses" -> expenses.size
+        else -> customCounts[category.key] ?: 0
+    }
+
+    ModalNavigationDrawer(
+        drawerState = drawerState,
+        drawerContent = {
+            ModalDrawerSheet {
+                Spacer(Modifier.height(18.dp))
+                Text("治疗笔记", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.padding(horizontal = 20.dp))
+                Text("像笔记一样记，分类在后面帮你整理", style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp))
+                Spacer(Modifier.height(10.dp))
+                NavigationDrawerItem(
+                    icon = { Icon(Icons.Default.Notes, contentDescription = null) },
+                    label = { Text("全部笔记") },
+                    selected = false,
+                    onClick = { open("notes") },
                 )
-
-                if (searchResults.isEmpty()) {
-                    Text("没有找到匹配内容", modifier = Modifier.padding(14.dp))
-                } else {
-                    LazyColumn(
-                        modifier = Modifier.fillMaxWidth().weight(1f),
-                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
-                        verticalArrangement = Arrangement.spacedBy(7.dp),
-                    ) {
-                        items(searchResults) { hit ->
-                            Card(
-                                modifier = Modifier.fillMaxWidth().clickable {
-                                    if (hit.route.isNotBlank()) go(hit.route)
-                                }
-                            ) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth().padding(12.dp),
-                                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                                ) {
-                                    Icon(categoryIcon(hit.iconKey), contentDescription = null)
-                                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                                        Text(hit.title, style = MaterialTheme.typography.titleSmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                                        Text(hit.section, style = MaterialTheme.typography.labelSmall)
-                                        if (hit.subtitle.isNotBlank()) {
-                                            Text(hit.subtitle, style = MaterialTheme.typography.bodySmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                                        }
-                                    }
-                                    Icon(Icons.Default.ChevronRight, contentDescription = null)
-                                }
+                NavigationDrawerItem(
+                    icon = { Icon(Icons.Default.Mic, contentDescription = null) },
+                    label = { Text("智能录入") },
+                    selected = false,
+                    onClick = { open("smart_input") },
+                )
+                NavigationDrawerItem(
+                    icon = { Icon(Icons.Default.AccountTree, contentDescription = null) },
+                    label = { Text("资料树") },
+                    selected = false,
+                    onClick = { open("structure") },
+                )
+                HorizontalDivider(Modifier.padding(vertical = 8.dp))
+                Text("分类", style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp))
+                visibleCategories.take(14).forEach { (category, depth) ->
+                    val route = if (category.isSystem) category.route else "custom/${category.key}"
+                    NavigationDrawerItem(
+                        icon = { Icon(categoryIcon(category.iconKey), contentDescription = null) },
+                        label = {
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Text((if (depth > 0) "  ".repeat(depth) else "") + category.name, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                val count = countFor(category)
+                                if (count > 0) Text(count.toString(), style = MaterialTheme.typography.labelSmall)
                             }
-                        }
-                    }
+                        },
+                        selected = false,
+                        onClick = { open(route) },
+                    )
                 }
-            } else {
-                Text(
-                    "长按卡片即可拖动排序；右上角树状图可看全部资料结构",
-                    style = MaterialTheme.typography.bodySmall,
-                    modifier = Modifier.padding(horizontal = 14.dp),
+                Spacer(Modifier.weight(1f))
+                HorizontalDivider()
+                NavigationDrawerItem(
+                    icon = { Icon(Icons.Default.Settings, contentDescription = null) },
+                    label = { Text("类目管理") },
+                    selected = false,
+                    onClick = { open("categories") },
                 )
+                NavigationDrawerItem(
+                    icon = { Icon(Icons.Default.Backup, contentDescription = null) },
+                    label = { Text("备份与恢复") },
+                    selected = false,
+                    onClick = { open("settings") },
+                )
+                NavigationDrawerItem(
+                    icon = { Icon(Icons.Default.SystemUpdateAlt, contentDescription = null) },
+                    label = { Text("检查更新") },
+                    selected = false,
+                    onClick = { open("update") },
+                )
+                Spacer(Modifier.height(12.dp))
+            }
+        },
+    ) {
+        Scaffold(
+            topBar = {
+                CenterAlignedTopAppBar(
+                    title = { Text("治疗笔记") },
+                    navigationIcon = {
+                        IconButton(onClick = { scope.launch { drawerState.open() } }) {
+                            Icon(Icons.Default.Menu, contentDescription = "菜单")
+                        }
+                    },
+                    actions = {
+                        IconButton(onClick = { go("structure") }) {
+                            Icon(Icons.Default.AccountTree, contentDescription = "资料树")
+                        }
+                    },
+                )
+            },
+            floatingActionButton = {
+                FloatingActionButton(onClick = { go("note/new/inbox") }) {
+                    Icon(Icons.Default.Add, contentDescription = "新建笔记")
+                }
+            },
+        ) { padding ->
+            LazyColumn(
+                modifier = Modifier.fillMaxSize().padding(padding),
+                contentPadding = PaddingValues(start = 14.dp, end = 14.dp, bottom = 96.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                item {
+                    OutlinedTextField(
+                        value = query,
+                        onValueChange = { query = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        placeholder = { Text("搜索全部资料") },
+                        leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                        trailingIcon = {
+                            if (query.isNotBlank()) {
+                                IconButton(onClick = { query = "" }) {
+                                    Icon(Icons.Default.Close, contentDescription = "清空")
+                                }
+                            }
+                        },
+                        shape = MaterialTheme.shapes.extraLarge,
+                    )
+                }
 
-                LazyVerticalGrid(
-                    columns = GridCells.Fixed(2),
-                    modifier = Modifier.padding(horizontal = 12.dp).weight(1f),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp),
-                ) {
-                    gridItems(localVisible, key = { it.key }) { category ->
-                        val route = if (category.isSystem) category.route else "custom/${category.key}"
-                        Card(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(110.dp)
-                                .pointerInput(category.key) {
-                                    var dx = 0f
-                                    var dy = 0f
-                                    detectDragGesturesAfterLongPress(
-                                        onDragStart = {
-                                            dx = 0f
-                                            dy = 0f
-                                            draggingKey = category.key
-                                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                        },
-                                        onDragCancel = {
-                                            draggingKey = null
-                                            localVisible = latestCategories.filterNot { it.hidden }
-                                        },
-                                        onDragEnd = {
-                                            val visibleSnapshot = latestVisible
-                                            val allSnapshot = latestCategories
-                                            draggingKey = null
-                                            scope.launch {
-                                                persistVisibleHomeOrder(allSnapshot, visibleSnapshot) { dao.updateCategory(it) }
-                                            }
-                                        },
-                                        onDrag = { change, dragAmount ->
-                                            change.consume()
-                                            dx += dragAmount.x
-                                            dy += dragAmount.y
-                                            val threshold = 54.dp.toPx()
-                                            if (abs(dx) >= threshold || abs(dy) >= threshold) {
-                                                val current = latestVisible.toMutableList()
-                                                val from = current.indexOfFirst { it.key == category.key }
-                                                val step = if (abs(dx) > abs(dy)) {
-                                                    if (dx > 0f) 1 else -1
-                                                } else {
-                                                    if (dy > 0f) 2 else -2
-                                                }
-                                                val to = from + step
-                                                if (from >= 0 && to in current.indices) {
-                                                    val moved = current.removeAt(from)
-                                                    current.add(to, moved)
-                                                    localVisible = current
-                                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                                }
-                                                dx = 0f
-                                                dy = 0f
-                                            }
-                                        },
-                                    )
-                                }
-                                .clickable(enabled = draggingKey == null) {
-                                    if (route.isNotBlank()) go(route)
-                                }
-                        ) {
-                            Column(
-                                modifier = Modifier.padding(16.dp),
-                                verticalArrangement = Arrangement.spacedBy(12.dp),
-                            ) {
-                                Icon(categoryIcon(category.iconKey), contentDescription = null)
-                                Text(category.name, style = MaterialTheme.typography.titleMedium)
+                if (query.isNotBlank()) {
+                    item {
+                        Text("搜索结果 · ${searchResults.size}", style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(top = 4.dp))
+                    }
+                    if (searchResults.isEmpty()) {
+                        item { Text("没有找到匹配内容", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(vertical = 18.dp)) }
+                    } else {
+                        items(searchResults, key = { "${it.route}-${it.title}-${it.updatedAt}" }) { hit ->
+                            ListItem(
+                                modifier = Modifier.fillMaxWidth().clickable { open(hit.route) },
+                                headlineContent = { Text(hit.title, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                                supportingContent = {
+                                    Column {
+                                        Text(hit.section, style = MaterialTheme.typography.labelSmall)
+                                        if (hit.subtitle.isNotBlank()) Text(hit.subtitle, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                                    }
+                                },
+                                leadingContent = { Icon(categoryIcon(hit.iconKey), contentDescription = null) },
+                                trailingContent = { Icon(Icons.Default.ChevronRight, contentDescription = null) },
+                            )
+                        }
+                    }
+                } else {
+                    item {
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            FilledTonalButton(onClick = { go("note/new/inbox") }, modifier = Modifier.weight(1f)) {
+                                Icon(Icons.Default.EditNote, contentDescription = null)
+                                Spacer(Modifier.width(6.dp))
+                                Text("新建笔记")
+                            }
+                            FilledTonalButton(onClick = { go("smart_input") }, modifier = Modifier.weight(1f)) {
+                                Icon(Icons.Default.Mic, contentDescription = null)
+                                Spacer(Modifier.width(6.dp))
+                                Text("智能录入")
                             }
                         }
+                    }
+
+                    item {
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text("最近笔记", style = MaterialTheme.typography.titleMedium)
+                            TextButton(onClick = { go("notes") }) { Text("全部") }
+                        }
+                    }
+                    if (recentNotes.isEmpty()) {
+                        item {
+                            Card(Modifier.fillMaxWidth()) {
+                                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    Text("还没有笔记", style = MaterialTheme.typography.titleSmall)
+                                    Text("先随手记下来，不用先想该放哪里。", style = MaterialTheme.typography.bodySmall)
+                                }
+                            }
+                        }
+                    } else {
+                        items(recentNotes, key = { it.id }) { note ->
+                            val category = categories.firstOrNull { it.key == note.categoryId }
+                            ListItem(
+                                modifier = Modifier.fillMaxWidth().clickable { go("note/${note.id}") },
+                                headlineContent = {
+                                    Text(note.title.ifBlank { previewText(note.content, 42).ifBlank { "未命名笔记" } }, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                },
+                                supportingContent = {
+                                    Column {
+                                        Text(category?.name ?: "笔记", style = MaterialTheme.typography.labelSmall)
+                                        if (note.content.isNotBlank()) Text(previewText(note.content), maxLines = 2, overflow = TextOverflow.Ellipsis)
+                                    }
+                                },
+                                leadingContent = { Icon(categoryIcon(category?.iconKey ?: "note"), contentDescription = null) },
+                            )
+                        }
+                    }
+
+                    item {
+                        Text("分类", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 4.dp))
+                    }
+                    items(visibleCategories, key = { it.first.key }) { pair ->
+                        val category = pair.first
+                        val depth = pair.second
+                        val route = if (category.isSystem) category.route else "custom/${category.key}"
+                        ListItem(
+                            modifier = Modifier.fillMaxWidth().clickable { if (route.isNotBlank()) go(route) },
+                            headlineContent = { Text(category.name, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                            supportingContent = {
+                                val count = countFor(category)
+                                Text(if (count == 0) "暂无记录" else "$count 条", style = MaterialTheme.typography.bodySmall)
+                            },
+                            leadingContent = {
+                                Row {
+                                    if (depth > 0) Spacer(Modifier.width((depth * 18).dp))
+                                    Icon(categoryIcon(category.iconKey), contentDescription = null)
+                                }
+                            },
+                            trailingContent = { Icon(Icons.Default.ChevronRight, contentDescription = null) },
+                        )
                     }
                 }
             }

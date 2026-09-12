@@ -64,7 +64,7 @@ jobs:
               "versionName": os.environ["VERSION_NAME"],
               "apkUrl": "https://raw.githubusercontent.com/combustible12/TreatmentVault-Updates/main/TreatmentVault-latest.apk",
               "sha256": os.environ["SHA"],
-              "notes": "首页新增全局搜索，可搜索类目、标题、正文、标签、医生、医院、药品、症状、费用和时间轴内容。"
+              "notes": "笔记化首页：全局搜索、最近笔记、抽屉分类导航、全部笔记、新建/编辑笔记与分类移动；保留智能录入和医疗资料管理。"
           }
           with open("update-repo/update.json", "w", encoding="utf-8") as f:
               json.dump(data, f, ensure_ascii=False, indent=2)
