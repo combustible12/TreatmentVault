@@ -17,7 +17,8 @@ import kotlinx.coroutines.launch
 
 @Composable
 fun QuestionScreen(back: () -> Unit, initialEditId: Long = 0L) {
-    val dao = (androidx.compose.ui.platform.LocalContext.current.applicationContext as TreatmentVaultApplication).database.dao()
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val dao = (context.applicationContext as TreatmentVaultApplication).database.dao()
     val list by dao.questions().collectAsState(emptyList())
     val scope = rememberCoroutineScope()
     var editorOpen by remember { mutableStateOf(false) }
@@ -67,9 +68,13 @@ fun QuestionScreen(back: () -> Unit, initialEditId: Long = 0L) {
         FullScreenEditorDialog(
             title = if (initial == null) "新增问题" else "编辑问诊",
             onDismiss = { editorOpen = false },
-            canSave = question.isNotBlank() || richBodyPlainText(answer).isNotBlank() || pendingFiles.isNotEmpty(),
+            canSave = question.isNotBlank() || richBodyHasContent(answer) || pendingFiles.isNotEmpty(),
+            hasPersistedRecord = initial != null,
             onSave = {
-                if (question.isBlank() && richBodyPlainText(answer).isBlank() && pendingFiles.isEmpty()) return@FullScreenEditorDialog
+                if (initial == null && question.isBlank() && !richBodyHasContent(answer) && pendingFiles.isEmpty()) {
+                    editorOpen = false
+                    return@FullScreenEditorDialog
+                }
                 scope.launch {
                     val value = QuestionEntity(
                         id = initial?.id ?: 0,
@@ -84,7 +89,8 @@ fun QuestionScreen(back: () -> Unit, initialEditId: Long = 0L) {
                         updatedAt = System.currentTimeMillis(),
                     )
                     val id = if (initial == null) dao.saveQuestion(value) else { dao.updateQuestion(value); value.id }
-                    savePendingAttachments(dao, "question", id, pendingFiles)
+                    reconcileRichAttachments(context, dao, "question", id, answer)
+                    pendingFiles = emptyList()
                     editorOpen = false
                 }
             },
@@ -93,10 +99,15 @@ fun QuestionScreen(back: () -> Unit, initialEditId: Long = 0L) {
                 item { Field(question, { question = it }, "问题/标题") }
                 item {
                     RichNoteBodyEditor(
-                        dao = dao, ownerType = "question", ownerId = initial?.id ?: 0L,
-                        value = answer, onValueChange = { answer = it },
-                        pendingFiles = pendingFiles, onPendingFilesChange = { pendingFiles = it },
+                        dao = dao,
+                        ownerType = "question",
+                        ownerId = initial?.id ?: 0L,
+                        value = answer,
+                        onValueChange = { answer = it },
+                        pendingFiles = pendingFiles,
+                        onPendingFilesChange = { pendingFiles = it },
                         label = "回答与记录",
+                        sessionKey = "question-${initial?.id ?: "new"}",
                     )
                 }
                 item {
