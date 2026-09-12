@@ -8,13 +8,30 @@ plugins {
 android {
     namespace = "com.menter.treatmentvault"
     compileSdk = 35
+
+    signingConfigs {
+        getByName("debug") {
+            storeFile = rootProject.file(".github/keystore/treatmentvault-debug.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
+    }
+
     defaultConfig {
         applicationId = "com.menter.treatmentvault"
         minSdk = 26
         targetSdk = 35
-        versionCode = 4
-        versionName = "0.4.0"
+        versionCode = 5
+        versionName = "0.5.0"
     }
+
+    buildTypes {
+        getByName("debug") {
+            signingConfig = signingConfigs.getByName("debug")
+        }
+    }
+
     buildFeatures { compose = true; buildConfig = true }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
