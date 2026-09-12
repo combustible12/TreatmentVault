@@ -4,7 +4,7 @@ import androidx.room.Entity
 import androidx.room.Index
 
 @Entity(
-    primaryKeys = ["ownerType", "ownerId"],
+    primaryKeys = ["ownerType", "ownerId", "folderKey"],
     indices = [Index(value = ["folderKey"])],
 )
 data class RecordFolderEntity(
