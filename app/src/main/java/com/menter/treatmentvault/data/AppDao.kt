@@ -95,6 +95,7 @@ interface AppDao {
     @Query("DELETE FROM TagEntity") suspend fun clearTags()
 
     @Query("SELECT * FROM AttachmentEntity WHERE ownerType=:ownerType AND ownerId=:ownerId ORDER BY createdAt ASC,id ASC") fun attachments(ownerType:String, ownerId:Long):Flow<List<AttachmentEntity>>
+    @Query("SELECT * FROM AttachmentEntity WHERE ownerType=:ownerType AND ownerId=:ownerId ORDER BY createdAt ASC,id ASC") suspend fun attachmentsForOwner(ownerType:String, ownerId:Long):List<AttachmentEntity>
     @Query("SELECT * FROM AttachmentEntity ORDER BY id") suspend fun allAttachments():List<AttachmentEntity>
     @Insert suspend fun saveAttachment(v:AttachmentEntity):Long
     @Delete suspend fun deleteAttachment(v:AttachmentEntity)
