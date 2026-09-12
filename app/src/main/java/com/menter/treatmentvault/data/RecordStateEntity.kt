@@ -5,7 +5,12 @@ import androidx.room.Index
 
 @Entity(
     primaryKeys = ["ownerType", "ownerId"],
-    indices = [Index("pinned"), Index("favorite"), Index("archived"), Index("trashedAt")],
+    indices = [
+        Index(value = ["pinned"]),
+        Index(value = ["favorite"]),
+        Index(value = ["archived"]),
+        Index(value = ["trashedAt"]),
+    ],
 )
 data class RecordStateEntity(
     val ownerType: String,
