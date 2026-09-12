@@ -19,5 +19,7 @@ data class RecordStateEntity(
     val favorite: Boolean = false,
     val archived: Boolean = false,
     val trashedAt: Long? = null,
+    val displayType: String = "normal",
+    val completed: Boolean = false,
     val updatedAt: Long = System.currentTimeMillis(),
 )
