@@ -161,10 +161,15 @@ fun RichNoteBodyEditor(
         }
     }
 
-    LaunchedEffect(existing, hydrated) {
+    LaunchedEffect(existing, hydrated, ownerId) {
         if (!hydrated || legacyRecovered) return@LaunchedEffect
-        legacyRecovered = true
         val current = serializeRichBody(blocks)
+        if (ownerId <= 0L || richBodyImageNames(current).isNotEmpty()) {
+            legacyRecovered = true
+            return@LaunchedEffect
+        }
+        if (existing.isEmpty()) return@LaunchedEffect
+        legacyRecovered = true
         val recovered = recoverLegacyImageMarkers(current, existing.map { it.fileName })
         if (recovered != current) {
             blocks.clear()
@@ -229,10 +234,7 @@ fun RichNoteBodyEditor(
                     is RichBlock.TextBlock -> {
                         OutlinedTextField(
                             value = block.text,
-                            onValueChange = { next ->
-                                blocks[index] = block.copy(text = next)
-                                sync()
-                            },
+                            onValueChange = { next -> blocks[index] = block.copy(text = next); sync() },
                             modifier = Modifier.fillMaxWidth(),
                             placeholder = { Text(if (index == 0) "直接写内容…" else "继续写…") },
                             minLines = 3,
