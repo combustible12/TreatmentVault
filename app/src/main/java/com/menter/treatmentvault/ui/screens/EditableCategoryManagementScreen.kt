@@ -49,6 +49,17 @@ private suspend fun saveEditableCategoryOrder(dao: AppDao, ordered: List<Categor
     }
 }
 
+private fun descendantCategoryKeys(rootKey: String, allCategories: List<CategoryEntity>): Set<String> {
+    val result = mutableSetOf<String>()
+    fun visit(parentKey: String) {
+        allCategories.filter { it.parentId == parentKey }.forEach { child ->
+            if (result.add(child.key)) visit(child.key)
+        }
+    }
+    visit(rootKey)
+    return result
+}
+
 private suspend fun deleteCategoryWithoutDeletingRecords(dao: AppDao, category: CategoryEntity) {
     val allCategories = dao.allCategories()
     val notes = dao.allCustomEntries().filter { it.categoryId == category.key }
@@ -66,9 +77,10 @@ private suspend fun deleteCategoryWithoutDeletingRecords(dao: AppDao, category: 
             )
             dao.saveCategory(fallback)
         }
+        val target = requireNotNull(fallback)
         val now = System.currentTimeMillis()
         notes.forEachIndexed { index, note ->
-            dao.updateCustomEntry(note.copy(categoryId = fallback.key, updatedAt = now + index))
+            dao.updateCustomEntry(note.copy(categoryId = target.key, updatedAt = now + index))
         }
     }
 
@@ -140,9 +152,7 @@ fun EditableCategoryManagementScreen(back: () -> Unit) {
             contentPadding = PaddingValues(bottom = 24.dp),
         ) {
             items(localOrder, key = { it.key }) { category ->
-                Card(
-                    modifier = Modifier.fillMaxWidth().clickable { editing = category },
-                ) {
+                Card(modifier = Modifier.fillMaxWidth().clickable { editing = category }) {
                     Row(
                         modifier = Modifier.fillMaxWidth().padding(12.dp),
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -318,9 +328,7 @@ fun EditableCategoryManagementScreen(back: () -> Unit) {
             text = { Text("会重新建立被删掉的默认类目，并把默认类目的名称、图标、关键词、显示状态和顺序恢复为初始值。你自己新建的类目和任何记录都不会删除。") },
             confirmButton = {
                 TextButton(onClick = {
-                    scope.launch {
-                        defaultBuiltInCategories().forEach { dao.saveCategory(it) }
-                    }
+                    scope.launch { defaultBuiltInCategories().forEach { dao.saveCategory(it) } }
                     confirmRestore = false
                 }) { Text("恢复") }
             },
@@ -344,7 +352,8 @@ private fun EditableCategoryDialog(
     var parentMenu by remember { mutableStateOf(false) }
 
     val parentName = allCategories.firstOrNull { it.key == parentId }?.name
-    val parentCandidates = allCategories.filter { it.key != initial?.key }
+    val blockedParentKeys = initial?.let { descendantCategoryKeys(it.key, allCategories) + it.key }.orEmpty()
+    val parentCandidates = allCategories.filter { it.key !in blockedParentKeys }
 
     AlertDialog(
         onDismissRequest = onDismiss,
