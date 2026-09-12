@@ -1,10 +1,7 @@
 package com.menter.treatmentvault.ui.screens
 
-import androidx.compose.foundation.clickable
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -16,6 +13,7 @@ import androidx.compose.ui.unit.dp
 import com.menter.treatmentvault.TreatmentVaultApplication
 import com.menter.treatmentvault.data.CategoryEntity
 import com.menter.treatmentvault.data.CustomEntryEntity
+import com.menter.treatmentvault.data.RecordStateEntity
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
@@ -24,101 +22,6 @@ import java.util.Locale
 
 private fun noteTitle(note: CustomEntryEntity): String =
     note.title.ifBlank { richBodyPlainText(note.content).lineSequence().firstOrNull().orEmpty().take(48).ifBlank { "未命名笔记" } }
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun AllNotesScreen(back: () -> Unit, go: (String) -> Unit) {
-    val app = androidx.compose.ui.platform.LocalContext.current.applicationContext as TreatmentVaultApplication
-    val dao = app.database.dao()
-    val categories by dao.categories().collectAsState(initial = emptyList())
-    val notes by dao.allCustomEntriesFlow().collectAsState(initial = emptyList())
-    var query by rememberSaveable { mutableStateOf("") }
-    var categoryFilter by rememberSaveable { mutableStateOf<String?>(null) }
-
-    val categoryMap = remember(categories) { categories.associateBy { it.key } }
-    val customCategories = remember(categories) { categories.filterNot { it.isSystem }.sortedBy { it.sortOrder } }
-    val filtered = remember(notes, query, categoryFilter) {
-        val q = query.trim()
-        notes.filter { note ->
-            val plain = richBodyPlainText(note.content)
-            (categoryFilter == null || note.categoryId == categoryFilter) &&
-                (q.isBlank() || note.title.contains(q, true) || plain.contains(q, true) || note.tags.contains(q, true) || note.date.contains(q, true))
-        }.sortedByDescending { it.updatedAt }
-    }
-
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("全部笔记") },
-                navigationIcon = { IconButton(onClick = back) { Icon(Icons.Default.ArrowBack, contentDescription = "返回") } },
-            )
-        },
-        floatingActionButton = {
-            FloatingActionButton(onClick = { go("note/new/inbox") }) { Icon(Icons.Default.Add, contentDescription = "新建笔记") }
-        },
-    ) { padding ->
-        LazyColumn(
-            modifier = Modifier.fillMaxSize().padding(padding),
-            contentPadding = PaddingValues(start = 14.dp, end = 14.dp, bottom = 96.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            item {
-                OutlinedTextField(
-                    value = query,
-                    onValueChange = { query = it },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
-                    placeholder = { Text("搜索笔记") },
-                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
-                    trailingIcon = { if (query.isNotBlank()) IconButton(onClick = { query = "" }) { Icon(Icons.Default.Close, contentDescription = "清空") } },
-                    shape = MaterialTheme.shapes.extraLarge,
-                )
-            }
-            item {
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    item { FilterChip(selected = categoryFilter == null, onClick = { categoryFilter = null }, label = { Text("全部") }) }
-                    items(customCategories, key = { it.key }) { category ->
-                        FilterChip(
-                            selected = categoryFilter == category.key,
-                            onClick = { categoryFilter = if (categoryFilter == category.key) null else category.key },
-                            label = { Text(category.name) },
-                            leadingIcon = { Icon(categoryIcon(category.iconKey), contentDescription = null) },
-                        )
-                    }
-                }
-            }
-            item { Text("${filtered.size} 条笔记", style = MaterialTheme.typography.bodySmall) }
-            if (filtered.isEmpty()) {
-                item {
-                    Card(Modifier.fillMaxWidth()) {
-                        Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Text(if (notes.isEmpty()) "还没有笔记" else "没有匹配的笔记", style = MaterialTheme.typography.titleSmall)
-                            if (notes.isEmpty()) Text("直接点右下角 + 开始记。", style = MaterialTheme.typography.bodySmall)
-                        }
-                    }
-                }
-            } else {
-                items(filtered, key = { it.id }) { note ->
-                    val category = categoryMap[note.categoryId]
-                    val plain = richBodyPlainText(note.content)
-                    ListItem(
-                        modifier = Modifier.fillMaxWidth().clickable { go("note/${note.id}") },
-                        headlineContent = { Text(noteTitle(note), maxLines = 1, overflow = TextOverflow.Ellipsis) },
-                        supportingContent = {
-                            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                                Text(category?.name ?: "笔记", style = MaterialTheme.typography.labelSmall)
-                                if (plain.isNotBlank()) Text(plain.replace("\n", " "), maxLines = 2, overflow = TextOverflow.Ellipsis)
-                                if (note.tags.isNotBlank()) Text("# ${note.tags}", maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.labelSmall)
-                            }
-                        },
-                        leadingContent = { Icon(categoryIcon(category?.iconKey ?: "note"), contentDescription = null) },
-                        trailingContent = { if (note.date.isNotBlank()) Text(note.date, style = MaterialTheme.typography.labelSmall) },
-                    )
-                }
-            }
-        }
-    }
-}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -138,8 +41,9 @@ fun NoteEditorScreen(noteId: Long, initialCategoryId: String?, back: () -> Unit)
     var tags by rememberSaveable(noteId) { mutableStateOf("") }
     var categoryId by rememberSaveable(noteId, initialCategoryId) { mutableStateOf(initialCategoryId.orEmpty()) }
     var categoryMenu by remember { mutableStateOf(false) }
-    var confirmDelete by remember { mutableStateOf(false) }
+    var confirmTrash by remember { mutableStateOf(false) }
     var pendingFiles by remember(noteId) { mutableStateOf<List<String>>(emptyList()) }
+    var saving by remember { mutableStateOf(false) }
 
     val customCategories = remember(categories) { categories.filterNot { it.isSystem }.sortedBy { it.sortOrder } }
 
@@ -166,7 +70,9 @@ fun NoteEditorScreen(noteId: Long, initialCategoryId: String?, back: () -> Unit)
     val canSave = title.isNotBlank() || richBodyPlainText(content).isNotBlank() || pendingFiles.isNotEmpty()
 
     fun saveAndBack() {
-        if (!canSave) return
+        if (saving) return
+        if (!canSave) { back(); return }
+        saving = true
         val safeCategory = categoryId.ifBlank { customCategories.firstOrNull()?.key ?: "inbox" }
         val value = CustomEntryEntity(
             id = existing?.id ?: 0,
@@ -180,18 +86,22 @@ fun NoteEditorScreen(noteId: Long, initialCategoryId: String?, back: () -> Unit)
         scope.launch {
             val savedId = if (value.id == 0L) dao.saveCustomEntry(value) else { dao.updateCustomEntry(value); value.id }
             savePendingAttachments(dao, "note", savedId, pendingFiles)
+            saving = false
             back()
         }
     }
 
+    BackHandler { saveAndBack() }
+
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(if (noteId > 0) "编辑笔记" else "新建笔记") },
-                navigationIcon = { IconButton(onClick = back) { Icon(Icons.Default.ArrowBack, contentDescription = "返回") } },
+                title = { Text(if (noteId > 0) "编辑记录" else "新建记录") },
+                navigationIcon = { IconButton(onClick = { saveAndBack() }) { Icon(Icons.Default.ArrowBack, contentDescription = "返回并保存") } },
                 actions = {
-                    if (existing != null) IconButton(onClick = { confirmDelete = true }) { Icon(Icons.Default.DeleteOutline, contentDescription = "删除") }
-                    TextButton(onClick = { saveAndBack() }, enabled = canSave) { Text("保存") }
+                    if (existing != null) IconButton(onClick = { confirmTrash = true }) { Icon(Icons.Default.DeleteOutline, contentDescription = "移到回收站") }
+                    if (saving) CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                    else TextButton(onClick = { saveAndBack() }, enabled = canSave) { Text("完成") }
                 },
             )
         },
@@ -231,22 +141,27 @@ fun NoteEditorScreen(noteId: Long, initialCategoryId: String?, back: () -> Unit)
                 }
             }
             item { OutlinedTextField(value = tags, onValueChange = { tags = it }, modifier = Modifier.fillMaxWidth(), placeholder = { Text("标签，例如：化疗, 便秘, 待问") }, singleLine = true, leadingIcon = { Icon(Icons.Default.Tag, contentDescription = null) }) }
+            item { Text("返回时会自动保存；删除的内容先进入回收站。", style = MaterialTheme.typography.bodySmall) }
             item { Spacer(Modifier.height(20.dp)) }
         }
     }
 
-    if (confirmDelete) {
+    if (confirmTrash) {
         AlertDialog(
-            onDismissRequest = { confirmDelete = false },
-            title = { Text("删除这条笔记？") },
-            text = { Text(noteTitle(existing ?: CustomEntryEntity(categoryId = categoryId))) },
+            onDismissRequest = { confirmTrash = false },
+            title = { Text("移到回收站？") },
+            text = { Text(noteTitle(existing ?: CustomEntryEntity(categoryId = categoryId)) + "\n之后可以在“全部记录 → 回收站”恢复。") },
             confirmButton = {
                 TextButton(onClick = {
                     val note = existing ?: return@TextButton
-                    scope.launch { dao.deleteCustomEntry(note); confirmDelete = false; back() }
-                }) { Text("删除") }
+                    scope.launch {
+                        dao.saveRecordState(RecordStateEntity(ownerType = "note", ownerId = note.id, trashedAt = System.currentTimeMillis()))
+                        confirmTrash = false
+                        back()
+                    }
+                }) { Text("移到回收站") }
             },
-            dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text("取消") } },
+            dismissButton = { TextButton(onClick = { confirmTrash = false }) { Text("取消") } },
         )
     }
 }
