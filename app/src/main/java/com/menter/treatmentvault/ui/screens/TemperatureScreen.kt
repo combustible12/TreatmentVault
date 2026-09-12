@@ -73,6 +73,7 @@ fun TemperatureScreen(back: () -> Unit, initialEditId: Long = 0L) {
         var site by remember(initial?.id, editorOpen) { mutableStateOf(initial?.measurementSite ?: "腋下") }
         var notes by remember(initial?.id, editorOpen) { mutableStateOf(initial?.notes.orEmpty()) }
         var pendingFiles by remember(initial?.id, editorOpen) { mutableStateOf<List<String>>(emptyList()) }
+        var removedFiles by remember(initial?.id, editorOpen) { mutableStateOf<Set<String>>(emptySet()) }
         var detailsOpen by remember(initial?.id, editorOpen) { mutableStateOf(false) }
 
         FullScreenEditorDialog(
@@ -97,8 +98,9 @@ fun TemperatureScreen(back: () -> Unit, initialEditId: Long = 0L) {
                         updatedAt = System.currentTimeMillis(),
                     )
                     val id = if (initial == null) dao.saveTemperature(value) else { dao.updateTemperature(value); value.id }
-                    reconcileRichAttachments(context, dao, "temperature", id, notes)
+                    reconcileRichAttachments(context, dao, "temperature", id, notes, removedFiles)
                     pendingFiles = emptyList()
+                    removedFiles = emptySet()
                     editorOpen = false
                 }
             },
@@ -114,6 +116,8 @@ fun TemperatureScreen(back: () -> Unit, initialEditId: Long = 0L) {
                         onValueChange = { notes = it },
                         pendingFiles = pendingFiles,
                         onPendingFilesChange = { pendingFiles = it },
+                        removedFiles = removedFiles,
+                        onRemovedFilesChange = { removedFiles = it },
                         label = "备注",
                         sessionKey = "temperature-${initial?.id ?: "new"}",
                     )
