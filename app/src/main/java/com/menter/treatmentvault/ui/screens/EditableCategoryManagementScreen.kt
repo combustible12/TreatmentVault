@@ -65,7 +65,9 @@ private suspend fun deleteCategoryWithoutDeletingRecords(dao: AppDao, category: 
     val notes = dao.allCustomEntries().filter { it.categoryId == category.key }
 
     if (notes.isNotEmpty()) {
-        var fallback = allCategories.firstOrNull { !it.isSystem && it.key != category.key }
+        var fallback = allCategories.firstOrNull { it.key == "inbox" && it.key != category.key }
+            ?: allCategories.firstOrNull { !it.isSystem && !it.hidden && it.key != category.key }
+            ?: allCategories.firstOrNull { !it.isSystem && it.key != category.key }
         if (fallback == null) {
             fallback = CategoryEntity(
                 key = if (category.key == "inbox") "uncategorized_${System.currentTimeMillis()}" else "inbox",
@@ -308,7 +310,7 @@ fun EditableCategoryManagementScreen(back: () -> Unit) {
                     if (category.isSystem)
                         "只会删除这个默认分类入口。已有检查、治疗、症状等记录不会删除，仍可从全部记录、搜索和时间线找到；需要时可点“恢复默认”把入口恢复回来。"
                     else
-                        "只删除这个类目，不删除其中的笔记。类目里的笔记会自动移动到其他可用类目（没有的话会建立“待整理/未分类”）。"
+                        "只删除这个类目，不删除其中的笔记。类目里的笔记会自动移动到“待整理”或其他可见类目。"
                 )
             },
             confirmButton = {
