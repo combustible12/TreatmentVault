@@ -14,6 +14,7 @@ data class UnifiedRecordItem(
     val date: String,
     val updatedAt: Long,
     val folderKeys: Set<String> = setOf(categoryKey),
+    val thumbnailFileName: String? = null,
 ) {
     val key: String get() = "$ownerType:$ownerId"
 }
@@ -48,6 +49,9 @@ fun buildUnifiedRecords(
     val folderMap = recordFolders.groupBy { "${it.ownerType}:${it.ownerId}" }
     fun clean(value: String): String = richBodyPlainText(value).replace("\n", " ").trim()
     fun trimPreview(value: String): String = clean(value).let { if (it.length > 120) it.take(120) + "…" else it }
+    fun firstImage(vararg values: String): String? = values.asSequence()
+        .flatMap { richBodyImageNames(it).asSequence() }
+        .firstOrNull()
     fun section(key: String, fallback: String): String = categoryMap[key]?.name ?: fallback
     fun icon(key: String, fallback: String): String = categoryMap[key]?.iconKey ?: fallback
     fun explicitFolders(ownerType: String, ownerId: Long): LinkedHashSet<String> =
@@ -83,55 +87,56 @@ fun buildUnifiedRecords(
                     date = item.date,
                     updatedAt = item.updatedAt,
                     folderKeys = folders,
+                    thumbnailFileName = firstImage(item.content),
                 )
             )
         }
         exams.forEach { item ->
             val folders = typedFolders("exam", item.id, "exams")
             val folder = primaryFolder(folders, "exams")
-            add(UnifiedRecordItem("exam", item.id, item.name.ifBlank { "未命名检查" }, trimPreview(item.summary.ifBlank { item.notes }), section(folder, "检查报告"), folder, "exams/${item.id}", icon("exams", "description"), item.date, item.updatedAt, folders))
+            add(UnifiedRecordItem("exam", item.id, item.name.ifBlank { "未命名检查" }, trimPreview(item.summary.ifBlank { item.notes }), section(folder, "检查报告"), folder, "exams/${item.id}", icon("exams", "description"), item.date, item.updatedAt, folders, firstImage(item.summary, item.notes)))
         }
         plans.forEach { item ->
             val folders = typedFolders("plan", item.id, "treatment")
             val folder = primaryFolder(folders, "treatment")
-            add(UnifiedRecordItem("plan", item.id, item.name.ifBlank { "治疗方案" }, trimPreview(item.explanation.ifBlank { item.notes }), section(folder, "治疗方案与记录"), folder, "treatment/plan/${item.id}", icon("treatment", "medical"), item.date.ifBlank { item.startDate }, item.updatedAt, folders))
+            add(UnifiedRecordItem("plan", item.id, item.name.ifBlank { "治疗方案" }, trimPreview(item.explanation.ifBlank { item.notes }), section(folder, "治疗方案与记录"), folder, "treatment/plan/${item.id}", icon("treatment", "medical"), item.date.ifBlank { item.startDate }, item.updatedAt, folders, firstImage(item.explanation, item.notes)))
         }
         records.forEach { item ->
             val folders = typedFolders("record", item.id, "treatment")
             val folder = primaryFolder(folders, "treatment")
             val title = listOf(item.type, item.date).filter { it.isNotBlank() }.joinToString(" · ").ifBlank { "治疗记录" }
-            add(UnifiedRecordItem("record", item.id, title, trimPreview(item.content.ifBlank { item.notes }), section(folder, "治疗方案与记录"), folder, "treatment/record/${item.id}", icon("treatment", "medical"), item.date, item.updatedAt, folders))
+            add(UnifiedRecordItem("record", item.id, title, trimPreview(item.content.ifBlank { item.notes }), section(folder, "治疗方案与记录"), folder, "treatment/record/${item.id}", icon("treatment", "medical"), item.date, item.updatedAt, folders, firstImage(item.content, item.notes)))
         }
         supplies.forEach { item ->
             val folders = typedFolders("supply", item.id, "supplies")
             val folder = primaryFolder(folders, "supplies")
-            add(UnifiedRecordItem("supply", item.id, item.name.ifBlank { "药品/用品" }, trimPreview(item.notes.ifBlank { item.purpose }), section(folder, "药品用品"), folder, "supplies/${item.id}", icon("supplies", "medication"), "", item.updatedAt, folders))
+            add(UnifiedRecordItem("supply", item.id, item.name.ifBlank { "药品/用品" }, trimPreview(item.notes.ifBlank { item.purpose }), section(folder, "药品用品"), folder, "supplies/${item.id}", icon("supplies", "medication"), "", item.updatedAt, folders, firstImage(item.notes, item.purpose)))
         }
         symptoms.forEach { item ->
             val folders = typedFolders("symptom", item.id, "symptoms")
             val folder = primaryFolder(folders, "symptoms")
             val structured = listOf(item.nausea, item.vomiting, item.diarrhea, item.constipation, item.urinaryFrequency, item.dysuria, item.pain, item.fatigue, item.bleeding, item.other).firstOrNull { it.isNotBlank() }.orEmpty()
-            add(UnifiedRecordItem("symptom", item.id, item.date.ifBlank { "症状记录" }, trimPreview(item.notes.ifBlank { structured }), section(folder, "症状记录"), folder, "symptoms/${item.id}", icon("symptoms", "heart"), item.date, item.updatedAt, folders))
+            add(UnifiedRecordItem("symptom", item.id, item.date.ifBlank { "症状记录" }, trimPreview(item.notes.ifBlank { structured }), section(folder, "症状记录"), folder, "symptoms/${item.id}", icon("symptoms", "heart"), item.date, item.updatedAt, folders, firstImage(item.notes)))
         }
         temperatures.forEach { item ->
             val folders = typedFolders("temperature", item.id, "temperature")
             val folder = primaryFolder(folders, "temperature")
-            add(UnifiedRecordItem("temperature", item.id, "${item.temperature}℃", trimPreview(item.notes), section(folder, "体温记录"), folder, "temperature/${item.id}", icon("temperature", "thermostat"), listOf(item.date, item.time).filter { it.isNotBlank() }.joinToString(" "), item.updatedAt, folders))
+            add(UnifiedRecordItem("temperature", item.id, "${item.temperature}℃", trimPreview(item.notes), section(folder, "体温记录"), folder, "temperature/${item.id}", icon("temperature", "thermostat"), listOf(item.date, item.time).filter { it.isNotBlank() }.joinToString(" "), item.updatedAt, folders, firstImage(item.notes)))
         }
         questions.forEach { item ->
             val folders = typedFolders("question", item.id, "questions")
             val folder = primaryFolder(folders, "questions")
-            add(UnifiedRecordItem("question", item.id, item.question.ifBlank { "医生问诊" }, trimPreview(item.answer.ifBlank { item.notes }), section(folder, "医生问诊"), folder, "questions/${item.id}", icon("questions", "question"), item.date, item.updatedAt, folders))
+            add(UnifiedRecordItem("question", item.id, item.question.ifBlank { "医生问诊" }, trimPreview(item.answer.ifBlank { item.notes }), section(folder, "医生问诊"), folder, "questions/${item.id}", icon("questions", "question"), item.date, item.updatedAt, folders, firstImage(item.answer, item.notes)))
         }
         expenses.forEach { item ->
             val folders = typedFolders("expense", item.id, "expenses")
             val folder = primaryFolder(folders, "expenses")
-            add(UnifiedRecordItem("expense", item.id, "${item.type.ifBlank { "费用" }} ¥${item.amount}", trimPreview(item.notes.ifBlank { item.merchant }), section(folder, "费用记录"), folder, "expenses/${item.id}", icon("expenses", "payments"), item.date, item.updatedAt, folders))
+            add(UnifiedRecordItem("expense", item.id, "${item.type.ifBlank { "费用" }} ¥${item.amount}", trimPreview(item.notes.ifBlank { item.merchant }), section(folder, "费用记录"), folder, "expenses/${item.id}", icon("expenses", "payments"), item.date, item.updatedAt, folders, firstImage(item.notes)))
         }
         timeline.forEach { item ->
             val folders = typedFolders("timeline", item.id, "timeline")
             val folder = primaryFolder(folders, "timeline")
-            add(UnifiedRecordItem("timeline", item.id, item.title.ifBlank { item.type.ifBlank { "时间线记录" } }, trimPreview(item.content), section(folder, "总时间轴"), folder, "timeline/${item.id}", icon("timeline", "timeline"), item.date, item.updatedAt, folders))
+            add(UnifiedRecordItem("timeline", item.id, item.title.ifBlank { item.type.ifBlank { "时间线记录" } }, trimPreview(item.content), section(folder, "总时间轴"), folder, "timeline/${item.id}", icon("timeline", "timeline"), item.date, item.updatedAt, folders, firstImage(item.content)))
         }
     }.sortedByDescending { it.updatedAt }
 }
