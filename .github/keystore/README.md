@@ -1,0 +1,1 @@
+This directory contains the fixed debug keystore used only for personal/internal TreatmentVault builds so successive APKs keep the same Android signing identity. Do not use this key for production distribution.
