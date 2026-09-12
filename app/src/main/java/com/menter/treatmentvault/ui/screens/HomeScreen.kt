@@ -367,14 +367,17 @@ private fun RecordListItem(
         },
         leadingContent = { Icon(categoryIcon(item.iconKey), null, tint = contentColor) },
         trailingContent = {
-            Box {
-                IconButton(onClick = { menuOpen = true }) { Icon(Icons.Default.MoreVert, contentDescription = "更多", tint = contentColor) }
-                DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                    DropdownMenuItem(
-                        text = { Text(if (isTodo(state)) "切换为普通条目" else "切换为待办事项") },
-                        leadingIcon = { Icon(if (isTodo(state)) Icons.Default.Notes else Icons.Default.CheckBox, contentDescription = null) },
-                        onClick = { menuOpen = false; onStateChange(toggleTodoDisplay(state)) },
-                    )
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                RecordThumbnail(item.thumbnailFileName, size = 48.dp)
+                Box {
+                    IconButton(onClick = { menuOpen = true }) { Icon(Icons.Default.MoreVert, contentDescription = "更多", tint = contentColor) }
+                    DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                        DropdownMenuItem(
+                            text = { Text(if (isTodo(state)) "切换为普通条目" else "切换为待办事项") },
+                            leadingIcon = { Icon(if (isTodo(state)) Icons.Default.Notes else Icons.Default.CheckBox, contentDescription = null) },
+                            onClick = { menuOpen = false; onStateChange(toggleTodoDisplay(state)) },
+                        )
+                    }
                 }
             }
         },
