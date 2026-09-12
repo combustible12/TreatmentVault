@@ -1,29 +1,13 @@
 package com.menter.treatmentvault.ui.screens
 
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.AssistChip
-import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.menter.treatmentvault.TreatmentVaultApplication
@@ -35,7 +19,8 @@ fun SupplyScreen(back: () -> Unit) {
     val dao = (androidx.compose.ui.platform.LocalContext.current.applicationContext as TreatmentVaultApplication).database.dao()
     val list by dao.supplies().collectAsState(emptyList())
     val scope = rememberCoroutineScope()
-    var add by remember { mutableStateOf(false) }
+    var editorOpen by remember { mutableStateOf(false) }
+    var editing by remember { mutableStateOf<SupplyEntity?>(null) }
 
     Page("药品与用品", back) {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -43,12 +28,10 @@ fun SupplyScreen(back: () -> Unit) {
                 AssistChip(onClick = {}, label = { Text("$status ${list.count { it.purchaseStatus == status }}") })
             }
         }
-        LazyColumn(
-            modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            items(list) { value ->
-                Card {
+        Text("点任意记录即可继续编辑和添加图片。", style = MaterialTheme.typography.bodySmall)
+        LazyColumn(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            items(list, key = { it.id }) { value ->
+                Card(Modifier.fillMaxWidth().clickable { editing = value; editorOpen = true }) {
                     Column(Modifier.padding(12.dp)) {
                         Text(value.name, style = MaterialTheme.typography.titleMedium)
                         Text("${value.purchaseStatus} · ${value.necessity}")
@@ -58,37 +41,58 @@ fun SupplyScreen(back: () -> Unit) {
                 }
             }
         }
-        Button(onClick = { add = true }, modifier = Modifier.fillMaxWidth()) {
+        Button(onClick = { editing = null; editorOpen = true }, modifier = Modifier.fillMaxWidth()) {
             Icon(Icons.Default.Add, contentDescription = null)
             Text("新增用品")
         }
     }
 
-    if (add) {
-        var name by remember { mutableStateOf("") }
-        var purpose by remember { mutableStateOf("") }
-        var stages by remember { mutableStateOf("") }
-        AlertDialog(
-            onDismissRequest = { add = false },
-            confirmButton = {
-                TextButton(onClick = {
-                    if (name.isNotBlank()) {
-                        scope.launch {
-                            dao.saveSupply(SupplyEntity(name = name, purpose = purpose, stages = stages))
-                            add = false
-                        }
-                    }
-                }) { Text("保存") }
-            },
-            dismissButton = { TextButton(onClick = { add = false }) { Text("取消") } },
-            title = { Text("新增用品") },
-            text = {
-                Column {
-                    Field(name, { name = it }, "名称")
-                    Field(stages, { stages = it }, "使用阶段")
-                    Field(purpose, { purpose = it }, "作用")
+    if (editorOpen) {
+        val initial = editing
+        var name by remember(initial?.id, editorOpen) { mutableStateOf(initial?.name.orEmpty()) }
+        var stages by remember(initial?.id, editorOpen) { mutableStateOf(initial?.stages.orEmpty()) }
+        var purpose by remember(initial?.id, editorOpen) { mutableStateOf(initial?.purpose.orEmpty()) }
+        var necessity by remember(initial?.id, editorOpen) { mutableStateOf(initial?.necessity ?: "按需购买") }
+        var purchaseStatus by remember(initial?.id, editorOpen) { mutableStateOf(initial?.purchaseStatus ?: "待购") }
+        var quantity by remember(initial?.id, editorOpen) { mutableStateOf(initial?.quantity?.toString().orEmpty()) }
+        var price by remember(initial?.id, editorOpen) { mutableStateOf(initial?.price?.toString().orEmpty()) }
+        var usage by remember(initial?.id, editorOpen) { mutableStateOf(initial?.usage.orEmpty()) }
+        var notes by remember(initial?.id, editorOpen) { mutableStateOf(initial?.notes.orEmpty()) }
+        var pendingFiles by remember(initial?.id, editorOpen) { mutableStateOf<List<String>>(emptyList()) }
+
+        FullScreenEditorDialog(
+            title = if (initial == null) "新增用品" else "编辑用品",
+            onDismiss = { editorOpen = false },
+            canSave = name.isNotBlank(),
+            onSave = {
+                if (name.isBlank()) return@FullScreenEditorDialog
+                scope.launch {
+                    val value = SupplyEntity(
+                        id = initial?.id ?: 0,
+                        name = name.trim(), stages = stages.trim(), purpose = purpose.trim(), necessity = necessity.trim().ifBlank { "按需购买" },
+                        purchaseStatus = purchaseStatus.trim().ifBlank { "待购" }, quantity = quantity.toIntOrNull(), price = price.toDoubleOrNull(),
+                        purchaseUrl = initial?.purchaseUrl.orEmpty(), usage = usage.trim(), doctorConfirmed = initial?.doctorConfirmed ?: false,
+                        notes = notes.trim(), imagePath = initial?.imagePath.orEmpty(), attachmentPath = initial?.attachmentPath.orEmpty(), updatedAt = System.currentTimeMillis(),
+                    )
+                    val id = if (initial == null) dao.saveSupply(value) else { dao.updateSupply(value); value.id }
+                    savePendingAttachments(dao, "supply", id, pendingFiles)
+                    editorOpen = false
                 }
             },
-        )
+        ) {
+            LazyColumn(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                item { Field(name, { name = it }, "名称") }
+                item { Field(stages, { stages = it }, "使用阶段") }
+                item { Field(purpose, { purpose = it }, "作用") }
+                item { Field(necessity, { necessity = it }, "必要性") }
+                item { Field(purchaseStatus, { purchaseStatus = it }, "购买状态（待购/已购/暂不购买）") }
+                item { Field(quantity, { quantity = it }, "数量") }
+                item { Field(price, { price = it }, "价格") }
+                item { Field(usage, { usage = it }, "使用方法") }
+                item { Field(notes, { notes = it }, "备注") }
+                item { ImageAttachmentSection(dao, "supply", initial?.id ?: 0L, pendingFiles) { pendingFiles = it } }
+                item { Spacer(Modifier.height(20.dp)) }
+            }
+        }
     }
 }

@@ -84,11 +84,7 @@ fun AllNotesScreen(back: () -> Unit, go: (String) -> Unit) {
             item {
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     item {
-                        FilterChip(
-                            selected = categoryFilter == null,
-                            onClick = { categoryFilter = null },
-                            label = { Text("全部") },
-                        )
+                        FilterChip(selected = categoryFilter == null, onClick = { categoryFilter = null }, label = { Text("全部") })
                     }
                     items(customCategories, key = { it.key }) { category ->
                         FilterChip(
@@ -100,9 +96,7 @@ fun AllNotesScreen(back: () -> Unit, go: (String) -> Unit) {
                     }
                 }
             }
-            item {
-                Text("${filtered.size} 条笔记", style = MaterialTheme.typography.bodySmall)
-            }
+            item { Text("${filtered.size} 条笔记", style = MaterialTheme.typography.bodySmall) }
             if (filtered.isEmpty()) {
                 item {
                     Card(Modifier.fillMaxWidth()) {
@@ -121,9 +115,7 @@ fun AllNotesScreen(back: () -> Unit, go: (String) -> Unit) {
                         supportingContent = {
                             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                                 Text(category?.name ?: "笔记", style = MaterialTheme.typography.labelSmall)
-                                if (note.content.isNotBlank()) {
-                                    Text(note.content.replace("\n", " "), maxLines = 2, overflow = TextOverflow.Ellipsis)
-                                }
+                                if (note.content.isNotBlank()) Text(note.content.replace("\n", " "), maxLines = 2, overflow = TextOverflow.Ellipsis)
                                 if (note.tags.isNotBlank()) Text("# ${note.tags}", maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.labelSmall)
                             }
                         },
@@ -155,25 +147,15 @@ fun NoteEditorScreen(noteId: Long, initialCategoryId: String?, back: () -> Unit)
     var categoryId by rememberSaveable(noteId, initialCategoryId) { mutableStateOf(initialCategoryId.orEmpty()) }
     var categoryMenu by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf(false) }
+    var pendingFiles by remember(noteId) { mutableStateOf<List<String>>(emptyList()) }
 
     val customCategories = remember(categories) { categories.filterNot { it.isSystem }.sortedBy { it.sortOrder } }
 
     LaunchedEffect(categories) {
         if (categories.none { it.key == "inbox" }) {
-            dao.saveCategory(
-                CategoryEntity(
-                    key = "inbox",
-                    name = "待整理",
-                    iconKey = "note",
-                    sortOrder = 5,
-                    isSystem = false,
-                    smartEnabled = false,
-                )
-            )
+            dao.saveCategory(CategoryEntity(key = "inbox", name = "待整理", iconKey = "note", sortOrder = 5, isSystem = false, smartEnabled = false))
         }
-        if (noteId == 0L && categoryId.isBlank()) {
-            categoryId = initialCategoryId ?: customCategories.firstOrNull()?.key ?: "inbox"
-        }
+        if (noteId == 0L && categoryId.isBlank()) categoryId = initialCategoryId ?: customCategories.firstOrNull()?.key ?: "inbox"
     }
 
     LaunchedEffect(existing) {
@@ -204,7 +186,11 @@ fun NoteEditorScreen(noteId: Long, initialCategoryId: String?, back: () -> Unit)
             updatedAt = System.currentTimeMillis(),
         )
         scope.launch {
-            if (value.id == 0L) dao.saveCustomEntry(value) else dao.updateCustomEntry(value)
+            val savedId = if (value.id == 0L) dao.saveCustomEntry(value) else {
+                dao.updateCustomEntry(value)
+                value.id
+            }
+            savePendingAttachments(dao, "note", savedId, pendingFiles)
             back()
         }
     }
@@ -213,74 +199,49 @@ fun NoteEditorScreen(noteId: Long, initialCategoryId: String?, back: () -> Unit)
         topBar = {
             TopAppBar(
                 title = { Text(if (noteId > 0) "编辑笔记" else "新建笔记") },
-                navigationIcon = {
-                    IconButton(onClick = back) { Icon(Icons.Default.ArrowBack, contentDescription = "返回") }
-                },
+                navigationIcon = { IconButton(onClick = back) { Icon(Icons.Default.ArrowBack, contentDescription = "返回") } },
                 actions = {
-                    if (existing != null) {
-                        IconButton(onClick = { confirmDelete = true }) { Icon(Icons.Default.DeleteOutline, contentDescription = "删除") }
-                    }
+                    if (existing != null) IconButton(onClick = { confirmDelete = true }) { Icon(Icons.Default.DeleteOutline, contentDescription = "删除") }
                     TextButton(onClick = { saveAndBack() }, enabled = canSave) { Text("保存") }
                 },
             )
         },
     ) { padding ->
-        Column(
-            modifier = Modifier.fillMaxSize().padding(padding).padding(horizontal = 16.dp),
+        LazyColumn(
+            modifier = Modifier.fillMaxSize().padding(padding),
+            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            OutlinedTextField(
-                value = title,
-                onValueChange = { title = it },
-                modifier = Modifier.fillMaxWidth(),
-                placeholder = { Text("标题") },
-                singleLine = true,
-                textStyle = MaterialTheme.typography.titleLarge,
-            )
-
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Box(Modifier.weight(1f)) {
-                    OutlinedButton(onClick = { categoryMenu = true }, modifier = Modifier.fillMaxWidth()) {
-                        Icon(categoryIcon(selectedCategory?.iconKey ?: "note"), contentDescription = null)
-                        Spacer(Modifier.width(6.dp))
-                        Text(selectedCategory?.name ?: "选择分类", maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    }
-                    DropdownMenu(expanded = categoryMenu, onDismissRequest = { categoryMenu = false }) {
-                        customCategories.forEach { category ->
-                            DropdownMenuItem(
-                                text = { Text(category.name) },
-                                leadingIcon = { Icon(categoryIcon(category.iconKey), contentDescription = null) },
-                                onClick = { categoryId = category.key; categoryMenu = false },
-                            )
+            item {
+                OutlinedTextField(value = title, onValueChange = { title = it }, modifier = Modifier.fillMaxWidth(), placeholder = { Text("标题") }, singleLine = true, textStyle = MaterialTheme.typography.titleLarge)
+            }
+            item {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Box(Modifier.weight(1f)) {
+                        OutlinedButton(onClick = { categoryMenu = true }, modifier = Modifier.fillMaxWidth()) {
+                            Icon(categoryIcon(selectedCategory?.iconKey ?: "note"), contentDescription = null)
+                            Spacer(Modifier.width(6.dp))
+                            Text(selectedCategory?.name ?: "选择分类", maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        }
+                        DropdownMenu(expanded = categoryMenu, onDismissRequest = { categoryMenu = false }) {
+                            customCategories.forEach { category ->
+                                DropdownMenuItem(text = { Text(category.name) }, leadingIcon = { Icon(categoryIcon(category.iconKey), contentDescription = null) }, onClick = { categoryId = category.key; categoryMenu = false })
+                            }
                         }
                     }
+                    OutlinedTextField(value = date, onValueChange = { date = it }, modifier = Modifier.weight(1f), label = { Text("日期") }, singleLine = true)
                 }
-                OutlinedTextField(
-                    value = date,
-                    onValueChange = { date = it },
-                    modifier = Modifier.weight(1f),
-                    label = { Text("日期") },
-                    singleLine = true,
-                )
             }
-
-            OutlinedTextField(
-                value = tags,
-                onValueChange = { tags = it },
-                modifier = Modifier.fillMaxWidth(),
-                placeholder = { Text("标签，例如：化疗, 便秘, 待问") },
-                singleLine = true,
-                leadingIcon = { Icon(Icons.Default.Tag, contentDescription = null) },
-            )
-
-            OutlinedTextField(
-                value = content,
-                onValueChange = { content = it },
-                modifier = Modifier.fillMaxWidth().weight(1f),
-                placeholder = { Text("直接写。先记下来，之后再整理。") },
-                minLines = 12,
-            )
-            Text("分类和标签随时都能改。", style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(bottom = 8.dp))
+            item {
+                OutlinedTextField(value = tags, onValueChange = { tags = it }, modifier = Modifier.fillMaxWidth(), placeholder = { Text("标签，例如：化疗, 便秘, 待问") }, singleLine = true, leadingIcon = { Icon(Icons.Default.Tag, contentDescription = null) })
+            }
+            item {
+                OutlinedTextField(value = content, onValueChange = { content = it }, modifier = Modifier.fillMaxWidth().heightIn(min = 300.dp), placeholder = { Text("直接写。先记下来，之后再整理。") }, minLines = 12)
+            }
+            item {
+                ImageAttachmentSection(dao = dao, ownerType = "note", ownerId = existing?.id ?: 0L, pendingFiles = pendingFiles, onPendingFilesChange = { pendingFiles = it })
+            }
+            item { Text("标题、正文、分类、标签和图片之后都可以重新打开修改。", style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(bottom = 16.dp)) }
         }
     }
 

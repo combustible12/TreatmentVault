@@ -22,14 +22,12 @@ android {
         applicationId = "com.menter.treatmentvault"
         minSdk = 26
         targetSdk = 35
-        versionCode = 9
-        versionName = "0.8.1"
+        versionCode = 10
+        versionName = "0.9.0"
     }
 
     buildTypes {
-        getByName("debug") {
-            signingConfig = signingConfigs.getByName("debug")
-        }
+        getByName("debug") { signingConfig = signingConfigs.getByName("debug") }
     }
 
     buildFeatures { compose = true; buildConfig = true }
@@ -57,5 +55,6 @@ dependencies {
     ksp("androidx.room:room-compiler:2.6.1")
     implementation("com.google.code.gson:gson:2.11.0")
     implementation("androidx.documentfile:documentfile:1.0.1")
+    implementation("io.coil-kt:coil-compose:2.7.0")
     debugImplementation("androidx.compose.ui:ui-tooling")
 }

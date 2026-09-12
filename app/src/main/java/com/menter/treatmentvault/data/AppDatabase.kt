@@ -12,9 +12,9 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         SupplyEntity::class, ExamEntity::class, TreatmentPlanEntity::class, TreatmentRecordEntity::class,
         SymptomEntity::class, TemperatureEntity::class, QuestionEntity::class, ExpenseEntity::class,
         TimelineEntity::class, ImportHistoryEntity::class, CategoryEntity::class, TagEntity::class,
-        CustomEntryEntity::class,
+        CustomEntryEntity::class, AttachmentEntity::class,
     ],
-    version = 3,
+    version = 4,
     exportSchema = false,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -33,6 +33,13 @@ abstract class AppDatabase : RoomDatabase() {
             override fun migrate(db: SupportSQLiteDatabase) {
                 createCategoryTables(db)
                 seedCategories(db)
+            }
+        }
+
+        private val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("CREATE TABLE IF NOT EXISTS `AttachmentEntity` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `ownerType` TEXT NOT NULL, `ownerId` INTEGER NOT NULL, `fileName` TEXT NOT NULL, `createdAt` INTEGER NOT NULL)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_AttachmentEntity_ownerType_ownerId` ON `AttachmentEntity` (`ownerType`, `ownerId`)")
             }
         }
 
@@ -77,7 +84,7 @@ abstract class AppDatabase : RoomDatabase() {
 
         fun get(context: Context): AppDatabase = INSTANCE ?: synchronized(this) {
             INSTANCE ?: Room.databaseBuilder(context.applicationContext, AppDatabase::class.java, "treatment_vault.db")
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
                 .addCallback(object : Callback() {
                     override fun onCreate(db: SupportSQLiteDatabase) {
                         super.onCreate(db)
