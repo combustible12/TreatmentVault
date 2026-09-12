@@ -46,6 +46,7 @@ fun AllRecordsScreen(back: () -> Unit, go: (String) -> Unit) {
     var shelfName by rememberSaveable { mutableStateOf(RecordShelf.ALL.name) }
     var selectedKeys by remember { mutableStateOf<Set<String>>(emptySet()) }
     var moveKeys by remember { mutableStateOf<Set<String>>(emptySet()) }
+    var ownershipItem by remember { mutableStateOf<UnifiedRecordItem?>(null) }
     val shelf = runCatching { RecordShelf.valueOf(shelfName) }.getOrDefault(RecordShelf.ALL)
     val stateMap = remember(states) { states.associateBy { "${it.ownerType}:${it.ownerId}" } }
     val allItems = remember(categories, supplies, exams, plans, records, symptoms, temperatures, questions, expenses, timeline, notes, recordFolders) {
@@ -123,7 +124,7 @@ fun AllRecordsScreen(back: () -> Unit, go: (String) -> Unit) {
                 }
             }
             if (selectedKeys.isEmpty()) {
-                item { Text("${filtered.size} 条记录 · 长按任意记录可多选移动", style = MaterialTheme.typography.bodySmall) }
+                item { Text("${filtered.size} 条记录 · 长按记录查看归属文件夹", style = MaterialTheme.typography.bodySmall) }
             }
             if (filtered.isEmpty()) {
                 item {
@@ -144,7 +145,10 @@ fun AllRecordsScreen(back: () -> Unit, go: (String) -> Unit) {
                         selectionMode = selectedKeys.isNotEmpty(),
                         selected = item.key in selectedKeys,
                         onOpen = { if (selectedKeys.isNotEmpty()) toggle(item) else go(item.route) },
-                        onLongSelect = { if (shelf != RecordShelf.TRASH) toggle(item) },
+                        onLongPress = {
+                            if (selectedKeys.isNotEmpty() && shelf != RecordShelf.TRASH) toggle(item)
+                            else ownershipItem = item
+                        },
                         onMoveRequested = { moveKeys = setOf(item.key) },
                         onStateChange = { next -> scope.launch { dao.saveRecordState(next.copy(updatedAt = System.currentTimeMillis())) } },
                         onDeleteForever = { scope.launch { permanentlyDeleteRecord(dao, item) } },
@@ -152,6 +156,20 @@ fun AllRecordsScreen(back: () -> Unit, go: (String) -> Unit) {
                 }
             }
         }
+    }
+
+    ownershipItem?.let { item ->
+        RecordFolderOwnershipDialog(
+            item = item,
+            categories = categories,
+            onDismiss = { ownershipItem = null },
+            onSelectForMove = if (shelf == RecordShelf.TRASH) null else {
+                {
+                    toggle(item)
+                    ownershipItem = null
+                }
+            },
+        )
     }
 
     if (moveKeys.isNotEmpty()) {
@@ -179,19 +197,18 @@ private fun UnifiedRecordRow(
     selectionMode: Boolean,
     selected: Boolean,
     onOpen: () -> Unit,
-    onLongSelect: () -> Unit,
+    onLongPress: () -> Unit,
     onMoveRequested: () -> Unit,
     onStateChange: (RecordStateEntity) -> Unit,
     onDeleteForever: () -> Unit,
 ) {
     var menuOpen by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf(false) }
-    val selectable = shelf != RecordShelf.TRASH
 
     ListItem(
         modifier = Modifier.fillMaxWidth().combinedClickable(
             onClick = onOpen,
-            onLongClick = { if (selectable) onLongSelect() },
+            onLongClick = onLongPress,
         ),
         headlineContent = {
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
