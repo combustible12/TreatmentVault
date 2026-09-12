@@ -63,6 +63,7 @@ fun QuestionScreen(back: () -> Unit, initialEditId: Long = 0L) {
         var followUp by remember(initial?.id, editorOpen) { mutableStateOf(initial?.followUp.orEmpty()) }
         var notes by remember(initial?.id, editorOpen) { mutableStateOf(initial?.notes.orEmpty()) }
         var pendingFiles by remember(initial?.id, editorOpen) { mutableStateOf<List<String>>(emptyList()) }
+        var removedFiles by remember(initial?.id, editorOpen) { mutableStateOf<Set<String>>(emptySet()) }
         var detailsOpen by remember(initial?.id, editorOpen) { mutableStateOf(false) }
 
         FullScreenEditorDialog(
@@ -89,8 +90,9 @@ fun QuestionScreen(back: () -> Unit, initialEditId: Long = 0L) {
                         updatedAt = System.currentTimeMillis(),
                     )
                     val id = if (initial == null) dao.saveQuestion(value) else { dao.updateQuestion(value); value.id }
-                    reconcileRichAttachments(context, dao, "question", id, answer)
+                    reconcileRichAttachments(context, dao, "question", id, answer, removedFiles)
                     pendingFiles = emptyList()
+                    removedFiles = emptySet()
                     editorOpen = false
                 }
             },
@@ -106,6 +108,8 @@ fun QuestionScreen(back: () -> Unit, initialEditId: Long = 0L) {
                         onValueChange = { answer = it },
                         pendingFiles = pendingFiles,
                         onPendingFilesChange = { pendingFiles = it },
+                        removedFiles = removedFiles,
+                        onRemovedFilesChange = { removedFiles = it },
                         label = "回答与记录",
                         sessionKey = "question-${initial?.id ?: "new"}",
                     )
