@@ -88,7 +88,7 @@ jobs:
               "versionName": os.environ["VERSION_NAME"],
               "apkUrl": "https://raw.githubusercontent.com/combustible12/TreatmentVault-Updates/main/TreatmentVault-latest.apk",
               "sha256": os.environ["SHA"],
-              "notes": "文件夹页面视觉压缩：子文件夹和笔记/记录卡片统一改为紧凑色块，减少上下留白、圆角、图标和标题字号，日期与数量信息降为小号辅助信息；长标题仍可两行，但普通标题不再被大卡片撑高。延续 0.15.1 的旧专用列表页清理与 0.15.0 的内容可靠性修复。"
+              "notes": "长按交互统一：长按笔记/记录名称会显示它当前归属文件夹以及完整上级路径；长按文件夹/类目名称可直接重命名，系统类目只改显示名称、不改内部 key，因此已有记录归属和智能分类结构不会被改断。全部记录页保留批量移动能力，可从归属弹窗进入选择。新增文件夹路径回归测试，防止层级路径漏显示或异常循环。"
           }
           with open("update-repo/update.json", "w", encoding="utf-8") as f:
               json.dump(data, f, ensure_ascii=False, indent=2)
