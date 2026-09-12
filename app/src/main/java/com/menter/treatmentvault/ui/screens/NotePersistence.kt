@@ -5,10 +5,7 @@ internal fun noteDraftHasContent(
     content: String,
     pendingFiles: List<String>,
 ): Boolean =
-    title.isNotBlank() ||
-        richBodyPlainText(content).isNotBlank() ||
-        content.contains("[[image:") ||
-        pendingFiles.isNotEmpty()
+    title.isNotBlank() || richBodyHasContent(content) || pendingFiles.isNotEmpty()
 
 internal fun shouldPersistNote(
     persistedId: Long,
