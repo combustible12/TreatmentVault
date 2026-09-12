@@ -392,6 +392,7 @@ private fun FolderRecordCard(
                 }
                 if (item.date.isNotBlank()) Text(item.date, color = contentColor, style = MaterialTheme.typography.labelSmall, maxLines = 1)
             }
+            RecordThumbnail(item.thumbnailFileName, size = 52.dp)
             if (selectionMode) {
                 Checkbox(checked = selected, onCheckedChange = { onClick() })
             } else {
