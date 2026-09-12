@@ -14,6 +14,7 @@ import androidx.compose.material.icons.filled.Backup
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.MedicalServices
 import androidx.compose.material.icons.filled.Medication
+import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.MonitorHeart
 import androidx.compose.material.icons.filled.Payments
 import androidx.compose.material.icons.filled.QuestionAnswer
@@ -35,6 +36,7 @@ import androidx.compose.ui.unit.dp
 @Composable
 fun HomeScreen(go: (String) -> Unit) {
     val cards = listOf(
+        Triple("智能录入", "smart_input", Icons.Default.Mic),
         Triple("总时间轴", "timeline", Icons.Default.Timeline),
         Triple("检查报告", "exams", Icons.Default.Description),
         Triple("治疗方案与记录", "treatment", Icons.Default.MedicalServices),
