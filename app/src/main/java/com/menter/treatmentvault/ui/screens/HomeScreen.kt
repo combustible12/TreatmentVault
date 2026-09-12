@@ -26,7 +26,12 @@ private data class HomeSearchHit(
 )
 
 private fun previewText(value: String, max: Int = 90): String {
-    val clean = value.replace("\n", " ").trim()
+    val plain = richBodyPlainText(value).replace("\n", " ").trim()
+    val clean = when {
+        plain.isNotBlank() -> plain
+        value.contains("[[image:") -> "含图片"
+        else -> ""
+    }
     return if (clean.length > max) clean.take(max) + "…" else clean
 }
 
@@ -86,6 +91,7 @@ private fun buildHomeSearchResults(
                 )
             }
         }
+
         categories.forEach { category ->
             if (matchesHomeQuery(q, category.name, category.smartKeywords)) {
                 add(
@@ -100,49 +106,50 @@ private fun buildHomeSearchResults(
                 )
             }
         }
+
         supplies.forEach { item ->
             if (matchesHomeQuery(q, item.name, item.stages, item.purpose, item.necessity, item.purchaseStatus, item.usage, item.notes)) {
-                add(HomeSearchHit(item.name, previewText(listOf(item.purchaseStatus, item.purpose, item.notes).filter { it.isNotBlank() }.joinToString(" · ")), "药品用品", "supplies", "medication", item.updatedAt))
+                add(HomeSearchHit(item.name, previewText(listOf(item.purchaseStatus, item.purpose, item.notes).filter { it.isNotBlank() }.joinToString(" · ")), "药品用品", "supplies/${item.id}", "medication", item.updatedAt))
             }
         }
         exams.forEach { item ->
             if (matchesHomeQuery(q, item.name, item.date, item.hospital, item.type, item.summary, item.keyData, item.doctorExplanation, item.notes)) {
-                add(HomeSearchHit(item.name, previewText(listOf(item.date, item.hospital, item.summary).filter { it.isNotBlank() }.joinToString(" · ")), "检查报告", "exams", "description", item.updatedAt))
+                add(HomeSearchHit(item.name, previewText(listOf(item.date, item.hospital, item.summary).filter { it.isNotBlank() }.joinToString(" · ")), "检查报告", "exams/${item.id}", "description", item.updatedAt))
             }
         }
         plans.forEach { item ->
             if (matchesHomeQuery(q, item.name, item.category, item.hospital, item.doctor, item.date, item.medicines, item.dose, item.cycle, item.sessions, item.startDate, item.expectedEnd, item.explanation, item.notes)) {
-                add(HomeSearchHit(item.name, previewText(listOf(item.date, item.doctor, item.explanation).filter { it.isNotBlank() }.joinToString(" · ")), "治疗方案", "treatment", "medical", item.updatedAt))
+                add(HomeSearchHit(item.name, previewText(listOf(item.date, item.doctor, item.explanation).filter { it.isNotBlank() }.joinToString(" · ")), "治疗方案", "treatment/plan/${item.id}", "medical", item.updatedAt))
             }
         }
         records.forEach { item ->
             if (matchesHomeQuery(q, item.date, item.type, item.hospital, item.doctor, item.content, item.medicines, item.sideEffects, item.condition, item.notes)) {
-                add(HomeSearchHit(listOf(item.type, item.date).filter { it.isNotBlank() }.joinToString(" · ").ifBlank { "治疗记录" }, previewText(item.content.ifBlank { item.notes }), "治疗记录", "treatment", "medical", item.updatedAt))
+                add(HomeSearchHit(listOf(item.type, item.date).filter { it.isNotBlank() }.joinToString(" · ").ifBlank { "治疗记录" }, previewText(item.content.ifBlank { item.notes }), "治疗记录", "treatment/record/${item.id}", "medical", item.updatedAt))
             }
         }
         symptoms.forEach { item ->
             if (matchesHomeQuery(q, item.date, item.temperature, item.weight, item.appetite, item.nausea, item.vomiting, item.diarrhea, item.constipation, item.bowelCount, item.urinaryFrequency, item.dysuria, item.pain, item.fatigue, item.bleeding, item.other, item.notes)) {
-                add(HomeSearchHit("症状记录 ${item.date}", previewText(listOf(item.constipation, item.urinaryFrequency, item.pain, item.other, item.notes).filter { it.isNotBlank() }.joinToString(" · ")), "症状记录", "symptoms", "heart", item.updatedAt))
+                add(HomeSearchHit("症状记录 ${item.date}", previewText(listOf(item.constipation, item.urinaryFrequency, item.pain, item.other, item.notes).filter { it.isNotBlank() }.joinToString(" · ")), "症状记录", "symptoms/${item.id}", "heart", item.updatedAt))
             }
         }
         temperatures.forEach { item ->
             if (matchesHomeQuery(q, item.date, item.time, item.temperature, item.measurementSite, item.notes)) {
-                add(HomeSearchHit("${item.temperature}℃", previewText(listOf(item.date, item.time, item.measurementSite, item.notes).filter { it.isNotBlank() }.joinToString(" · ")), "体温记录", "temperature", "thermostat", item.updatedAt))
+                add(HomeSearchHit("${item.temperature}℃", previewText(listOf(item.date, item.time, item.measurementSite, item.notes).filter { it.isNotBlank() }.joinToString(" · ")), "体温记录", "temperature/${item.id}", "thermostat", item.updatedAt))
             }
         }
         questions.forEach { item ->
             if (matchesHomeQuery(q, item.question, item.date, item.hospital, item.doctor, item.answer, item.status, item.followUp, item.notes)) {
-                add(HomeSearchHit(item.question, previewText(listOf(item.status, item.date, item.doctor, item.answer).filter { it.isNotBlank() }.joinToString(" · ")), "医生问诊", "questions", "question", item.updatedAt))
+                add(HomeSearchHit(item.question, previewText(listOf(item.status, item.date, item.doctor, item.answer).filter { it.isNotBlank() }.joinToString(" · ")), "医生问诊", "questions/${item.id}", "question", item.updatedAt))
             }
         }
         expenses.forEach { item ->
             if (matchesHomeQuery(q, item.date, item.type, item.amount, item.merchant, item.insuranceAmount, item.selfPayAmount, item.reimbursedAmount, item.notes)) {
-                add(HomeSearchHit("${item.type} ¥${item.amount}", previewText(listOf(item.date, item.merchant, item.notes).filter { it.isNotBlank() }.joinToString(" · ")), "费用记录", "expenses", "payments", item.updatedAt))
+                add(HomeSearchHit("${item.type} ¥${item.amount}", previewText(listOf(item.date, item.merchant, item.notes).filter { it.isNotBlank() }.joinToString(" · ")), "费用记录", "expenses/${item.id}", "payments", item.updatedAt))
             }
         }
         timeline.forEach { item ->
             if (matchesHomeQuery(q, item.date, item.type, item.title, item.content, item.sourceType)) {
-                add(HomeSearchHit(item.title.ifBlank { item.type }, previewText(listOf(item.date, item.content).filter { it.isNotBlank() }.joinToString(" · ")), "总时间轴", "timeline", "timeline", item.updatedAt))
+                add(HomeSearchHit(item.title.ifBlank { item.type }, previewText(listOf(item.date, item.content).filter { it.isNotBlank() }.joinToString(" · ")), "总时间轴", "timeline/${item.id}", "timeline", item.updatedAt))
             }
         }
     }.sortedByDescending { it.updatedAt }
