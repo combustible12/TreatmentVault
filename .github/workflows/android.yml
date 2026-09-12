@@ -64,7 +64,7 @@ jobs:
               "versionName": os.environ["VERSION_NAME"],
               "apkUrl": "https://raw.githubusercontent.com/combustible12/TreatmentVault-Updates/main/TreatmentVault-latest.apk",
               "sha256": os.environ["SHA"],
-              "notes": "编辑器地基升级：文字块和图片块可任意穿插、上下调整，图片点开全屏并支持双指缩放。普通笔记、检查、治疗方案/记录、药品用品、症状、体温、医生问诊、费用和总时间线统一使用笔记式正文；结构化医疗字段降为次要/选填信息。"
+              "notes": "搜索和时间线现在会直接打开具体记录，不再先进入分类列表再点一次；检查、治疗、药品、症状、体温、问诊、费用和时间线记录都支持直达。搜索摘要也不再显示内部图片标记。"
           }
           with open("update-repo/update.json", "w", encoding="utf-8") as f:
               json.dump(data, f, ensure_ascii=False, indent=2)
