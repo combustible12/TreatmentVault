@@ -34,16 +34,10 @@ fun TreatmentScreen(back: () -> Unit, initialPlanId: Long = 0L, initialRecordId:
         if (!openedInitial) {
             when {
                 initialPlanId > 0L -> plans.firstOrNull { it.id.toLong() == initialPlanId }?.let {
-                    tab = 0
-                    editingPlan = it
-                    planEditorOpen = true
-                    openedInitial = true
+                    tab = 0; editingPlan = it; planEditorOpen = true; openedInitial = true
                 }
                 initialRecordId > 0L -> records.firstOrNull { it.id.toLong() == initialRecordId }?.let {
-                    tab = 1
-                    editingRecord = it
-                    recordEditorOpen = true
-                    openedInitial = true
+                    tab = 1; editingRecord = it; recordEditorOpen = true; openedInitial = true
                 }
             }
         }
@@ -80,10 +74,9 @@ fun TreatmentScreen(back: () -> Unit, initialPlanId: Long = 0L, initialRecordId:
                 }
             }
         }
-        Button(
-            onClick = { if (tab == 0) { editingPlan = null; planEditorOpen = true } else { editingRecord = null; recordEditorOpen = true } },
-            modifier = Modifier.fillMaxWidth(),
-        ) { Text(if (tab == 0) "新增治疗方案" else "新增治疗记录") }
+        Button(onClick = { if (tab == 0) { editingPlan = null; planEditorOpen = true } else { editingRecord = null; recordEditorOpen = true } }, modifier = Modifier.fillMaxWidth()) {
+            Text(if (tab == 0) "新增治疗方案" else "新增治疗记录")
+        }
     }
 
     if (planEditorOpen) {
@@ -100,6 +93,7 @@ fun TreatmentScreen(back: () -> Unit, initialPlanId: Long = 0L, initialRecordId:
         var explanation by remember(initial?.id, planEditorOpen) { mutableStateOf(initial?.explanation.orEmpty()) }
         var notes by remember(initial?.id, planEditorOpen) { mutableStateOf(initial?.notes.orEmpty()) }
         var pendingFiles by remember(initial?.id, planEditorOpen) { mutableStateOf<List<String>>(emptyList()) }
+        var removedFiles by remember(initial?.id, planEditorOpen) { mutableStateOf<Set<String>>(emptySet()) }
         var detailsOpen by remember(initial?.id, planEditorOpen) { mutableStateOf(false) }
 
         FullScreenEditorDialog(
@@ -108,32 +102,20 @@ fun TreatmentScreen(back: () -> Unit, initialPlanId: Long = 0L, initialRecordId:
             canSave = name.isNotBlank() || richBodyHasContent(explanation) || pendingFiles.isNotEmpty(),
             hasPersistedRecord = initial != null,
             onSave = {
-                if (initial == null && name.isBlank() && !richBodyHasContent(explanation) && pendingFiles.isEmpty()) {
-                    planEditorOpen = false
-                    return@FullScreenEditorDialog
-                }
+                if (initial == null && name.isBlank() && !richBodyHasContent(explanation) && pendingFiles.isEmpty()) { planEditorOpen = false; return@FullScreenEditorDialog }
                 scope.launch {
                     val value = TreatmentPlanEntity(
                         id = initial?.id ?: 0,
                         name = name.trim().ifBlank { "未命名治疗方案" },
                         category = category.trim().ifBlank { "其他" },
-                        hospital = hospital.trim(),
-                        doctor = doctor.trim(),
-                        date = date.trim(),
-                        medicines = medicines.trim(),
-                        dose = dose.trim(),
-                        cycle = cycle.trim(),
-                        sessions = sessions.trim(),
-                        startDate = initial?.startDate.orEmpty(),
-                        expectedEnd = initial?.expectedEnd.orEmpty(),
-                        explanation = explanation,
-                        notes = notes.trim(),
-                        updatedAt = System.currentTimeMillis(),
+                        hospital = hospital.trim(), doctor = doctor.trim(), date = date.trim(), medicines = medicines.trim(),
+                        dose = dose.trim(), cycle = cycle.trim(), sessions = sessions.trim(),
+                        startDate = initial?.startDate.orEmpty(), expectedEnd = initial?.expectedEnd.orEmpty(),
+                        explanation = explanation, notes = notes.trim(), updatedAt = System.currentTimeMillis(),
                     )
                     val id = if (initial == null) dao.savePlan(value) else { dao.updatePlan(value); value.id }
-                    reconcileRichAttachments(context, dao, "plan", id, explanation)
-                    pendingFiles = emptyList()
-                    planEditorOpen = false
+                    reconcileRichAttachments(context, dao, "plan", id, explanation, removedFiles)
+                    pendingFiles = emptyList(); removedFiles = emptySet(); planEditorOpen = false
                 }
             },
         ) {
@@ -141,32 +123,24 @@ fun TreatmentScreen(back: () -> Unit, initialPlanId: Long = 0L, initialRecordId:
                 item { Field(name, { name = it }, "标题") }
                 item {
                     RichNoteBodyEditor(
-                        dao = dao,
-                        ownerType = "plan",
-                        ownerId = initial?.id ?: 0L,
-                        value = explanation,
-                        onValueChange = { explanation = it },
-                        pendingFiles = pendingFiles,
-                        onPendingFilesChange = { pendingFiles = it },
+                        dao = dao, ownerType = "plan", ownerId = initial?.id ?: 0L,
+                        value = explanation, onValueChange = { explanation = it },
+                        pendingFiles = pendingFiles, onPendingFilesChange = { pendingFiles = it },
+                        removedFiles = removedFiles, onRemovedFilesChange = { removedFiles = it },
                         sessionKey = "plan-${initial?.id ?: "new"}",
                     )
                 }
                 item {
                     TextButton(onClick = { detailsOpen = !detailsOpen }, modifier = Modifier.fillMaxWidth()) {
                         Icon(if (detailsOpen) Icons.Default.ExpandLess else Icons.Default.ExpandMore, contentDescription = null)
-                        Spacer(Modifier.width(6.dp))
-                        Text(if (detailsOpen) "收起治疗信息" else "更多治疗信息（全部选填）")
+                        Spacer(Modifier.width(6.dp)); Text(if (detailsOpen) "收起治疗信息" else "更多治疗信息（全部选填）")
                     }
                 }
                 if (detailsOpen) {
-                    item { Field(category, { category = it }, "类型") }
-                    item { Field(hospital, { hospital = it }, "医院") }
-                    item { Field(doctor, { doctor = it }, "医生") }
-                    item { Field(date, { date = it }, "日期") }
-                    item { Field(medicines, { medicines = it }, "药物") }
-                    item { Field(dose, { dose = it }, "剂量") }
-                    item { Field(cycle, { cycle = it }, "周期") }
-                    item { Field(sessions, { sessions = it }, "次数") }
+                    item { Field(category, { category = it }, "类型") }; item { Field(hospital, { hospital = it }, "医院") }
+                    item { Field(doctor, { doctor = it }, "医生") }; item { Field(date, { date = it }, "日期") }
+                    item { Field(medicines, { medicines = it }, "药物") }; item { Field(dose, { dose = it }, "剂量") }
+                    item { Field(cycle, { cycle = it }, "周期") }; item { Field(sessions, { sessions = it }, "次数") }
                     item { Field(notes, { notes = it }, "补充备注") }
                 }
             }
@@ -185,6 +159,7 @@ fun TreatmentScreen(back: () -> Unit, initialPlanId: Long = 0L, initialRecordId:
         var condition by remember(initial?.id, recordEditorOpen) { mutableStateOf(initial?.condition.orEmpty()) }
         var notes by remember(initial?.id, recordEditorOpen) { mutableStateOf(initial?.notes.orEmpty()) }
         var pendingFiles by remember(initial?.id, recordEditorOpen) { mutableStateOf<List<String>>(emptyList()) }
+        var removedFiles by remember(initial?.id, recordEditorOpen) { mutableStateOf<Set<String>>(emptySet()) }
         var detailsOpen by remember(initial?.id, recordEditorOpen) { mutableStateOf(false) }
 
         FullScreenEditorDialog(
@@ -193,60 +168,40 @@ fun TreatmentScreen(back: () -> Unit, initialPlanId: Long = 0L, initialRecordId:
             canSave = richBodyHasContent(content) || pendingFiles.isNotEmpty() || date.isNotBlank() || type.isNotBlank(),
             hasPersistedRecord = initial != null,
             onSave = {
-                if (initial == null && !richBodyHasContent(content) && pendingFiles.isEmpty() && date.isBlank() && type.isBlank()) {
-                    recordEditorOpen = false
-                    return@FullScreenEditorDialog
-                }
+                if (initial == null && !richBodyHasContent(content) && pendingFiles.isEmpty() && date.isBlank() && type.isBlank()) { recordEditorOpen = false; return@FullScreenEditorDialog }
                 scope.launch {
                     val value = TreatmentRecordEntity(
-                        id = initial?.id ?: 0,
-                        date = date.trim(),
-                        type = type.trim().ifBlank { "治疗记录" },
-                        hospital = hospital.trim(),
-                        doctor = doctor.trim(),
-                        content = content,
-                        medicines = medicines.trim(),
-                        sideEffects = sideEffects.trim(),
-                        condition = condition.trim(),
-                        notes = notes.trim(),
-                        updatedAt = System.currentTimeMillis(),
+                        id = initial?.id ?: 0, date = date.trim(), type = type.trim().ifBlank { "治疗记录" },
+                        hospital = hospital.trim(), doctor = doctor.trim(), content = content, medicines = medicines.trim(),
+                        sideEffects = sideEffects.trim(), condition = condition.trim(), notes = notes.trim(), updatedAt = System.currentTimeMillis(),
                     )
                     val id = if (initial == null) dao.saveRecord(value) else { dao.updateRecord(value); value.id }
-                    reconcileRichAttachments(context, dao, "record", id, content)
-                    pendingFiles = emptyList()
-                    recordEditorOpen = false
+                    reconcileRichAttachments(context, dao, "record", id, content, removedFiles)
+                    pendingFiles = emptyList(); removedFiles = emptySet(); recordEditorOpen = false
                 }
             },
         ) {
             LazyColumn(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp), contentPadding = PaddingValues(bottom = 24.dp)) {
                 item {
                     RichNoteBodyEditor(
-                        dao = dao,
-                        ownerType = "record",
-                        ownerId = initial?.id ?: 0L,
-                        value = content,
-                        onValueChange = { content = it },
-                        pendingFiles = pendingFiles,
-                        onPendingFilesChange = { pendingFiles = it },
+                        dao = dao, ownerType = "record", ownerId = initial?.id ?: 0L,
+                        value = content, onValueChange = { content = it },
+                        pendingFiles = pendingFiles, onPendingFilesChange = { pendingFiles = it },
+                        removedFiles = removedFiles, onRemovedFilesChange = { removedFiles = it },
                         sessionKey = "record-${initial?.id ?: "new"}",
                     )
                 }
                 item {
                     TextButton(onClick = { detailsOpen = !detailsOpen }, modifier = Modifier.fillMaxWidth()) {
                         Icon(if (detailsOpen) Icons.Default.ExpandLess else Icons.Default.ExpandMore, contentDescription = null)
-                        Spacer(Modifier.width(6.dp))
-                        Text(if (detailsOpen) "收起治疗信息" else "更多治疗信息（全部选填）")
+                        Spacer(Modifier.width(6.dp)); Text(if (detailsOpen) "收起治疗信息" else "更多治疗信息（全部选填）")
                     }
                 }
                 if (detailsOpen) {
-                    item { Field(date, { date = it }, "日期") }
-                    item { Field(type, { type = it }, "治疗类型") }
-                    item { Field(hospital, { hospital = it }, "医院") }
-                    item { Field(doctor, { doctor = it }, "医生") }
-                    item { Field(medicines, { medicines = it }, "药物") }
-                    item { Field(sideEffects, { sideEffects = it }, "副作用/反应") }
-                    item { Field(condition, { condition = it }, "当时情况") }
-                    item { Field(notes, { notes = it }, "补充备注") }
+                    item { Field(date, { date = it }, "日期") }; item { Field(type, { type = it }, "治疗类型") }
+                    item { Field(hospital, { hospital = it }, "医院") }; item { Field(doctor, { doctor = it }, "医生") }
+                    item { Field(medicines, { medicines = it }, "药物") }; item { Field(sideEffects, { sideEffects = it }, "副作用/反应") }
+                    item { Field(condition, { condition = it }, "当时情况") }; item { Field(notes, { notes = it }, "补充备注") }
                 }
             }
         }
