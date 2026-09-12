@@ -13,146 +13,23 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.menter.treatmentvault.TreatmentVaultApplication
-import com.menter.treatmentvault.data.*
+import com.menter.treatmentvault.data.CategoryEntity
 import kotlinx.coroutines.launch
 
-private data class HomeSearchHit(
-    val title: String,
-    val subtitle: String,
-    val section: String,
-    val route: String,
-    val iconKey: String,
-    val updatedAt: Long,
-)
-
-private fun previewText(value: String, max: Int = 90): String {
-    val plain = richBodyPlainText(value).replace("\n", " ").trim()
-    val clean = when {
-        plain.isNotBlank() -> plain
-        value.contains("[[image:") -> "含图片"
-        else -> ""
-    }
-    return if (clean.length > max) clean.take(max) + "…" else clean
-}
-
-private fun matchesHomeQuery(query: String, vararg values: Any?): Boolean =
-    values.any { it?.toString()?.contains(query, ignoreCase = true) == true }
-
-private fun flattenVisibleCategories(categories: List<CategoryEntity>): List<Pair<CategoryEntity, Int>> {
+private fun flattenHomeCategories(categories: List<CategoryEntity>): List<Pair<CategoryEntity, Int>> {
     val visible = categories.filterNot { it.hidden }
     val byParent = visible.groupBy { it.parentId }
     val result = mutableListOf<Pair<CategoryEntity, Int>>()
-
     fun visit(parent: String?, depth: Int) {
         byParent[parent].orEmpty().sortedBy { it.sortOrder }.forEach { category ->
             result += category to depth
             visit(category.key, depth + 1)
         }
     }
-
     visit(null, 0)
     val included = result.map { it.first.key }.toSet()
     visible.filterNot { it.key in included }.sortedBy { it.sortOrder }.forEach { result += it to 0 }
     return result
-}
-
-private fun buildHomeSearchResults(
-    query: String,
-    categories: List<CategoryEntity>,
-    supplies: List<SupplyEntity>,
-    exams: List<ExamEntity>,
-    plans: List<TreatmentPlanEntity>,
-    records: List<TreatmentRecordEntity>,
-    symptoms: List<SymptomEntity>,
-    temperatures: List<TemperatureEntity>,
-    questions: List<QuestionEntity>,
-    expenses: List<ExpenseEntity>,
-    timeline: List<TimelineEntity>,
-    customEntries: List<CustomEntryEntity>,
-): List<HomeSearchHit> {
-    val q = query.trim()
-    if (q.isBlank()) return emptyList()
-    val categoryMap = categories.associateBy { it.key }
-
-    return buildList {
-        customEntries.forEach { item ->
-            val category = categoryMap[item.categoryId]
-            val categoryName = category?.name ?: "笔记"
-            if (matchesHomeQuery(q, categoryName, item.date, item.title, item.content, item.tags)) {
-                add(
-                    HomeSearchHit(
-                        title = item.title.ifBlank { previewText(item.content, 42).ifBlank { "未命名笔记" } },
-                        subtitle = previewText(listOf(item.date, item.content, item.tags).filter { it.isNotBlank() }.joinToString(" · ")),
-                        section = categoryName,
-                        route = "note/${item.id}",
-                        iconKey = category?.iconKey ?: "note",
-                        updatedAt = item.updatedAt,
-                    )
-                )
-            }
-        }
-
-        categories.forEach { category ->
-            if (matchesHomeQuery(q, category.name, category.smartKeywords)) {
-                add(
-                    HomeSearchHit(
-                        title = category.name,
-                        subtitle = if (category.isSystem) "打开资料分类" else "打开笔记分类",
-                        section = "分类",
-                        route = if (category.isSystem) category.route else "custom/${category.key}",
-                        iconKey = category.iconKey,
-                        updatedAt = category.updatedAt,
-                    )
-                )
-            }
-        }
-
-        supplies.forEach { item ->
-            if (matchesHomeQuery(q, item.name, item.stages, item.purpose, item.necessity, item.purchaseStatus, item.usage, item.notes)) {
-                add(HomeSearchHit(item.name, previewText(listOf(item.purchaseStatus, item.purpose, item.notes).filter { it.isNotBlank() }.joinToString(" · ")), "药品用品", "supplies/${item.id}", "medication", item.updatedAt))
-            }
-        }
-        exams.forEach { item ->
-            if (matchesHomeQuery(q, item.name, item.date, item.hospital, item.type, item.summary, item.keyData, item.doctorExplanation, item.notes)) {
-                add(HomeSearchHit(item.name, previewText(listOf(item.date, item.hospital, item.summary).filter { it.isNotBlank() }.joinToString(" · ")), "检查报告", "exams/${item.id}", "description", item.updatedAt))
-            }
-        }
-        plans.forEach { item ->
-            if (matchesHomeQuery(q, item.name, item.category, item.hospital, item.doctor, item.date, item.medicines, item.dose, item.cycle, item.sessions, item.startDate, item.expectedEnd, item.explanation, item.notes)) {
-                add(HomeSearchHit(item.name, previewText(listOf(item.date, item.doctor, item.explanation).filter { it.isNotBlank() }.joinToString(" · ")), "治疗方案", "treatment/plan/${item.id}", "medical", item.updatedAt))
-            }
-        }
-        records.forEach { item ->
-            if (matchesHomeQuery(q, item.date, item.type, item.hospital, item.doctor, item.content, item.medicines, item.sideEffects, item.condition, item.notes)) {
-                add(HomeSearchHit(listOf(item.type, item.date).filter { it.isNotBlank() }.joinToString(" · ").ifBlank { "治疗记录" }, previewText(item.content.ifBlank { item.notes }), "治疗记录", "treatment/record/${item.id}", "medical", item.updatedAt))
-            }
-        }
-        symptoms.forEach { item ->
-            if (matchesHomeQuery(q, item.date, item.temperature, item.weight, item.appetite, item.nausea, item.vomiting, item.diarrhea, item.constipation, item.bowelCount, item.urinaryFrequency, item.dysuria, item.pain, item.fatigue, item.bleeding, item.other, item.notes)) {
-                add(HomeSearchHit("症状记录 ${item.date}", previewText(listOf(item.constipation, item.urinaryFrequency, item.pain, item.other, item.notes).filter { it.isNotBlank() }.joinToString(" · ")), "症状记录", "symptoms/${item.id}", "heart", item.updatedAt))
-            }
-        }
-        temperatures.forEach { item ->
-            if (matchesHomeQuery(q, item.date, item.time, item.temperature, item.measurementSite, item.notes)) {
-                add(HomeSearchHit("${item.temperature}℃", previewText(listOf(item.date, item.time, item.measurementSite, item.notes).filter { it.isNotBlank() }.joinToString(" · ")), "体温记录", "temperature/${item.id}", "thermostat", item.updatedAt))
-            }
-        }
-        questions.forEach { item ->
-            if (matchesHomeQuery(q, item.question, item.date, item.hospital, item.doctor, item.answer, item.status, item.followUp, item.notes)) {
-                add(HomeSearchHit(item.question, previewText(listOf(item.status, item.date, item.doctor, item.answer).filter { it.isNotBlank() }.joinToString(" · ")), "医生问诊", "questions/${item.id}", "question", item.updatedAt))
-            }
-        }
-        expenses.forEach { item ->
-            if (matchesHomeQuery(q, item.date, item.type, item.amount, item.merchant, item.insuranceAmount, item.selfPayAmount, item.reimbursedAmount, item.notes)) {
-                add(HomeSearchHit("${item.type} ¥${item.amount}", previewText(listOf(item.date, item.merchant, item.notes).filter { it.isNotBlank() }.joinToString(" · ")), "费用记录", "expenses/${item.id}", "payments", item.updatedAt))
-            }
-        }
-        timeline.forEach { item ->
-            if (matchesHomeQuery(q, item.date, item.type, item.title, item.content, item.sourceType)) {
-                add(HomeSearchHit(item.title.ifBlank { item.type }, previewText(listOf(item.date, item.content).filter { it.isNotBlank() }.joinToString(" · ")), "总时间轴", "timeline/${item.id}", "timeline", item.updatedAt))
-            }
-        }
-    }.sortedByDescending { it.updatedAt }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -160,20 +37,21 @@ private fun buildHomeSearchResults(
 fun HomeScreen(go: (String) -> Unit) {
     val app = androidx.compose.ui.platform.LocalContext.current.applicationContext as TreatmentVaultApplication
     val dao = app.database.dao()
-    val categories by dao.categories().collectAsState(initial = emptyList())
-    val supplies by dao.supplies().collectAsState(initial = emptyList())
-    val exams by dao.exams().collectAsState(initial = emptyList())
-    val plans by dao.plans().collectAsState(initial = emptyList())
-    val records by dao.records().collectAsState(initial = emptyList())
-    val symptoms by dao.symptoms().collectAsState(initial = emptyList())
-    val temperatures by dao.temperatures().collectAsState(initial = emptyList())
-    val questions by dao.questions().collectAsState(initial = emptyList())
-    val expenses by dao.expenses().collectAsState(initial = emptyList())
-    val timeline by dao.timeline().collectAsState(initial = emptyList())
-    val customEntries by dao.allCustomEntriesFlow().collectAsState(initial = emptyList())
+    val categories by dao.categories().collectAsState(emptyList())
+    val supplies by dao.supplies().collectAsState(emptyList())
+    val exams by dao.exams().collectAsState(emptyList())
+    val plans by dao.plans().collectAsState(emptyList())
+    val records by dao.records().collectAsState(emptyList())
+    val symptoms by dao.symptoms().collectAsState(emptyList())
+    val temperatures by dao.temperatures().collectAsState(emptyList())
+    val questions by dao.questions().collectAsState(emptyList())
+    val expenses by dao.expenses().collectAsState(emptyList())
+    val timeline by dao.timeline().collectAsState(emptyList())
+    val notes by dao.allCustomEntriesFlow().collectAsState(emptyList())
+    val states by dao.recordStates().collectAsState(emptyList())
 
     val scope = rememberCoroutineScope()
-    val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
+    val drawerState = rememberDrawerState(DrawerValue.Closed)
     var query by rememberSaveable { mutableStateOf("") }
     var showAddCategory by rememberSaveable { mutableStateOf(false) }
     var newCategoryName by rememberSaveable { mutableStateOf("") }
@@ -182,29 +60,32 @@ fun HomeScreen(go: (String) -> Unit) {
 
     LaunchedEffect(categories) {
         if (categories.none { it.key == "inbox" }) {
-            dao.saveCategory(
-                CategoryEntity(
-                    key = "inbox",
-                    name = "待整理",
-                    iconKey = "note",
-                    sortOrder = 5,
-                    isSystem = false,
-                    smartEnabled = false,
-                    smartKeywords = "",
-                )
-            )
+            dao.saveCategory(CategoryEntity(key = "inbox", name = "待整理", iconKey = "note", sortOrder = 5, isSystem = false, smartEnabled = false))
         }
     }
 
-    val visibleCategories = remember(categories) { flattenVisibleCategories(categories) }
-    val recentNotes = remember(customEntries) { customEntries.sortedByDescending { it.updatedAt }.take(6) }
-    val customCounts = remember(customEntries) { customEntries.groupingBy { it.categoryId }.eachCount() }
+    val visibleCategories = remember(categories) { flattenHomeCategories(categories) }
     val customCategories = remember(categories) { categories.filterNot { it.isSystem }.sortedBy { it.sortOrder } }
-    val searchResults = remember(
-        query, categories, supplies, exams, plans, records, symptoms,
-        temperatures, questions, expenses, timeline, customEntries,
-    ) {
-        buildHomeSearchResults(query, categories, supplies, exams, plans, records, symptoms, temperatures, questions, expenses, timeline, customEntries)
+    val allRecords = remember(categories, supplies, exams, plans, records, symptoms, temperatures, questions, expenses, timeline, notes) {
+        buildUnifiedRecords(categories, supplies, exams, plans, records, symptoms, temperatures, questions, expenses, timeline, notes)
+    }
+    val stateMap = remember(states) { states.associateBy { "${it.ownerType}:${it.ownerId}" } }
+    val activeRecords = remember(allRecords, stateMap) {
+        allRecords.filter {
+            val state = recordStateFor(it, stateMap)
+            state.trashedAt == null && !state.archived
+        }
+    }
+    val pinnedRecords = remember(activeRecords, stateMap) { activeRecords.filter { recordStateFor(it, stateMap).pinned }.take(5) }
+    val recentRecords = remember(activeRecords) { activeRecords.take(7) }
+    val q = query.trim()
+    val recordSearch = remember(activeRecords, q) {
+        if (q.isBlank()) emptyList() else activeRecords.filter { item ->
+            listOf(item.title, item.preview, item.section, item.date).any { it.contains(q, true) }
+        }
+    }
+    val categorySearch = remember(categories, q) {
+        if (q.isBlank()) emptyList() else categories.filterNot { it.hidden }.filter { it.name.contains(q, true) || it.smartKeywords.contains(q, true) }
     }
 
     fun open(route: String) {
@@ -215,41 +96,18 @@ fun HomeScreen(go: (String) -> Unit) {
         }
     }
 
-    fun countFor(category: CategoryEntity): Int = when (category.key) {
-        "timeline" -> timeline.size
-        "exams" -> exams.size
-        "treatment" -> plans.size + records.size
-        "supplies" -> supplies.size
-        "symptoms" -> symptoms.size
-        "temperature" -> temperatures.size
-        "questions" -> questions.size
-        "expenses" -> expenses.size
-        else -> customCounts[category.key] ?: 0
-    }
+    fun categoryRoute(category: CategoryEntity): String = if (category.isSystem) category.route else "custom/${category.key}"
+    fun countFor(category: CategoryEntity): Int = allRecords.count { it.categoryKey == category.key }
 
     fun createCategory() {
         val name = newCategoryName.trim()
         if (name.isBlank()) return
-        val duplicate = categories.any {
-            it.parentId == newCategoryParentId && it.name.equals(name, ignoreCase = true)
-        }
+        val duplicate = categories.any { it.parentId == newCategoryParentId && it.name.equals(name, true) }
         if (duplicate) return
-
         val key = "category_${System.currentTimeMillis()}"
-        val nextOrder = (categories.filter { it.parentId == newCategoryParentId }.maxOfOrNull { it.sortOrder } ?: 0) + 10
+        val order = (categories.filter { it.parentId == newCategoryParentId }.maxOfOrNull { it.sortOrder } ?: 0) + 10
         scope.launch {
-            dao.saveCategory(
-                CategoryEntity(
-                    key = key,
-                    name = name,
-                    iconKey = "folder",
-                    sortOrder = nextOrder,
-                    isSystem = false,
-                    smartEnabled = true,
-                    smartKeywords = name,
-                    parentId = newCategoryParentId,
-                )
-            )
+            dao.saveCategory(CategoryEntity(key = key, name = name, iconKey = "folder", sortOrder = order, isSystem = false, smartEnabled = true, smartKeywords = name, parentId = newCategoryParentId))
             newCategoryName = ""
             newCategoryParentId = null
             showAddCategory = false
@@ -263,11 +121,11 @@ fun HomeScreen(go: (String) -> Unit) {
                 Column(Modifier.fillMaxHeight()) {
                     Spacer(Modifier.height(18.dp))
                     Text("治疗笔记", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.padding(horizontal = 20.dp))
-                    Text("像笔记一样记，分类在后面帮你整理", style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp))
-                    Spacer(Modifier.height(10.dp))
+                    Text("所有内容都是记录，分类只是查看方式", style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp))
+                    Spacer(Modifier.height(8.dp))
                     NavigationDrawerItem(
                         icon = { Icon(Icons.Default.Notes, contentDescription = null) },
-                        label = { Text("全部笔记") },
+                        label = { Text("全部记录") },
                         selected = false,
                         onClick = { open("notes") },
                     )
@@ -284,24 +142,12 @@ fun HomeScreen(go: (String) -> Unit) {
                         onClick = { open("structure") },
                     )
                     HorizontalDivider(Modifier.padding(vertical = 8.dp))
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(start = 20.dp, end = 8.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                    ) {
+                    Row(Modifier.fillMaxWidth().padding(start = 20.dp, end = 8.dp), horizontalArrangement = Arrangement.SpaceBetween) {
                         Text("分类", style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(top = 12.dp))
-                        IconButton(onClick = { showAddCategory = true }) {
-                            Icon(Icons.Default.Add, contentDescription = "新建类目")
-                        }
+                        IconButton(onClick = { showAddCategory = true }) { Icon(Icons.Default.Add, contentDescription = "新建类目") }
                     }
-
-                    LazyColumn(
-                        modifier = Modifier.fillMaxWidth().weight(1f),
-                        contentPadding = PaddingValues(bottom = 8.dp),
-                    ) {
-                        items(visibleCategories, key = { it.first.key }) { pair ->
-                            val category = pair.first
-                            val depth = pair.second
-                            val route = if (category.isSystem) category.route else "custom/${category.key}"
+                    LazyColumn(modifier = Modifier.weight(1f)) {
+                        items(visibleCategories, key = { it.first.key }) { (category, depth) ->
                             NavigationDrawerItem(
                                 icon = { Icon(categoryIcon(category.iconKey), contentDescription = null) },
                                 label = {
@@ -312,30 +158,14 @@ fun HomeScreen(go: (String) -> Unit) {
                                     }
                                 },
                                 selected = false,
-                                onClick = { open(route) },
+                                onClick = { open(categoryRoute(category)) },
                             )
                         }
                     }
-
                     HorizontalDivider()
-                    NavigationDrawerItem(
-                        icon = { Icon(Icons.Default.Settings, contentDescription = null) },
-                        label = { Text("类目管理") },
-                        selected = false,
-                        onClick = { open("categories") },
-                    )
-                    NavigationDrawerItem(
-                        icon = { Icon(Icons.Default.Backup, contentDescription = null) },
-                        label = { Text("备份与恢复") },
-                        selected = false,
-                        onClick = { open("settings") },
-                    )
-                    NavigationDrawerItem(
-                        icon = { Icon(Icons.Default.SystemUpdateAlt, contentDescription = null) },
-                        label = { Text("检查更新") },
-                        selected = false,
-                        onClick = { open("update") },
-                    )
+                    NavigationDrawerItem(icon = { Icon(Icons.Default.Settings, null) }, label = { Text("类目管理") }, selected = false, onClick = { open("categories") })
+                    NavigationDrawerItem(icon = { Icon(Icons.Default.Backup, null) }, label = { Text("备份与恢复") }, selected = false, onClick = { open("settings") })
+                    NavigationDrawerItem(icon = { Icon(Icons.Default.SystemUpdateAlt, null) }, label = { Text("检查更新") }, selected = false, onClick = { open("update") })
                     Spacer(Modifier.height(12.dp))
                 }
             }
@@ -345,23 +175,11 @@ fun HomeScreen(go: (String) -> Unit) {
             topBar = {
                 CenterAlignedTopAppBar(
                     title = { Text("治疗笔记") },
-                    navigationIcon = {
-                        IconButton(onClick = { scope.launch { drawerState.open() } }) {
-                            Icon(Icons.Default.Menu, contentDescription = "菜单")
-                        }
-                    },
-                    actions = {
-                        IconButton(onClick = { go("structure") }) {
-                            Icon(Icons.Default.AccountTree, contentDescription = "资料树")
-                        }
-                    },
+                    navigationIcon = { IconButton(onClick = { scope.launch { drawerState.open() } }) { Icon(Icons.Default.Menu, contentDescription = "菜单") } },
+                    actions = { IconButton(onClick = { go("structure") }) { Icon(Icons.Default.AccountTree, contentDescription = "资料树") } },
                 )
             },
-            floatingActionButton = {
-                FloatingActionButton(onClick = { go("note/new/inbox") }) {
-                    Icon(Icons.Default.Add, contentDescription = "新建笔记")
-                }
-            },
+            floatingActionButton = { FloatingActionButton(onClick = { go("note/new/inbox") }) { Icon(Icons.Default.Add, contentDescription = "新建记录") } },
         ) { padding ->
             LazyColumn(
                 modifier = Modifier.fillMaxSize().padding(padding),
@@ -374,117 +192,71 @@ fun HomeScreen(go: (String) -> Unit) {
                         onValueChange = { query = it },
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true,
-                        placeholder = { Text("搜索全部资料") },
-                        leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
-                        trailingIcon = {
-                            if (query.isNotBlank()) {
-                                IconButton(onClick = { query = "" }) {
-                                    Icon(Icons.Default.Close, contentDescription = "清空")
-                                }
-                            }
-                        },
+                        placeholder = { Text("搜索所有记录") },
+                        leadingIcon = { Icon(Icons.Default.Search, null) },
+                        trailingIcon = { if (query.isNotBlank()) IconButton(onClick = { query = "" }) { Icon(Icons.Default.Close, contentDescription = "清空") } },
                         shape = MaterialTheme.shapes.extraLarge,
                     )
                 }
-
-                if (query.isNotBlank()) {
-                    item {
-                        Text("搜索结果 · ${searchResults.size}", style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(top = 4.dp))
+                if (q.isNotBlank()) {
+                    item { Text("搜索结果 · ${recordSearch.size + categorySearch.size}", style = MaterialTheme.typography.titleSmall) }
+                    items(recordSearch, key = { it.key }) { item ->
+                        RecordListItem(item = item, pinned = recordStateFor(item, stateMap).pinned, onClick = { go(item.route) })
                     }
-                    if (searchResults.isEmpty()) {
-                        item { Text("没有找到匹配内容", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(vertical = 18.dp)) }
-                    } else {
-                        items(searchResults, key = { "${it.route}-${it.title}-${it.updatedAt}" }) { hit ->
-                            ListItem(
-                                modifier = Modifier.fillMaxWidth().clickable { open(hit.route) },
-                                headlineContent = { Text(hit.title, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-                                supportingContent = {
-                                    Column {
-                                        Text(hit.section, style = MaterialTheme.typography.labelSmall)
-                                        if (hit.subtitle.isNotBlank()) Text(hit.subtitle, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                                    }
-                                },
-                                leadingContent = { Icon(categoryIcon(hit.iconKey), contentDescription = null) },
-                                trailingContent = { Icon(Icons.Default.ChevronRight, contentDescription = null) },
-                            )
-                        }
+                    items(categorySearch, key = { "category:${it.key}" }) { category ->
+                        ListItem(
+                            modifier = Modifier.fillMaxWidth().clickable { go(categoryRoute(category)) },
+                            headlineContent = { Text(category.name) },
+                            supportingContent = { Text("分类 · 打开后查看该分类全部记录") },
+                            leadingContent = { Icon(categoryIcon(category.iconKey), null) },
+                            trailingContent = { Icon(Icons.Default.ChevronRight, null) },
+                        )
                     }
+                    if (recordSearch.isEmpty() && categorySearch.isEmpty()) item { Text("没有找到匹配内容", modifier = Modifier.padding(vertical = 20.dp)) }
                 } else {
                     item {
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             FilledTonalButton(onClick = { go("note/new/inbox") }, modifier = Modifier.weight(1f)) {
-                                Icon(Icons.Default.EditNote, contentDescription = null)
-                                Spacer(Modifier.width(6.dp))
-                                Text("新建笔记")
+                                Icon(Icons.Default.EditNote, null); Spacer(Modifier.width(6.dp)); Text("新建记录")
                             }
                             FilledTonalButton(onClick = { go("smart_input") }, modifier = Modifier.weight(1f)) {
-                                Icon(Icons.Default.Mic, contentDescription = null)
-                                Spacer(Modifier.width(6.dp))
-                                Text("智能录入")
+                                Icon(Icons.Default.Mic, null); Spacer(Modifier.width(6.dp)); Text("智能录入")
                             }
                         }
                     }
+                    if (pinnedRecords.isNotEmpty()) {
+                        item {
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Text("置顶", style = MaterialTheme.typography.titleMedium)
+                                TextButton(onClick = { go("notes") }) { Text("管理") }
+                            }
+                        }
+                        items(pinnedRecords, key = { "pinned:${it.key}" }) { item -> RecordListItem(item, true) { go(item.route) } }
+                    }
                     item {
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                            Text("最近笔记", style = MaterialTheme.typography.titleMedium)
+                            Text("最近记录", style = MaterialTheme.typography.titleMedium)
                             TextButton(onClick = { go("notes") }) { Text("全部") }
                         }
                     }
-                    if (recentNotes.isEmpty()) {
-                        item {
-                            Card(Modifier.fillMaxWidth()) {
-                                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                    Text("还没有笔记", style = MaterialTheme.typography.titleSmall)
-                                    Text("先随手记下来，不用先想该放哪里。", style = MaterialTheme.typography.bodySmall)
-                                }
-                            }
-                        }
+                    if (recentRecords.isEmpty()) {
+                        item { Card(Modifier.fillMaxWidth()) { Column(Modifier.padding(16.dp)) { Text("还没有记录", style = MaterialTheme.typography.titleSmall); Text("先随手记下来，不用先决定放哪里。", style = MaterialTheme.typography.bodySmall) } } }
                     } else {
-                        items(recentNotes, key = { it.id }) { note ->
-                            val category = categories.firstOrNull { it.key == note.categoryId }
-                            ListItem(
-                                modifier = Modifier.fillMaxWidth().clickable { go("note/${note.id}") },
-                                headlineContent = {
-                                    Text(note.title.ifBlank { previewText(note.content, 42).ifBlank { "未命名笔记" } }, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                },
-                                supportingContent = {
-                                    Column {
-                                        Text(category?.name ?: "笔记", style = MaterialTheme.typography.labelSmall)
-                                        if (note.content.isNotBlank()) Text(previewText(note.content), maxLines = 2, overflow = TextOverflow.Ellipsis)
-                                    }
-                                },
-                                leadingContent = { Icon(categoryIcon(category?.iconKey ?: "note"), contentDescription = null) },
-                            )
-                        }
+                        items(recentRecords, key = { "recent:${it.key}" }) { item -> RecordListItem(item, recordStateFor(item, stateMap).pinned) { go(item.route) } }
                     }
                     item {
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                            Text("分类", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 12.dp))
-                            TextButton(onClick = { showAddCategory = true }) {
-                                Icon(Icons.Default.Add, contentDescription = null)
-                                Spacer(Modifier.width(4.dp))
-                                Text("新建类目")
-                            }
+                            Text("分类", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 10.dp))
+                            TextButton(onClick = { showAddCategory = true }) { Icon(Icons.Default.Add, null); Spacer(Modifier.width(4.dp)); Text("新建类目") }
                         }
                     }
-                    items(visibleCategories, key = { it.first.key }) { pair ->
-                        val category = pair.first
-                        val depth = pair.second
-                        val route = if (category.isSystem) category.route else "custom/${category.key}"
+                    items(visibleCategories, key = { it.first.key }) { (category, depth) ->
                         ListItem(
-                            modifier = Modifier.fillMaxWidth().clickable { if (route.isNotBlank()) go(route) },
+                            modifier = Modifier.fillMaxWidth().clickable { go(categoryRoute(category)) },
                             headlineContent = { Text(category.name, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-                            supportingContent = {
-                                val count = countFor(category)
-                                Text(if (count == 0) "暂无记录" else "$count 条", style = MaterialTheme.typography.bodySmall)
-                            },
-                            leadingContent = {
-                                Row {
-                                    if (depth > 0) Spacer(Modifier.width((depth * 18).dp))
-                                    Icon(categoryIcon(category.iconKey), contentDescription = null)
-                                }
-                            },
-                            trailingContent = { Icon(Icons.Default.ChevronRight, contentDescription = null) },
+                            supportingContent = { val count = countFor(category); Text(if (count == 0) "暂无记录" else "$count 条") },
+                            leadingContent = { Row { if (depth > 0) Spacer(Modifier.width((depth * 18).dp)); Icon(categoryIcon(category.iconKey), null) } },
+                            trailingContent = { Icon(Icons.Default.ChevronRight, null) },
                         )
                     }
                 }
@@ -494,83 +266,50 @@ fun HomeScreen(go: (String) -> Unit) {
 
     if (showAddCategory) {
         val cleanName = newCategoryName.trim()
-        val duplicate = categories.any {
-            it.parentId == newCategoryParentId && it.name.equals(cleanName, ignoreCase = true)
-        }
+        val duplicate = categories.any { it.parentId == newCategoryParentId && it.name.equals(cleanName, true) }
         val parentName = customCategories.firstOrNull { it.key == newCategoryParentId }?.name
-
         AlertDialog(
-            onDismissRequest = {
-                showAddCategory = false
-                newCategoryName = ""
-                newCategoryParentId = null
-                parentMenuOpen = false
-            },
+            onDismissRequest = { showAddCategory = false; newCategoryName = ""; newCategoryParentId = null; parentMenuOpen = false },
             title = { Text("新建类目") },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    OutlinedTextField(
-                        value = newCategoryName,
-                        onValueChange = { newCategoryName = it },
-                        label = { Text("类目名称") },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth(),
-                        isError = duplicate,
-                        supportingText = {
-                            if (duplicate) Text("同一级已经有这个类目")
-                        },
-                    )
+                    OutlinedTextField(value = newCategoryName, onValueChange = { newCategoryName = it }, label = { Text("类目名称") }, singleLine = true, modifier = Modifier.fillMaxWidth(), isError = duplicate)
                     Box(Modifier.fillMaxWidth()) {
-                        OutlinedButton(
-                            onClick = { parentMenuOpen = true },
-                            modifier = Modifier.fillMaxWidth(),
-                        ) {
-                            Icon(Icons.Default.AccountTree, contentDescription = null)
-                            Spacer(Modifier.width(6.dp))
-                            Text(if (parentName == null) "顶级类目" else "上级：$parentName")
-                            Spacer(Modifier.weight(1f))
-                            Icon(Icons.Default.ArrowDropDown, contentDescription = null)
+                        OutlinedButton(onClick = { parentMenuOpen = true }, modifier = Modifier.fillMaxWidth()) {
+                            Text(if (parentName == null) "顶级类目" else "上级：$parentName"); Spacer(Modifier.weight(1f)); Icon(Icons.Default.ArrowDropDown, null)
                         }
-                        DropdownMenu(
-                            expanded = parentMenuOpen,
-                            onDismissRequest = { parentMenuOpen = false },
-                        ) {
-                            DropdownMenuItem(
-                                text = { Text("顶级类目") },
-                                onClick = {
-                                    newCategoryParentId = null
-                                    parentMenuOpen = false
-                                },
-                            )
+                        DropdownMenu(expanded = parentMenuOpen, onDismissRequest = { parentMenuOpen = false }) {
+                            DropdownMenuItem(text = { Text("顶级类目") }, onClick = { newCategoryParentId = null; parentMenuOpen = false })
                             customCategories.filterNot { it.key == "inbox" }.forEach { category ->
-                                DropdownMenuItem(
-                                    text = { Text(category.name) },
-                                    leadingIcon = { Icon(categoryIcon(category.iconKey), contentDescription = null) },
-                                    onClick = {
-                                        newCategoryParentId = category.key
-                                        parentMenuOpen = false
-                                    },
-                                )
+                                DropdownMenuItem(text = { Text(category.name) }, onClick = { newCategoryParentId = category.key; parentMenuOpen = false })
                             }
                         }
                     }
-                    Text("创建后会立刻出现在首页，并参与智能录入分类。", style = MaterialTheme.typography.bodySmall)
                 }
             },
-            confirmButton = {
-                TextButton(
-                    onClick = { createCategory() },
-                    enabled = cleanName.isNotBlank() && !duplicate,
-                ) { Text("创建") }
-            },
-            dismissButton = {
-                TextButton(onClick = {
-                    showAddCategory = false
-                    newCategoryName = ""
-                    newCategoryParentId = null
-                    parentMenuOpen = false
-                }) { Text("取消") }
-            },
+            confirmButton = { TextButton(onClick = { createCategory() }, enabled = cleanName.isNotBlank() && !duplicate) { Text("创建") } },
+            dismissButton = { TextButton(onClick = { showAddCategory = false }) { Text("取消") } },
         )
     }
+}
+
+@Composable
+private fun RecordListItem(item: UnifiedRecordItem, pinned: Boolean, onClick: () -> Unit) {
+    ListItem(
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
+        headlineContent = {
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                if (pinned) Icon(Icons.Default.PushPin, null, modifier = Modifier.size(16.dp))
+                Text(item.title, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+        },
+        supportingContent = {
+            Column {
+                Text(item.section, style = MaterialTheme.typography.labelSmall)
+                if (item.preview.isNotBlank()) Text(item.preview, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            }
+        },
+        leadingContent = { Icon(categoryIcon(item.iconKey), null) },
+        trailingContent = { Icon(Icons.Default.ChevronRight, null) },
+    )
 }
