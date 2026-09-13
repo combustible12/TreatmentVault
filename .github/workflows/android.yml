@@ -88,7 +88,7 @@ jobs:
               "versionName": os.environ["VERSION_NAME"],
               "apkUrl": "https://raw.githubusercontent.com/combustible12/TreatmentVault-Updates/main/TreatmentVault-latest.apk",
               "sha256": os.environ["SHA"],
-              "notes": "新增全部待办中心：首页与侧边栏可一键查看所有待办并显示未完成数量；待办页默认查看未完成，支持全部/已完成切换、类目筛选和搜索，完成项保留并变灰，勾选区域也更易操作。首页、全部记录、全部待办和文件夹长列表支持双击顶部标题快速回到顶部；文件夹标题仍保留长按重命名。"
+              "notes": "修复归属文件夹编辑：笔记不再锁定最初的“待整理/主文件夹”，现在可以自由取消旧归属并切换到新文件夹；保存时会真正更新笔记主归属，不会暗中保留旧文件夹。其他记录也允许先取消最后一个归属再选择新的文件夹，保存前会要求至少保留一个。新增回归测试，防止这类界面状态与实际保存结果不一致的问题再次引入。"
           }
           with open("update-repo/update.json", "w", encoding="utf-8") as f:
               json.dump(data, f, ensure_ascii=False, indent=2)
