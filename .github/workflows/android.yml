@@ -88,7 +88,7 @@ jobs:
               "versionName": os.environ["VERSION_NAME"],
               "apkUrl": "https://raw.githubusercontent.com/combustible12/TreatmentVault-Updates/main/TreatmentVault-latest.apk",
               "sha256": os.environ["SHA"],
-              "notes": "首页右下角 + 现在可直接选择新建笔记或新建类目；首页文件夹卡片改为独立色块样式，与普通笔记/记录明显区分。长按记录会继续完整显示所有归属文件夹，并新增重命名显示名称；重命名只改列表显示名，不改体温、金额、日期等结构化原始字段，且显示名随现有备份与恢复一起保存。"
+              "notes": "新增录音能力：正文内可直接开始录音并保存为录音块，也可从手机导入现有录音；录音块支持应用内播放/暂停和时长显示。录音文件与图片共用现有附件存储，随备份与恢复一起保存；首次应用内录音时会请求麦克风权限。"
           }
           with open("update-repo/update.json", "w", encoding="utf-8") as f:
               json.dump(data, f, ensure_ascii=False, indent=2)
