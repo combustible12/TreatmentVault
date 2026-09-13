@@ -88,7 +88,7 @@ jobs:
               "versionName": os.environ["VERSION_NAME"],
               "apkUrl": "https://raw.githubusercontent.com/combustible12/TreatmentVault-Updates/main/TreatmentVault-latest.apk",
               "sha256": os.environ["SHA"],
-              "notes": "修复归属文件夹编辑：笔记不再锁定最初的“待整理/主文件夹”，现在可以自由取消旧归属并切换到新文件夹；保存时会真正更新笔记主归属，不会暗中保留旧文件夹。其他记录也允许先取消最后一个归属再选择新的文件夹，保存前会要求至少保留一个。新增回归测试，防止这类界面状态与实际保存结果不一致的问题再次引入。"
+              "notes": "链接显示优化：单独粘贴 http/https 链接时自动收成小链接图标，点击图标仍可直接打开；原始 URL 继续完整保存在正文中，因此搜索、备份和恢复不受影响。文字中夹带链接时继续保留原来的可点击打开方式，并提供编辑/收起入口。"
           }
           with open("update-repo/update.json", "w", encoding="utf-8") as f:
               json.dump(data, f, ensure_ascii=False, indent=2)
