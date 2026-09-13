@@ -45,6 +45,12 @@ private fun detectedWebUrls(text: String): List<String> = webUrlRegex.findAll(te
     .distinct()
     .toList()
 
+internal fun standaloneWebUrl(text: String): String? {
+    val trimmed = text.trim()
+    val links = detectedWebUrls(trimmed)
+    return links.singleOrNull()?.takeIf { it == trimmed }
+}
+
 @Composable
 private fun DetectedLinkActions(text: String) {
     val links = remember(text) { detectedWebUrls(text) }
@@ -170,6 +176,7 @@ fun RichNoteBodyEditor(
     sessionKey: Any = ownerId,
 ) {
     val context = LocalContext.current
+    val uriHandler = LocalUriHandler.current
     val scope = rememberCoroutineScope()
     val existingState by produceState<List<AttachmentEntity>?>(initialValue = if (ownerId > 0) null else emptyList(), ownerType, ownerId) {
         if (ownerId > 0) {
@@ -187,6 +194,7 @@ fun RichNoteBodyEditor(
     var insertIndex by remember(ownerType, sessionKey) { mutableIntStateOf(0) }
     var recorderSession by remember(ownerType, sessionKey) { mutableStateOf<AudioRecorderSession?>(null) }
     var audioMessage by remember(ownerType, sessionKey) { mutableStateOf<String?>(null) }
+    var expandedLinkKeys by remember(ownerType, sessionKey) { mutableStateOf<Set<String>>(emptySet()) }
 
     fun sync() {
         val serialized = serializeRichBody(blocks)
@@ -339,7 +347,7 @@ fun RichNoteBodyEditor(
 
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Text(label, style = MaterialTheme.typography.titleSmall)
-        Text("文字、图片、录音和链接按当前顺序保存；录音可在正文里直接播放。", style = MaterialTheme.typography.bodySmall)
+        Text("文字、图片、录音和链接按当前顺序保存；单独粘贴的链接会自动收成小图标，点击仍可直接打开。", style = MaterialTheme.typography.bodySmall)
         if (recorderSession == null) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 FilledTonalButton(
@@ -395,15 +403,29 @@ fun RichNoteBodyEditor(
             key(block.key) {
                 when (block) {
                     is RichBlock.TextBlock -> {
-                        Column {
-                            OutlinedTextField(
-                                value = block.text,
-                                onValueChange = { next -> blocks[index] = block.copy(text = next); sync() },
+                        val compactUrl = standaloneWebUrl(block.text)
+                        if (compactUrl != null && block.key !in expandedLinkKeys) {
+                            Row(
                                 modifier = Modifier.fillMaxWidth(),
-                                placeholder = { Text(if (index == 0) "直接写内容或粘贴链接…" else "继续写…") },
-                                minLines = 3,
-                            )
-                            DetectedLinkActions(block.text)
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                FilledTonalIconButton(
+                                    onClick = { runCatching { uriHandler.openUri(compactUrl) } },
+                                ) {
+                                    Icon(Icons.Default.Link, contentDescription = "打开链接")
+                                }
+                            }
+                        } else {
+                            Column {
+                                OutlinedTextField(
+                                    value = block.text,
+                                    onValueChange = { next -> blocks[index] = block.copy(text = next); sync() },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    placeholder = { Text(if (index == 0) "直接写内容或粘贴链接…" else "继续写…") },
+                                    minLines = 3,
+                                )
+                                DetectedLinkActions(block.text)
+                            }
                         }
                     }
                     is RichBlock.ImageBlock -> {
@@ -430,6 +452,19 @@ fun RichNoteBodyEditor(
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(2.dp), verticalAlignment = Alignment.CenterVertically) {
                     IconButton(onClick = { move(index, index - 1) }, enabled = index > 0) { Icon(Icons.Default.ArrowUpward, contentDescription = "上移") }
                     IconButton(onClick = { move(index, index + 1) }, enabled = index < blocks.lastIndex) { Icon(Icons.Default.ArrowDownward, contentDescription = "下移") }
+                    if (block is RichBlock.TextBlock && standaloneWebUrl(block.text) != null) {
+                        val expanded = block.key in expandedLinkKeys
+                        IconButton(
+                            onClick = {
+                                expandedLinkKeys = if (expanded) expandedLinkKeys - block.key else expandedLinkKeys + block.key
+                            },
+                        ) {
+                            Icon(
+                                if (expanded) Icons.Default.Check else Icons.Default.Edit,
+                                contentDescription = if (expanded) "收起链接" else "编辑链接",
+                            )
+                        }
+                    }
                     TextButton(onClick = { blocks.add(index + 1, RichBlock.TextBlock()); insertIndex = index + 2; sync() }) {
                         Icon(Icons.Default.Add, contentDescription = null); Spacer(Modifier.width(3.dp)); Text("文字")
                     }

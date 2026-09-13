@@ -41,4 +41,16 @@ class RichContentTest {
         assertTrue(richBodyHasContent("[[image:a.jpg]]"))
         assertFalse(richBodyHasContent("  \n  "))
     }
+    @Test
+    fun standaloneUrlCanCollapseWithoutChangingStoredText() {
+        val url = "https://example.com/a?x=1"
+        assertEquals(url, standaloneWebUrl(url))
+        assertEquals(url, standaloneWebUrl("  $url  "))
+    }
+
+    @Test
+    fun mixedTextLinkDoesNotCollapseAwayTheSurroundingText() {
+        assertEquals(null, standaloneWebUrl("查看 https://example.com 这个页面"))
+    }
+
 }
