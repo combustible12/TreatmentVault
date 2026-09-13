@@ -1,6 +1,8 @@
 package com.menter.treatmentvault.ui.screens
 
+import android.Manifest
 import android.content.Context
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.webkit.WebView
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -24,6 +26,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import androidx.core.content.ContextCompat
 import coil.compose.AsyncImage
 import com.menter.treatmentvault.data.AppDao
 import com.menter.treatmentvault.data.AttachmentEntity
@@ -182,6 +185,8 @@ fun RichNoteBodyEditor(
     var legacyRecovered by remember(ownerType, sessionKey) { mutableStateOf(false) }
     var previewFile by remember(ownerType, sessionKey) { mutableStateOf<File?>(null) }
     var insertIndex by remember(ownerType, sessionKey) { mutableIntStateOf(0) }
+    var recorderSession by remember(ownerType, sessionKey) { mutableStateOf<AudioRecorderSession?>(null) }
+    var audioMessage by remember(ownerType, sessionKey) { mutableStateOf<String?>(null) }
 
     fun sync() {
         val serialized = serializeRichBody(blocks)
@@ -218,6 +223,45 @@ fun RichNoteBodyEditor(
         }
     }
 
+    fun insertAudioBlock(fileName: String) {
+        val at = insertIndex.coerceIn(0, blocks.size)
+        blocks.add(at, RichBlock.AudioBlock(fileName = fileName))
+        insertIndex = at + 1
+        onPendingFilesChange((pendingFiles + fileName).distinct())
+        sync()
+    }
+
+    fun startRecordingNow() {
+        if (recorderSession != null) return
+        audioMessage = null
+        runCatching { createAudioRecorderSession(context) }
+            .onSuccess { recorderSession = it }
+            .onFailure { audioMessage = "无法开始录音：${it.message ?: "请检查麦克风"}" }
+    }
+
+    fun stopRecordingAndSave() {
+        val session = recorderSession ?: return
+        recorderSession = null
+        if (finishAudioRecording(context, session)) {
+            insertAudioBlock(session.fileName)
+            audioMessage = null
+        } else {
+            audioMessage = "录音没有保存成功，请重新录制。"
+        }
+    }
+
+    fun cancelRecording() {
+        val session = recorderSession ?: return
+        recorderSession = null
+        cancelAudioRecording(context, session)
+        audioMessage = null
+    }
+
+    val recordPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) startRecordingNow()
+        else audioMessage = "需要麦克风权限才能在应用内录音。"
+    }
+
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
         if (uris.isEmpty()) return@rememberLauncherForActivityResult
         scope.launch {
@@ -230,6 +274,28 @@ fun RichNoteBodyEditor(
                 sync()
             }
         }
+    }
+
+    val audioPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
+        if (uris.isEmpty()) return@rememberLauncherForActivityResult
+        scope.launch {
+            val imported = uris.mapNotNull { uri -> runCatching { importAudioToApp(context, uri) }.getOrNull() }
+            if (imported.isEmpty()) {
+                audioMessage = "没有成功导入录音文件。"
+            } else {
+                var at = insertIndex.coerceIn(0, blocks.size)
+                imported.forEach { fileName -> blocks.add(at++, RichBlock.AudioBlock(fileName = fileName)) }
+                insertIndex = at
+                onPendingFilesChange((pendingFiles + imported).distinct())
+                audioMessage = null
+                sync()
+            }
+        }
+    }
+
+    val latestRecorderSession by rememberUpdatedState(recorderSession)
+    DisposableEffect(ownerType, sessionKey) {
+        onDispose { latestRecorderSession?.let { cancelAudioRecording(context, it) } }
     }
 
     fun move(from: Int, to: Int) {
@@ -256,6 +322,16 @@ fun RichNoteBodyEditor(
                 blocks.removeAt(index)
                 if (blocks.none { it is RichBlock.TextBlock }) blocks.add(0, RichBlock.TextBlock())
             }
+            is RichBlock.AudioBlock -> {
+                if (block.fileName in pendingFiles && existing.none { it.fileName == block.fileName }) {
+                    onPendingFilesChange(pendingFiles - block.fileName)
+                    scope.launch(Dispatchers.IO) { attachmentFile(context, block.fileName).delete() }
+                } else if (existing.any { it.fileName == block.fileName }) {
+                    onRemovedFilesChange(removedFiles + block.fileName)
+                }
+                blocks.removeAt(index)
+                if (blocks.none { it is RichBlock.TextBlock }) blocks.add(0, RichBlock.TextBlock())
+            }
         }
         insertIndex = insertIndex.coerceAtMost(blocks.size)
         sync()
@@ -263,7 +339,58 @@ fun RichNoteBodyEditor(
 
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Text(label, style = MaterialTheme.typography.titleSmall)
-        Text("文字、图片和链接按当前顺序保存；图片点开看原图，正文中的网页链接可直接打开。", style = MaterialTheme.typography.bodySmall)
+        Text("文字、图片、录音和链接按当前顺序保存；录音可在正文里直接播放。", style = MaterialTheme.typography.bodySmall)
+        if (recorderSession == null) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FilledTonalButton(
+                    modifier = Modifier.weight(1f),
+                    onClick = {
+                        if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
+                            startRecordingNow()
+                        } else {
+                            recordPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                        }
+                    },
+                ) {
+                    Icon(Icons.Default.Mic, contentDescription = null)
+                    Spacer(Modifier.width(6.dp))
+                    Text("开始录音")
+                }
+                OutlinedButton(
+                    modifier = Modifier.weight(1f),
+                    onClick = { audioPicker.launch(arrayOf("audio/*")) },
+                ) {
+                    Icon(Icons.Default.LibraryMusic, contentDescription = null)
+                    Spacer(Modifier.width(6.dp))
+                    Text("导入录音")
+                }
+            }
+        } else {
+            val session = recorderSession!!
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Icon(Icons.Default.Mic, contentDescription = null, tint = MaterialTheme.colorScheme.onErrorContainer)
+                    Column(Modifier.weight(1f)) {
+                        Text("正在录音", style = MaterialTheme.typography.titleSmall)
+                        RecordingDuration(session.startedAtMs)
+                    }
+                    TextButton(onClick = { stopRecordingAndSave() }) {
+                        Icon(Icons.Default.Stop, contentDescription = null)
+                        Spacer(Modifier.width(4.dp))
+                        Text("停止并保存")
+                    }
+                    IconButton(onClick = { cancelRecording() }) { Icon(Icons.Default.Close, contentDescription = "取消录音") }
+                }
+            }
+        }
+        audioMessage?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
         blocks.forEachIndexed { index, block ->
             key(block.key) {
                 when (block) {
@@ -286,6 +413,16 @@ fun RichNoteBodyEditor(
                             Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 Icon(Icons.Default.BrokenImage, contentDescription = null)
                                 Text("图片文件暂时不可用，但位置已保留。", style = MaterialTheme.typography.bodySmall)
+                            }
+                        }
+                    }
+                    is RichBlock.AudioBlock -> {
+                        val file = attachmentFile(context, block.fileName)
+                        if (file.isFile) AudioBlockPlayer(file)
+                        else Card(Modifier.fillMaxWidth()) {
+                            Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Icon(Icons.Default.LibraryMusic, contentDescription = null)
+                                Text("录音文件暂时不可用，但位置已保留。", style = MaterialTheme.typography.bodySmall)
                             }
                         }
                     }
@@ -317,7 +454,7 @@ suspend fun reconcileRichAttachments(
     removedFiles: Set<String> = emptySet(),
 ) {
     if (ownerId <= 0L) return
-    val desired = richBodyImageNames(body).distinct()
+    val desired = richBodyAttachmentNames(body).distinct()
     val desiredSet = desired.toSet()
     val existing = dao.attachmentsForOwner(ownerType, ownerId)
     val existingNames = existing.map { it.fileName }.toSet()
