@@ -28,4 +28,17 @@ class RecordFolderUiTest {
 
         assertEquals(2, folderPathFor("a", categories).size)
     }
+    @Test
+    fun `current folder can be unchecked while editing memberships`() {
+        assertEquals(emptySet<String>(), toggleFolderSelection(setOf("inbox"), "inbox"))
+    }
+
+    @Test
+    fun `a different folder can replace the old one without old folder being re-added`() {
+        var selected: Set<String> = setOf("inbox")
+        selected = toggleFolderSelection(selected, "patient")
+        selected = toggleFolderSelection(selected, "inbox")
+        assertEquals(setOf("patient"), selected)
+    }
+
 }

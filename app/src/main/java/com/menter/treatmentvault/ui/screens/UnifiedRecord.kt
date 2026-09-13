@@ -155,9 +155,15 @@ suspend fun setUnifiedRecordFolders(
     dao.deleteRecordFolder(item.ownerType, item.ownerId)
 
     if (item.ownerType == "note") {
-        val requiredPrimary = item.categoryKey
-        requestedFolderKeys.filter { it != requiredPrimary }.forEachIndexed { index, folderKey ->
-            dao.saveRecordFolder(RecordFolderEntity(item.ownerType, item.ownerId, folderKey, now + index))
+        val selected = requestedFolderKeys.filter { it.isNotBlank() }.toCollection(linkedSetOf())
+            .ifEmpty { linkedSetOf(item.categoryKey) }
+        val primary = if (item.categoryKey in selected) item.categoryKey else selected.first()
+        val note = dao.customEntryById(item.ownerId)
+        if (note != null && note.categoryId != primary) {
+            dao.updateCustomEntry(note.copy(categoryId = primary, updatedAt = now))
+        }
+        selected.filter { it != primary }.forEachIndexed { index, folderKey ->
+            dao.saveRecordFolder(RecordFolderEntity(item.ownerType, item.ownerId, folderKey, now + index + 1))
         }
         return
     }

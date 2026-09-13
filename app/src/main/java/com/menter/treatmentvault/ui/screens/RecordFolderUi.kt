@@ -30,6 +30,9 @@ internal fun folderPathFor(categoryKey: String, categories: List<CategoryEntity>
 internal fun folderPathText(categoryKey: String, categories: List<CategoryEntity>): String =
     folderPathFor(categoryKey, categories).joinToString("  ›  ") { it.name }
 
+internal fun toggleFolderSelection(selected: Set<String>, folderKey: String): Set<String> =
+    if (folderKey in selected) selected - folderKey else selected + folderKey
+
 @Composable
 internal fun RecordFolderOwnershipDialog(
     item: UnifiedRecordItem,
@@ -65,7 +68,7 @@ internal fun RecordFolderOwnershipDialog(
         categories.filter { it.key in validCurrent }
             .sortedBy { folderPathText(it.key, categories).lowercase() }
     }
-    val requiredPrimary = if (item.ownerType == "note") item.categoryKey else null
+    val currentPrimary = if (item.ownerType == "note") item.categoryKey else null
     var managing by remember(item.key) { mutableStateOf(false) }
     var selected by remember(item.key, item.folderKeys) { mutableStateOf(item.folderKeys) }
 
@@ -114,21 +117,15 @@ internal fun RecordFolderOwnershipDialog(
                     }
                 } else {
                     Text(
-                        if (requiredPrimary != null) "当前笔记所在的主文件夹会保留；可以再勾选其他文件夹。"
-                        else "同一条记录可以同时出现在多个文件夹；至少保留一个归属。",
+                        "可以自由调整归属文件夹；编辑时可以先取消旧归属，但保存前至少选择一个。取消当前文件夹并勾选新文件夹后，会真正移动，不会暗中保留旧归属。",
                         style = MaterialTheme.typography.bodySmall,
                     )
                     LazyColumn(modifier = Modifier.fillMaxWidth().heightIn(max = 420.dp)) {
                         items(availableFolders, key = { it.key }) { folder ->
-                            val checked = folder.key in selected || folder.key == requiredPrimary
-                            val locked = folder.key == requiredPrimary
+                            val checked = folder.key in selected
                             ListItem(
-                                modifier = Modifier.fillMaxWidth().clickable(enabled = !locked) {
-                                    selected = when {
-                                        folder.key !in selected -> selected + folder.key
-                                        item.ownerType != "note" && selected.size <= 1 -> selected
-                                        else -> selected - folder.key
-                                    }
+                                modifier = Modifier.fillMaxWidth().clickable {
+                                    selected = toggleFolderSelection(selected, folder.key)
                                 },
                                 headlineContent = { Text(folder.name, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                                 supportingContent = {
@@ -138,17 +135,14 @@ internal fun RecordFolderOwnershipDialog(
                                 leadingContent = {
                                     Checkbox(
                                         checked = checked,
-                                        enabled = !locked,
                                         onCheckedChange = { next ->
-                                            selected = when {
-                                                next -> selected + folder.key
-                                                item.ownerType != "note" && selected.size <= 1 -> selected
-                                                else -> selected - folder.key
-                                            }
+                                            selected = if (next) selected + folder.key else selected - folder.key
                                         },
                                     )
                                 },
-                                trailingContent = { if (locked) Text("主文件夹", style = MaterialTheme.typography.labelSmall) },
+                                trailingContent = {
+                                    if (folder.key == currentPrimary) Text("当前归属", style = MaterialTheme.typography.labelSmall)
+                                },
                             )
                         }
                     }
@@ -175,10 +169,9 @@ internal fun RecordFolderOwnershipDialog(
                 ) { Text("保存名称") }
             } else if (managing && onFoldersChange != null) {
                 TextButton(
-                    enabled = item.ownerType == "note" || selected.isNotEmpty(),
+                    enabled = selected.isNotEmpty(),
                     onClick = {
-                        val next = if (requiredPrimary != null) selected + requiredPrimary else selected
-                        onFoldersChange(next)
+                        onFoldersChange(selected)
                         onDismiss()
                     },
                 ) { Text("保存归属") }
