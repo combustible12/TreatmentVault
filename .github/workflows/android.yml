@@ -88,7 +88,7 @@ jobs:
               "versionName": os.environ["VERSION_NAME"],
               "apkUrl": "https://raw.githubusercontent.com/combustible12/TreatmentVault-Updates/main/TreatmentVault-latest.apk",
               "sha256": os.environ["SHA"],
-              "notes": "新增录音能力：正文内可直接开始录音并保存为录音块，也可从手机导入现有录音；录音块支持应用内播放/暂停和时长显示。录音文件与图片共用现有附件存储，随备份与恢复一起保存；首次应用内录音时会请求麦克风权限。"
+              "notes": "新增全部待办中心：首页与侧边栏可一键查看所有待办并显示未完成数量；待办页默认查看未完成，支持全部/已完成切换、类目筛选和搜索，完成项保留并变灰，勾选区域也更易操作。首页、全部记录、全部待办和文件夹长列表支持双击顶部标题快速回到顶部；文件夹标题仍保留长按重命名。"
           }
           with open("update-repo/update.json", "w", encoding="utf-8") as f:
               json.dump(data, f, ensure_ascii=False, indent=2)
