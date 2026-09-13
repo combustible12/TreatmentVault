@@ -5,6 +5,7 @@ import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -38,6 +39,7 @@ fun FolderScreen(categoryId: String, back: () -> Unit, go: (String) -> Unit) {
     val states by dao.recordStates().collectAsState(initial = emptyList())
     val recordFolders by dao.recordFolders().collectAsState(initial = emptyList())
     val scope = rememberCoroutineScope()
+    val listState = rememberLazyListState()
 
     val folder = categories.firstOrNull { it.key == categoryId }
     val stateMap = remember(states) { states.associateBy { "${it.ownerType}:${it.ownerId}" } }
@@ -110,6 +112,7 @@ fun FolderScreen(categoryId: String, back: () -> Unit, go: (String) -> Unit) {
                             folder.name,
                             modifier = Modifier.combinedClickable(
                                 onClick = {},
+                                onDoubleClick = { scope.launch { listState.animateScrollToItem(0) } },
                                 onLongClick = { renameFolder = folder },
                             ),
                         )
@@ -120,6 +123,7 @@ fun FolderScreen(categoryId: String, back: () -> Unit, go: (String) -> Unit) {
         },
     ) { padding ->
         LazyColumn(
+            state = listState,
             modifier = Modifier.fillMaxSize().padding(padding),
             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 10.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),

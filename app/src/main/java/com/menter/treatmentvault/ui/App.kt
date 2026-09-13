@@ -42,6 +42,7 @@ fun TreatmentVaultApp() {
         NavHost(nav, "home") {
             composable("home") { HomeScreen { nav.navigate(it) } }
             composable("notes") { AllRecordsScreen(back = { nav.popBackStack() }, go = { nav.navigate(it) }) }
+            composable("todos") { TodoCenterScreen(back = { nav.popBackStack() }, go = { nav.navigate(it) }) }
             composable("note/new/{categoryId}") { entry ->
                 NoteEditorScreen(
                     noteId = 0L,

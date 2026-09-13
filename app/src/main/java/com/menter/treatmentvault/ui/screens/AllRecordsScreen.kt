@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -42,6 +43,7 @@ fun AllRecordsScreen(back: () -> Unit, go: (String) -> Unit) {
     val states by dao.recordStates().collectAsState(emptyList())
     val recordFolders by dao.recordFolders().collectAsState(emptyList())
     val scope = rememberCoroutineScope()
+    val listState = rememberLazyListState()
 
     var query by rememberSaveable { mutableStateOf("") }
     var shelfName by rememberSaveable { mutableStateOf(RecordShelf.ALL.name) }
@@ -90,7 +92,15 @@ fun AllRecordsScreen(back: () -> Unit, go: (String) -> Unit) {
                 )
             } else {
                 TopAppBar(
-                    title = { Text("全部记录") },
+                    title = {
+                        Text(
+                            "全部记录",
+                            modifier = Modifier.combinedClickable(
+                                onClick = {},
+                                onDoubleClick = { scope.launch { listState.animateScrollToItem(0) } },
+                            ),
+                        )
+                    },
                     navigationIcon = { IconButton(onClick = back) { Icon(Icons.Default.ArrowBack, contentDescription = "返回") } },
                 )
             }
@@ -102,6 +112,7 @@ fun AllRecordsScreen(back: () -> Unit, go: (String) -> Unit) {
         },
     ) { padding ->
         LazyColumn(
+            state = listState,
             modifier = Modifier.fillMaxSize().padding(padding),
             contentPadding = PaddingValues(start = 14.dp, end = 14.dp, bottom = 96.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),

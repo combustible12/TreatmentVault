@@ -5,6 +5,7 @@ import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -55,6 +56,7 @@ fun HomeScreen(go: (String) -> Unit) {
     val recordFolders by dao.recordFolders().collectAsState(emptyList())
 
     val scope = rememberCoroutineScope()
+    val listState = rememberLazyListState()
     val drawerState = rememberDrawerState(DrawerValue.Closed)
     var query by rememberSaveable { mutableStateOf("") }
     var showAddCategory by rememberSaveable { mutableStateOf(false) }
@@ -84,6 +86,9 @@ fun HomeScreen(go: (String) -> Unit) {
         }
     }
     val pinnedRecords = remember(activeRecords, stateMap) { activeRecords.filter { recordStateFor(it, stateMap).pinned }.take(5) }
+    val todoRecords = remember(activeRecords, stateMap) { activeRecords.filter { isTodo(recordStateFor(it, stateMap)) } }
+    val pendingTodoCount = remember(todoRecords, stateMap) { todoRecords.count { !recordStateFor(it, stateMap).completed } }
+    val completedTodoCount = remember(todoRecords, stateMap) { todoRecords.count { recordStateFor(it, stateMap).completed } }
     val recentRecords = remember(activeRecords) { activeRecords.take(7) }
     val q = query.trim()
     val recordSearch = remember(activeRecords, stateMap, q) {
@@ -135,6 +140,17 @@ fun HomeScreen(go: (String) -> Unit) {
                     Text("所有内容都是记录，分类只是查看方式", style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp))
                     Spacer(Modifier.height(8.dp))
                     NavigationDrawerItem(icon = { Icon(Icons.Default.Notes, contentDescription = null) }, label = { Text("全部记录") }, selected = false, onClick = { open("notes") })
+                    NavigationDrawerItem(
+                        icon = { Icon(Icons.Default.Checklist, contentDescription = null) },
+                        label = {
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Text("全部待办")
+                                if (pendingTodoCount > 0) Text(pendingTodoCount.toString(), style = MaterialTheme.typography.labelSmall)
+                            }
+                        },
+                        selected = false,
+                        onClick = { open("todos") },
+                    )
                     NavigationDrawerItem(icon = { Icon(Icons.Default.Mic, contentDescription = null) }, label = { Text("智能录入") }, selected = false, onClick = { open("smart_input") })
                     NavigationDrawerItem(icon = { Icon(Icons.Default.AccountTree, contentDescription = null) }, label = { Text("资料树") }, selected = false, onClick = { open("structure") })
                     HorizontalDivider(Modifier.padding(vertical = 8.dp))
@@ -178,7 +194,15 @@ fun HomeScreen(go: (String) -> Unit) {
         Scaffold(
             topBar = {
                 CenterAlignedTopAppBar(
-                    title = { Text("治疗笔记") },
+                    title = {
+                        Text(
+                            "治疗笔记",
+                            modifier = Modifier.combinedClickable(
+                                onClick = {},
+                                onDoubleClick = { scope.launch { listState.animateScrollToItem(0) } },
+                            ),
+                        )
+                    },
                     navigationIcon = { IconButton(onClick = { scope.launch { drawerState.open() } }) { Icon(Icons.Default.Menu, contentDescription = "菜单") } },
                     actions = { IconButton(onClick = { go("structure") }) { Icon(Icons.Default.AccountTree, contentDescription = "资料树") } },
                 )
@@ -202,6 +226,7 @@ fun HomeScreen(go: (String) -> Unit) {
             },
         ) { padding ->
             LazyColumn(
+                state = listState,
                 modifier = Modifier.fillMaxSize().padding(padding),
                 contentPadding = PaddingValues(start = 14.dp, end = 14.dp, bottom = 96.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -248,9 +273,23 @@ fun HomeScreen(go: (String) -> Unit) {
                     if (recordSearch.isEmpty() && categorySearch.isEmpty()) item { Text("没有找到匹配内容", modifier = Modifier.padding(vertical = 20.dp)) }
                 } else {
                     item {
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            FilledTonalButton(onClick = { go("note/new/inbox") }, modifier = Modifier.weight(1f)) { Icon(Icons.Default.EditNote, null); Spacer(Modifier.width(6.dp)); Text("新建记录") }
-                            FilledTonalButton(onClick = { go("smart_input") }, modifier = Modifier.weight(1f)) { Icon(Icons.Default.Mic, null); Spacer(Modifier.width(6.dp)); Text("智能录入") }
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                FilledTonalButton(onClick = { go("note/new/inbox") }, modifier = Modifier.weight(1f)) { Icon(Icons.Default.EditNote, null); Spacer(Modifier.width(6.dp)); Text("新建记录") }
+                                FilledTonalButton(onClick = { go("smart_input") }, modifier = Modifier.weight(1f)) { Icon(Icons.Default.Mic, null); Spacer(Modifier.width(6.dp)); Text("智能录入") }
+                            }
+                            FilledTonalButton(
+                                onClick = { go("todos") },
+                                modifier = Modifier.fillMaxWidth(),
+                            ) {
+                                Icon(Icons.Default.Checklist, contentDescription = null)
+                                Spacer(Modifier.width(8.dp))
+                                Text("全部待办 · $pendingTodoCount 未完成")
+                                if (completedTodoCount > 0) {
+                                    Spacer(Modifier.weight(1f))
+                                    Text("$completedTodoCount 已完成", style = MaterialTheme.typography.labelMedium)
+                                }
+                            }
                         }
                     }
                     if (pinnedRecords.isNotEmpty()) {
