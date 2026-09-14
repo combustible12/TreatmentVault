@@ -88,7 +88,7 @@ jobs:
               "versionName": os.environ["VERSION_NAME"],
               "apkUrl": "https://raw.githubusercontent.com/combustible12/TreatmentVault-Updates/main/TreatmentVault-latest.apk",
               "sha256": os.environ["SHA"],
-              "notes": "修复图片查看器底部操作栏在窄屏或较大字体下超出屏幕的问题：操作区改为两行自适应布局，每行两个等宽按钮，并增加底部安全间距；左转、右转、适应、重置功能全部保留，所有按钮保证完整显示和可点击。"
+              "notes": "新增置顶功能：现在可在首页、文件夹列表的更多菜单，以及长按记录弹窗中直接置顶或取消置顶；文件夹内的置顶记录会优先排在顶部，首页继续集中显示置顶内容，全部记录页继续支持置顶筛选。"
           }
           with open("update-repo/update.json", "w", encoding="utf-8") as f:
               json.dump(data, f, ensure_ascii=False, indent=2)
