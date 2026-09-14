@@ -593,8 +593,8 @@ private fun FullScreenImageViewer(file: File, onDismiss: () -> Unit) {
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .fillMaxWidth()
-                    .navigationBarsPadding()
-                    .padding(start = 12.dp, end = 12.dp, bottom = 20.dp),
+                    .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom))
+                    .padding(start = 12.dp, end = 12.dp, bottom = 48.dp),
                 color = Color(0xCC222222),
                 contentColor = Color.White,
                 shape = MaterialTheme.shapes.extraLarge,
