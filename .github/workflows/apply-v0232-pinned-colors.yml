@@ -1,3 +1,4 @@
+# Temporary branch-only patch workflow for 0.23.2.
 name: Apply 0.23.2 Pinned Colors
 
 on:
