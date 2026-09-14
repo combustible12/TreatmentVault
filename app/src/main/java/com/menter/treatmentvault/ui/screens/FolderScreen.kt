@@ -396,7 +396,7 @@ private fun FolderRecordCard(
                         Checkbox(checked = state.completed, onCheckedChange = { onStateChange(state.copy(completed = it)) })
                     }
                     Text(recordDisplayTitle(item, state), color = contentColor, style = MaterialTheme.typography.titleMedium, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
-                    if (state.pinned) Icon(Icons.Default.PushPin, contentDescription = null, modifier = Modifier.size(14.dp), tint = contentColor)
+                    if (state.pinned) Icon(Icons.Default.PushPin, contentDescription = null, modifier = Modifier.size(14.dp), tint = pinnedRecordAccentColor())
                     if (state.favorite) Icon(Icons.Default.Favorite, contentDescription = null, modifier = Modifier.size(14.dp), tint = contentColor)
                 }
                 if (item.date.isNotBlank()) Text(item.date, color = contentColor, style = MaterialTheme.typography.labelSmall, maxLines = 1)

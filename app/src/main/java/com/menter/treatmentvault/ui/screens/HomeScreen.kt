@@ -442,7 +442,7 @@ private fun RecordListItem(
                 if (isTodo(state)) {
                     Checkbox(checked = state.completed, onCheckedChange = { onStateChange(state.copy(completed = it)) })
                 }
-                if (state.pinned) Icon(Icons.Default.PushPin, null, modifier = Modifier.size(16.dp), tint = contentColor)
+                if (state.pinned) Icon(Icons.Default.PushPin, null, modifier = Modifier.size(16.dp), tint = pinnedRecordAccentColor())
                 Text(recordDisplayTitle(item, state), maxLines = 1, overflow = TextOverflow.Ellipsis, color = contentColor)
             }
         },
