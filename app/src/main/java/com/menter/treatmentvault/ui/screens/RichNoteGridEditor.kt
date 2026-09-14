@@ -207,8 +207,12 @@ fun RichNoteBodyGridEditor(
         onDispose { latestRecorderSession?.let { cancelAudioRecording(context, it) } }
     }
 
-    fun move(from: Int, to: Int) {
-        if (from !in blocks.indices || to !in blocks.indices || from == to) return
+    fun currentIndexFor(block: RichBlock): Int = blocks.indexOfFirst { it.key == block.key }
+
+    fun moveBlock(block: RichBlock, delta: Int) {
+        val from = currentIndexFor(block)
+        val to = from + delta
+        if (from !in blocks.indices || to !in blocks.indices) return
         val item = blocks.removeAt(from)
         blocks.add(to, item)
         insertIndex = (to + 1).coerceAtMost(blocks.size)
@@ -216,9 +220,11 @@ fun RichNoteBodyGridEditor(
     }
 
     fun remove(index: Int, block: RichBlock) {
+        val actualIndex = currentIndexFor(block).takeIf { it >= 0 } ?: index
+        if (actualIndex !in blocks.indices) return
         when (block) {
             is RichBlock.TextBlock -> {
-                if (blocks.size == 1) blocks[index] = block.copy(text = "") else blocks.removeAt(index)
+                if (blocks.size == 1) blocks[actualIndex] = block.copy(text = "") else blocks.removeAt(actualIndex)
                 if (blocks.none { it is RichBlock.TextBlock }) blocks.add(0, RichBlock.TextBlock())
             }
             is RichBlock.ImageBlock -> {
@@ -228,7 +234,7 @@ fun RichNoteBodyGridEditor(
                 } else if (existing.any { it.fileName == block.fileName }) {
                     onRemovedFilesChange(removedFiles + block.fileName)
                 }
-                blocks.removeAt(index)
+                blocks.removeAt(actualIndex)
                 if (blocks.none { it is RichBlock.TextBlock }) blocks.add(0, RichBlock.TextBlock())
             }
             is RichBlock.AudioBlock -> {
@@ -238,7 +244,7 @@ fun RichNoteBodyGridEditor(
                 } else if (existing.any { it.fileName == block.fileName }) {
                     onRemovedFilesChange(removedFiles + block.fileName)
                 }
-                blocks.removeAt(index)
+                blocks.removeAt(actualIndex)
                 if (blocks.none { it is RichBlock.TextBlock }) blocks.add(0, RichBlock.TextBlock())
             }
         }
@@ -247,16 +253,17 @@ fun RichNoteBodyGridEditor(
     }
 
     @Composable
-    fun StandardControls(index: Int, block: RichBlock) {
+    fun StandardControls(blockIndex: Int, block: RichBlock) {
+        val liveIndex = currentIndexFor(block).takeIf { it >= 0 } ?: blockIndex
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(2.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            IconButton(onClick = { move(index, index - 1) }, enabled = index > 0) {
+            IconButton(onClick = { moveBlock(block, -1) }, enabled = liveIndex > 0) {
                 Icon(Icons.Default.ArrowUpward, contentDescription = "上移")
             }
-            IconButton(onClick = { move(index, index + 1) }, enabled = index < blocks.lastIndex) {
+            IconButton(onClick = { moveBlock(block, 1) }, enabled = liveIndex in 0 until blocks.lastIndex) {
                 Icon(Icons.Default.ArrowDownward, contentDescription = "下移")
             }
             if (block is RichBlock.TextBlock && standaloneWebUrl(block.text) != null) {
@@ -273,8 +280,9 @@ fun RichNoteBodyGridEditor(
                 }
             }
             TextButton(onClick = {
-                blocks.add(index + 1, RichBlock.TextBlock())
-                insertIndex = index + 2
+                val at = (currentIndexFor(block) + 1).coerceIn(0, blocks.size)
+                blocks.add(at, RichBlock.TextBlock())
+                insertIndex = at + 1
                 sync()
             }) {
                 Icon(Icons.Default.Add, contentDescription = null)
@@ -282,7 +290,7 @@ fun RichNoteBodyGridEditor(
                 Text("文字")
             }
             TextButton(onClick = {
-                insertIndex = index + 1
+                insertIndex = (currentIndexFor(block) + 1).coerceIn(0, blocks.size)
                 picker.launch(arrayOf("image/*"))
             }) {
                 Icon(Icons.Default.AddPhotoAlternate, contentDescription = null)
@@ -290,7 +298,7 @@ fun RichNoteBodyGridEditor(
                 Text("图片")
             }
             Spacer(Modifier.weight(1f))
-            IconButton(onClick = { remove(index, block) }) {
+            IconButton(onClick = { remove(liveIndex, block) }) {
                 Icon(Icons.Default.DeleteOutline, contentDescription = "删除区块")
             }
         }
@@ -371,14 +379,14 @@ fun RichNoteBodyGridEditor(
                         file = attachmentFile(context, imageBlock.fileName),
                     )
                 }
+                val firstBlock = imageItems.firstOrNull()?.block
+                val lastBlock = imageItems.lastOrNull()?.block
                 key(imageItems.joinToString("|") { it.block.key }) {
                     AutomaticNoteImageGrid(
                         images = imageItems,
                         onOpen = { previewFile = it },
                         onDelete = { imageIndex, imageBlock -> remove(imageIndex, imageBlock) },
                     )
-                    val firstIndex = index
-                    val lastIndex = end - 1
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -386,8 +394,10 @@ fun RichNoteBodyGridEditor(
                     ) {
                         TextButton(
                             onClick = {
-                                blocks.add(lastIndex + 1, RichBlock.TextBlock())
-                                insertIndex = lastIndex + 2
+                                val lastLive = lastBlock?.let(::currentIndexFor)?.takeIf { it >= 0 } ?: blocks.lastIndex
+                                val at = (lastLive + 1).coerceIn(0, blocks.size)
+                                blocks.add(at, RichBlock.TextBlock())
+                                insertIndex = at + 1
                                 sync()
                             },
                         ) {
@@ -397,7 +407,8 @@ fun RichNoteBodyGridEditor(
                         }
                         TextButton(
                             onClick = {
-                                insertIndex = lastIndex + 1
+                                val lastLive = lastBlock?.let(::currentIndexFor)?.takeIf { it >= 0 } ?: blocks.lastIndex
+                                insertIndex = (lastLive + 1).coerceIn(0, blocks.size)
                                 picker.launch(arrayOf("image/*"))
                             },
                         ) {
@@ -407,19 +418,16 @@ fun RichNoteBodyGridEditor(
                         }
                         Spacer(Modifier.weight(1f))
                         IconButton(
-                            onClick = {
-                                if (firstIndex > 0) {
-                                    repeat(imageItems.size) { move(firstIndex + it, firstIndex + it - 1) }
-                                }
-                            },
-                            enabled = firstIndex > 0,
+                            onClick = { firstBlock?.let { moveBlock(it, -1) } },
+                            enabled = firstBlock?.let(::currentIndexFor)?.let { it > 0 } == true,
                         ) {
-                            Icon(Icons.Default.ArrowUpward, contentDescription = "图片区上移")
+                            Icon(Icons.Default.ArrowUpward, contentDescription = "第一张图片上移")
                         }
                     }
                 }
                 index = end
             } else {
+                val blockIndex = index
                 key(block.key) {
                     when (block) {
                         is RichBlock.TextBlock -> {
@@ -438,11 +446,14 @@ fun RichNoteBodyGridEditor(
                                     OutlinedTextField(
                                         value = block.text,
                                         onValueChange = { next ->
-                                            blocks[index] = block.copy(text = next)
-                                            sync()
+                                            val liveIndex = currentIndexFor(block)
+                                            if (liveIndex >= 0) {
+                                                blocks[liveIndex] = block.copy(text = next)
+                                                sync()
+                                            }
                                         },
                                         modifier = Modifier.fillMaxWidth(),
-                                        placeholder = { Text(if (index == 0) "直接写内容或粘贴链接…" else "继续写…") },
+                                        placeholder = { Text(if (blockIndex == 0) "直接写内容或粘贴链接…" else "继续写…") },
                                         minLines = 3,
                                     )
                                     GridEditorLinkActions(block.text)
@@ -468,7 +479,7 @@ fun RichNoteBodyGridEditor(
                         }
                         is RichBlock.ImageBlock -> Unit
                     }
-                    StandardControls(index, block)
+                    StandardControls(blockIndex, block)
                 }
                 index++
             }
