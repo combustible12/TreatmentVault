@@ -418,6 +418,20 @@ private fun FolderRecordCard(
                             leadingIcon = { Icon(Icons.Default.PushPin, contentDescription = null) },
                             onClick = { menuOpen = false; onStateChange(state.copy(pinned = !state.pinned)) },
                         )
+                        DropdownMenuItem(
+                            text = { Text("删除") },
+                            leadingIcon = { Icon(Icons.Default.DeleteOutline, contentDescription = null) },
+                            onClick = {
+                                menuOpen = false
+                                onStateChange(
+                                    state.copy(
+                                        trashedAt = System.currentTimeMillis(),
+                                        archived = false,
+                                        pinned = false,
+                                    )
+                                )
+                            },
+                        )
                     }
                 }
             }
