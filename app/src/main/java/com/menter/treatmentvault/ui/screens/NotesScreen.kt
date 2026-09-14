@@ -199,7 +199,7 @@ fun NoteEditorScreen(noteId: Long, initialCategoryId: String?, back: () -> Unit)
                     )
                 }
                 item {
-                    RichNoteBodyEditor(
+                    RichNoteBodyGridEditor(
                         dao = dao,
                         ownerType = "note",
                         ownerId = persistedId,
