@@ -88,7 +88,7 @@ jobs:
               "versionName": os.environ["VERSION_NAME"],
               "apkUrl": "https://raw.githubusercontent.com/combustible12/TreatmentVault-Updates/main/TreatmentVault-latest.apk",
               "sha256": os.environ["SHA"],
-              "notes": "新增独立“悬浮录音”板块：开启一次后可在桌面或其他 App 中使用常驻纯色悬浮球，单击直接开始/停止录音且不跳转录音页面；悬浮球待机约 30% 透明度、可拖动，录音完成后自动保存到悬浮录音列表并纳入现有附件备份。"
+              "notes": "增强悬浮录音：录音中悬浮球由圆形变为圆角方块，长按可在当前时间快速打标；首页新增悬浮录音快捷入口。录音回放新增可拖动进度条、0.75x~2x倍速、时间标记新增/编辑/删除与标记列表跳转，并提供可选的连续静音跳过播放。笔记图片也增强：单张保持大图，连续放入2张及以上图片自动按两列宫格显示，点图仍可查看高清原图；所有录音标记和图片数据继续随现有备份保存。"
           }
           with open("update-repo/update.json", "w", encoding="utf-8") as f:
               json.dump(data, f, ensure_ascii=False, indent=2)
