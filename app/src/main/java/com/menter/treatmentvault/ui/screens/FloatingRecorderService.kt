@@ -51,6 +51,7 @@ class FloatingRecorderService : Service() {
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private lateinit var windowManager: WindowManager
     private var bubbleView: View? = null
+    private var bubbleDrawable: GradientDrawable? = null
     private var bubbleParams: WindowManager.LayoutParams? = null
     private var recorderSession: AudioRecorderSession? = null
 
@@ -79,15 +80,17 @@ class FloatingRecorderService : Service() {
 
         val size = dp(38)
         val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val drawable = GradientDrawable().apply {
+            shape = GradientDrawable.OVAL
+            setColor(Color.rgb(84, 78, 72))
+        }
         val view = View(this).apply {
-            background = GradientDrawable().apply {
-                shape = GradientDrawable.OVAL
-                setColor(Color.rgb(84, 78, 72))
-            }
+            background = drawable
             alpha = 0.30f
             elevation = dp(4).toFloat()
             contentDescription = "悬浮录音"
         }
+        bubbleDrawable = drawable
 
         val params = WindowManager.LayoutParams(
             size,
@@ -144,6 +147,22 @@ class FloatingRecorderService : Service() {
         bubbleParams = params
     }
 
+    private fun updateBubbleRecordingState(recording: Boolean) {
+        val drawable = bubbleDrawable ?: return
+        if (recording) {
+            drawable.shape = GradientDrawable.RECTANGLE
+            drawable.cornerRadius = dp(10).toFloat()
+            bubbleView?.animate()?.alpha(0.40f)?.setDuration(120)?.start()
+            bubbleView?.contentDescription = "正在悬浮录音"
+        } else {
+            drawable.shape = GradientDrawable.OVAL
+            drawable.cornerRadius = 0f
+            bubbleView?.animate()?.alpha(0.30f)?.setDuration(120)?.start()
+            bubbleView?.contentDescription = "悬浮录音"
+        }
+        bubbleView?.invalidate()
+    }
+
     private fun toggleRecording() {
         if (recorderSession == null) startRecording() else stopRecordingAndPersist()
     }
@@ -152,10 +171,11 @@ class FloatingRecorderService : Service() {
         runCatching { createAudioRecorderSession(this) }
             .onSuccess {
                 recorderSession = it
-                bubbleView?.animate()?.alpha(0.38f)?.setDuration(120)?.start()
+                updateBubbleRecordingState(recording = true)
                 startForegroundCompat(buildNotification(recording = true))
             }
             .onFailure {
+                updateBubbleRecordingState(recording = false)
                 Toast.makeText(this, "无法开始录音，请检查麦克风权限", Toast.LENGTH_SHORT).show()
             }
     }
@@ -164,7 +184,7 @@ class FloatingRecorderService : Service() {
         val session = recorderSession ?: return
         recorderSession = null
         val saved = finishAudioRecording(this, session)
-        bubbleView?.animate()?.alpha(0.30f)?.setDuration(120)?.start()
+        updateBubbleRecordingState(recording = false)
         startForegroundCompat(buildNotification(recording = false))
 
         if (!saved) {
@@ -220,7 +240,7 @@ class FloatingRecorderService : Service() {
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.ic_dialog_info)
             .setContentTitle(if (recording) "正在录音" else "悬浮录音已开启")
-            .setContentText(if (recording) "点击悬浮球可停止并保存" else "点击悬浮球可直接开始录音")
+            .setContentText(if (recording) "悬浮球已变成圆角方块；点击可停止并保存" else "点击圆形悬浮球可直接开始录音")
             .setOngoing(true)
             .setOnlyAlertOnce(true)
             .setContentIntent(pendingIntent)
@@ -262,6 +282,7 @@ class FloatingRecorderService : Service() {
 
         bubbleView?.let { runCatching { windowManager.removeView(it) } }
         bubbleView = null
+        bubbleDrawable = null
         getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit().putBoolean(PREF_ENABLED, false).apply()
         serviceScope.cancel()
         super.onDestroy()
