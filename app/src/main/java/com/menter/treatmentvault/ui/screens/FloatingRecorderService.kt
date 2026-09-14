@@ -13,6 +13,7 @@ import android.graphics.PixelFormat
 import android.graphics.drawable.GradientDrawable
 import android.os.Build
 import android.os.IBinder
+import android.os.SystemClock
 import android.provider.Settings
 import android.view.Gravity
 import android.view.HapticFeedbackConstants
@@ -46,6 +47,7 @@ class FloatingRecorderService : Service() {
         private const val PREF_Y = "bubble_y"
         private const val CHANNEL_ID = "floating_recorder"
         private const val NOTIFICATION_ID = 4102
+        private const val LONG_PRESS_MS = 550L
     }
 
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -54,6 +56,7 @@ class FloatingRecorderService : Service() {
     private var bubbleDrawable: GradientDrawable? = null
     private var bubbleParams: WindowManager.LayoutParams? = null
     private var recorderSession: AudioRecorderSession? = null
+    private val pendingMarkers = mutableListOf<AudioTimeMarker>()
 
     override fun onCreate() {
         super.onCreate()
@@ -111,6 +114,7 @@ class FloatingRecorderService : Service() {
         var downRawY = 0f
         var startX = 0
         var startY = 0
+        var downAtMs = 0L
 
         view.setOnTouchListener { v, event ->
             when (event.actionMasked) {
@@ -119,6 +123,7 @@ class FloatingRecorderService : Service() {
                     downRawY = event.rawY
                     startX = params.x
                     startY = params.y
+                    downAtMs = SystemClock.elapsedRealtime()
                     true
                 }
                 MotionEvent.ACTION_MOVE -> {
@@ -131,8 +136,14 @@ class FloatingRecorderService : Service() {
                     val dx = abs(event.rawX - downRawX)
                     val dy = abs(event.rawY - downRawY)
                     if (dx <= touchSlop && dy <= touchSlop) {
-                        v.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-                        toggleRecording()
+                        val heldFor = SystemClock.elapsedRealtime() - downAtMs
+                        if (heldFor >= LONG_PRESS_MS && recorderSession != null) {
+                            v.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+                            addQuickMarker()
+                        } else {
+                            v.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                            toggleRecording()
+                        }
                     } else {
                         prefs.edit().putInt(PREF_X, params.x).putInt(PREF_Y, params.y).apply()
                     }
@@ -153,7 +164,7 @@ class FloatingRecorderService : Service() {
             drawable.shape = GradientDrawable.RECTANGLE
             drawable.cornerRadius = dp(10).toFloat()
             bubbleView?.animate()?.alpha(0.40f)?.setDuration(120)?.start()
-            bubbleView?.contentDescription = "正在悬浮录音"
+            bubbleView?.contentDescription = "正在悬浮录音，长按可标记时间点"
         } else {
             drawable.shape = GradientDrawable.OVAL
             drawable.cornerRadius = 0f
@@ -161,6 +172,15 @@ class FloatingRecorderService : Service() {
             bubbleView?.contentDescription = "悬浮录音"
         }
         bubbleView?.invalidate()
+    }
+
+    private fun addQuickMarker() {
+        val session = recorderSession ?: return
+        val elapsed = (SystemClock.elapsedRealtime() - session.startedAtMs).coerceAtLeast(0L)
+        val marker = AudioTimeMarker(elapsed, "标记 ${pendingMarkers.size + 1}")
+        pendingMarkers += marker
+        val seconds = elapsed / 1000L
+        Toast.makeText(this, "已标记 %02d:%02d".format(seconds / 60L, seconds % 60L), Toast.LENGTH_SHORT).show()
     }
 
     private fun toggleRecording() {
@@ -171,10 +191,12 @@ class FloatingRecorderService : Service() {
         runCatching { createAudioRecorderSession(this) }
             .onSuccess {
                 recorderSession = it
+                pendingMarkers.clear()
                 updateBubbleRecordingState(recording = true)
                 startForegroundCompat(buildNotification(recording = true))
             }
             .onFailure {
+                pendingMarkers.clear()
                 updateBubbleRecordingState(recording = false)
                 Toast.makeText(this, "无法开始录音，请检查麦克风权限", Toast.LENGTH_SHORT).show()
             }
@@ -182,6 +204,8 @@ class FloatingRecorderService : Service() {
 
     private fun stopRecordingAndPersist() {
         val session = recorderSession ?: return
+        val markers = pendingMarkers.toList()
+        pendingMarkers.clear()
         recorderSession = null
         val saved = finishAudioRecording(this, session)
         updateBubbleRecordingState(recording = false)
@@ -193,12 +217,12 @@ class FloatingRecorderService : Service() {
         }
 
         serviceScope.launch {
-            runCatching { persistRecording(session.fileName) }
+            runCatching { persistRecording(session.fileName, markers) }
                 .onFailure { attachmentFile(this@FloatingRecorderService, session.fileName).delete() }
         }
     }
 
-    private suspend fun persistRecording(fileName: String) {
+    private suspend fun persistRecording(fileName: String, markers: List<AudioTimeMarker>) {
         val app = applicationContext as TreatmentVaultApplication
         val dao = app.database.dao()
         if (dao.categoryByKey("floating_audio") == null) {
@@ -218,12 +242,13 @@ class FloatingRecorderService : Service() {
         val now = LocalDateTime.now()
         val fullTime = now.format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"))
         val shortTime = now.format(DateTimeFormatter.ofPattern("MM-dd HH:mm"))
+        val content = contentWithAudioMarkers("[[audio:$fileName]]", markers)
         val id = dao.saveCustomEntry(
             CustomEntryEntity(
                 categoryId = "floating_audio",
                 date = fullTime,
                 title = "录音 $shortTime",
-                content = "[[audio:$fileName]]",
+                content = content,
             )
         )
         dao.saveAttachment(AttachmentEntity(ownerType = "note", ownerId = id, fileName = fileName))
@@ -240,7 +265,7 @@ class FloatingRecorderService : Service() {
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.ic_dialog_info)
             .setContentTitle(if (recording) "正在录音" else "悬浮录音已开启")
-            .setContentText(if (recording) "悬浮球已变成圆角方块；点击可停止并保存" else "点击圆形悬浮球可直接开始录音")
+            .setContentText(if (recording) "短按停止并保存；长按圆角方块可添加时间标记" else "点击圆形悬浮球可直接开始录音")
             .setOngoing(true)
             .setOnlyAlertOnce(true)
             .setContentIntent(pendingIntent)
@@ -270,10 +295,12 @@ class FloatingRecorderService : Service() {
 
     override fun onDestroy() {
         recorderSession?.let { session ->
+            val markers = pendingMarkers.toList()
             recorderSession = null
+            pendingMarkers.clear()
             if (finishAudioRecording(this, session)) {
                 runCatching {
-                    runBlocking(Dispatchers.IO) { persistRecording(session.fileName) }
+                    runBlocking(Dispatchers.IO) { persistRecording(session.fileName, markers) }
                 }.onFailure {
                     attachmentFile(this, session.fileName).delete()
                 }
