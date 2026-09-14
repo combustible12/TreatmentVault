@@ -30,53 +30,40 @@ jobs:
                   raise SystemExit(f'{path}: expected exactly 1 match, found {count}')
               p.write_text(text.replace(old, new, 1), encoding='utf-8')
 
-          # Home: expose pin/unpin in the record overflow menu.
           replace_once(
               'app/src/main/java/com/menter/treatmentvault/ui/screens/HomeScreen.kt',
               '''                        DropdownMenuItem(\n                            text = { Text(if (isTodo(state)) "切换为普通条目" else "切换为待办事项") },\n                            leadingIcon = { Icon(if (isTodo(state)) Icons.Default.Notes else Icons.Default.CheckBox, contentDescription = null) },\n                            onClick = { menuOpen = false; onStateChange(toggleTodoDisplay(state)) },\n                        )\n''',
               '''                        DropdownMenuItem(\n                            text = { Text(if (isTodo(state)) "切换为普通条目" else "切换为待办事项") },\n                            leadingIcon = { Icon(if (isTodo(state)) Icons.Default.Notes else Icons.Default.CheckBox, contentDescription = null) },\n                            onClick = { menuOpen = false; onStateChange(toggleTodoDisplay(state)) },\n                        )\n                        DropdownMenuItem(\n                            text = { Text(if (state.pinned) "取消置顶" else "置顶") },\n                            leadingIcon = { Icon(Icons.Default.PushPin, contentDescription = null) },\n                            onClick = { menuOpen = false; onStateChange(state.copy(pinned = !state.pinned)) },\n                        )\n'''
           )
 
-          # Folder: pin first, then unfinished todos, then recency; include stateMap in remember keys.
           replace_once(
               'app/src/main/java/com/menter/treatmentvault/ui/screens/FolderScreen.kt',
               '''    val directItems = remember(activeItems, categoryId) {\n        activeItems.filter { categoryId in it.folderKeys }\n            .sortedWith(compareByDescending<UnifiedRecordItem> { isTodo(recordStateFor(it, stateMap)) && !recordStateFor(it, stateMap).completed }.thenByDescending { it.updatedAt })\n    }\n''',
               '''    val directItems = remember(activeItems, stateMap, categoryId) {\n        activeItems.filter { categoryId in it.folderKeys }\n            .sortedWith(\n                compareByDescending<UnifiedRecordItem> { recordStateFor(it, stateMap).pinned }\n                    .thenByDescending { isTodo(recordStateFor(it, stateMap)) && !recordStateFor(it, stateMap).completed }\n                    .thenByDescending { it.updatedAt }\n            )\n    }\n'''
           )
 
-          # Folder: expose pin/unpin in each record overflow menu.
           replace_once(
               'app/src/main/java/com/menter/treatmentvault/ui/screens/FolderScreen.kt',
               '''                        DropdownMenuItem(\n                            text = { Text(if (isTodo(state)) "切换为普通条目" else "切换为待办事项") },\n                            leadingIcon = { Icon(if (isTodo(state)) Icons.Default.Notes else Icons.Default.CheckBox, contentDescription = null) },\n                            onClick = { menuOpen = false; onStateChange(toggleTodoDisplay(state)) },\n                        )\n''',
               '''                        DropdownMenuItem(\n                            text = { Text(if (isTodo(state)) "切换为普通条目" else "切换为待办事项") },\n                            leadingIcon = { Icon(if (isTodo(state)) Icons.Default.Notes else Icons.Default.CheckBox, contentDescription = null) },\n                            onClick = { menuOpen = false; onStateChange(toggleTodoDisplay(state)) },\n                        )\n                        DropdownMenuItem(\n                            text = { Text(if (state.pinned) "取消置顶" else "置顶") },\n                            leadingIcon = { Icon(Icons.Default.PushPin, contentDescription = null) },\n                            onClick = { menuOpen = false; onStateChange(state.copy(pinned = !state.pinned)) },\n                        )\n'''
           )
 
-          # Long press dialog: add pin icon imports.
           replace_once(
               'app/src/main/java/com/menter/treatmentvault/ui/screens/RecordFolderUi.kt',
               '''import androidx.compose.foundation.lazy.items\nimport androidx.compose.material3.*\n''',
               '''import androidx.compose.foundation.lazy.items\nimport androidx.compose.material.icons.Icons\nimport androidx.compose.material.icons.filled.PushPin\nimport androidx.compose.material3.*\n'''
           )
 
-          # Long press dialog: direct pin/unpin action next to the existing organization tools.
           replace_once(
               'app/src/main/java/com/menter/treatmentvault/ui/screens/RecordFolderUi.kt',
               '''                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {\n                        TextButton(\n                            onClick = { renameText = displayTitle; renaming = true },\n                            modifier = Modifier.weight(1f),\n                        ) { Text("重命名") }\n                        if (onFoldersChange != null) {\n                            TextButton(onClick = { managing = true }, modifier = Modifier.weight(1f)) {\n                                Text("管理归属")\n                            }\n                        }\n                    }\n''',
               '''                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {\n                        TextButton(\n                            onClick = { renameText = displayTitle; renaming = true },\n                            modifier = Modifier.weight(1f),\n                        ) { Text("重命名") }\n                        if (onFoldersChange != null) {\n                            TextButton(onClick = { managing = true }, modifier = Modifier.weight(1f)) {\n                                Text("管理归属")\n                            }\n                        }\n                    }\n                    currentState?.let { state ->\n                        FilledTonalButton(\n                            onClick = {\n                                val next = state.copy(\n                                    pinned = !state.pinned,\n                                    updatedAt = System.currentTimeMillis(),\n                                )\n                                scope.launch {\n                                    dao.saveRecordState(next)\n                                    currentState = next\n                                }\n                            },\n                            modifier = Modifier.fillMaxWidth(),\n                        ) {\n                            Icon(Icons.Default.PushPin, contentDescription = null)\n                            Spacer(Modifier.width(6.dp))\n                            Text(if (state.pinned) "取消置顶" else "置顶")\n                        }\n                    }\n'''
           )
 
-          # Version bump.
           replace_once(
               'app/build.gradle.kts',
               '''        versionCode = 35\n        versionName = "0.22.1"\n''',
               '''        versionCode = 36\n        versionName = "0.23.0"\n'''
-          )
-
-          # Update channel release notes for the main build that will publish 0.23.0.
-          replace_once(
-              '.github/workflows/android.yml',
-              '"notes": "修复图片查看器底部操作栏在窄屏或较大字体下超出屏幕的问题：操作区改为两行自适应布局，每行两个等宽按钮，并增加底部安全间距；左转、右转、适应、重置功能全部保留，所有按钮保证完整显示和可点击。"',
-              '"notes": "新增置顶功能：现在可在首页、文件夹列表的更多菜单，以及长按记录弹窗中直接置顶或取消置顶；文件夹内的置顶记录会优先排在顶部，首页继续集中显示置顶内容，全部记录页继续支持置顶筛选。"'
           )
           PY
 
@@ -93,7 +80,6 @@ jobs:
           git add app/src/main/java/com/menter/treatmentvault/ui/screens/HomeScreen.kt \
                   app/src/main/java/com/menter/treatmentvault/ui/screens/FolderScreen.kt \
                   app/src/main/java/com/menter/treatmentvault/ui/screens/RecordFolderUi.kt \
-                  app/build.gradle.kts \
-                  .github/workflows/android.yml
+                  app/build.gradle.kts
           git commit -m "Add record pinning controls for 0.23.0"
           git push origin HEAD:feature/pinning-0.23.0
