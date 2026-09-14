@@ -464,6 +464,11 @@ private fun RecordListItem(
                             leadingIcon = { Icon(if (isTodo(state)) Icons.Default.Notes else Icons.Default.CheckBox, contentDescription = null) },
                             onClick = { menuOpen = false; onStateChange(toggleTodoDisplay(state)) },
                         )
+                        DropdownMenuItem(
+                            text = { Text(if (state.pinned) "取消置顶" else "置顶") },
+                            leadingIcon = { Icon(Icons.Default.PushPin, contentDescription = null) },
+                            onClick = { menuOpen = false; onStateChange(state.copy(pinned = !state.pinned)) },
+                        )
                     }
                 }
             }
