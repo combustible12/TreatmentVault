@@ -11,6 +11,10 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -18,6 +22,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import com.menter.treatmentvault.TreatmentVaultApplication
+import kotlinx.coroutines.launch
 
 @Composable
 fun FloatingAudioScreen(back: () -> Unit) {
@@ -28,9 +33,11 @@ fun FloatingAudioScreen(back: () -> Unit) {
     val recordings = remember(entries) {
         entries.filter { it.categoryId == "floating_audio" }.sortedByDescending { it.updatedAt }
     }
+    val scope = rememberCoroutineScope()
     val prefs = remember { context.getSharedPreferences(FloatingRecorderService.PREFS_NAME, Context.MODE_PRIVATE) }
     var enabled by remember { mutableStateOf(prefs.getBoolean(FloatingRecorderService.PREF_ENABLED, false)) }
     var message by remember { mutableStateOf("") }
+    var expandedRecordingId by remember { mutableStateOf<Long?>(null) }
 
     fun startFloatingRecorder() {
         ContextCompat.startForegroundService(
@@ -108,7 +115,11 @@ fun FloatingAudioScreen(back: () -> Unit) {
                             )
                         }
                         Text(
-                            "悬浮球是纯色圆点：待机约 30% 透明度，录音中只略微加深，不显示麦克风图标；可拖动位置。",
+                            "待机是半透明圆点；开始录音后会直接变成圆角方块，比只改透明度更容易一眼确认。可拖动位置。",
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                        Text(
+                            "录音保存后可拖动进度、倍速播放、添加时间标记和从标记列表直接跳转；“跳过静音”只影响播放，不会裁剪原文件。",
                             style = MaterialTheme.typography.bodySmall,
                         )
                         Text(
@@ -136,14 +147,55 @@ fun FloatingAudioScreen(back: () -> Unit) {
             } else {
                 items(recordings, key = { it.id }) { entry ->
                     val fileName = remember(entry.content) { richBodyAudioNames(entry.content).firstOrNull() }
+                    val markers = remember(entry.content) { audioMarkersFromContent(entry.content) }
+                    val expanded = expandedRecordingId == entry.id
                     Card(Modifier.fillMaxWidth()) {
-                        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                            Text(entry.title.ifBlank { "录音" }, style = MaterialTheme.typography.titleSmall)
-                            if (entry.date.isNotBlank()) Text(entry.date, style = MaterialTheme.typography.bodySmall)
-                            if (fileName != null) {
+                        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Column(Modifier.weight(1f)) {
+                                    Text(entry.title.ifBlank { "录音" }, style = MaterialTheme.typography.titleSmall)
+                                    if (entry.date.isNotBlank()) Text(entry.date, style = MaterialTheme.typography.bodySmall)
+                                    if (markers.isNotEmpty()) {
+                                        Text("${markers.size} 个时间标记", style = MaterialTheme.typography.labelSmall)
+                                    }
+                                }
+                                OutlinedButton(onClick = {
+                                    expandedRecordingId = if (expanded) null else entry.id
+                                }) {
+                                    Icon(
+                                        if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                                        contentDescription = null,
+                                    )
+                                    Spacer(Modifier.width(4.dp))
+                                    Text(if (expanded) "收起" else "播放 / 标记")
+                                }
+                            }
+
+                            if (expanded && fileName != null) {
                                 val file = attachmentFile(context, fileName)
-                                if (file.isFile) AudioBlockPlayer(file)
-                                else Text("录音文件不存在", style = MaterialTheme.typography.bodySmall)
+                                if (file.isFile) {
+                                    AdvancedAudioPlayer(
+                                        file = file,
+                                        markers = markers,
+                                        onMarkersChange = { nextMarkers ->
+                                            scope.launch {
+                                                dao.updateCustomEntry(
+                                                    entry.copy(
+                                                        content = contentWithAudioMarkers(entry.content, nextMarkers),
+                                                        updatedAt = System.currentTimeMillis(),
+                                                    )
+                                                )
+                                            }
+                                        },
+                                    )
+                                } else {
+                                    Text("录音文件不存在", style = MaterialTheme.typography.bodySmall)
+                                }
+                            } else if (fileName == null) {
+                                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    Icon(Icons.Default.GraphicEq, contentDescription = null)
+                                    Text("没有找到可播放的录音文件", style = MaterialTheme.typography.bodySmall)
+                                }
                             }
                         }
                     }
