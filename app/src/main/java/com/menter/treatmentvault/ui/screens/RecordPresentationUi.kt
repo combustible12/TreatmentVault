@@ -1,5 +1,6 @@
 package com.menter.treatmentvault.ui.screens
 
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
@@ -17,9 +18,22 @@ internal fun recordDisplayTitle(item: UnifiedRecordItem, state: RecordStateEntit
     state.customTitle?.trim()?.takeIf { it.isNotEmpty() } ?: item.title
 
 @Composable
+internal fun pinnedRecordContainerColor(): Color =
+    if (isSystemInDarkTheme()) Color(0xFF4A3620) else Color(0xFFFFF1D6)
+
+@Composable
+internal fun pinnedRecordContentColor(): Color =
+    if (isSystemInDarkTheme()) Color(0xFFFFE0A8) else Color(0xFF3B2600)
+
+@Composable
+internal fun pinnedRecordAccentColor(): Color =
+    if (isSystemInDarkTheme()) Color(0xFFFFB95C) else Color(0xFFB86B00)
+
+@Composable
 internal fun recordBackgroundColor(state: RecordStateEntity, normal: Color = Color.Transparent): Color = when {
     isTodo(state) && state.completed -> MaterialTheme.colorScheme.surfaceVariant
     isTodo(state) -> MaterialTheme.colorScheme.tertiaryContainer
+    state.pinned -> pinnedRecordContainerColor()
     else -> normal
 }
 
@@ -27,6 +41,7 @@ internal fun recordBackgroundColor(state: RecordStateEntity, normal: Color = Col
 internal fun recordContentColor(state: RecordStateEntity): Color = when {
     isTodo(state) && state.completed -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.55f)
     isTodo(state) -> MaterialTheme.colorScheme.onTertiaryContainer
+    state.pinned -> pinnedRecordContentColor()
     else -> MaterialTheme.colorScheme.onSurface
 }
 

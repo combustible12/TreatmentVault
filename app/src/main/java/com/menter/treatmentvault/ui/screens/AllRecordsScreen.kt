@@ -240,7 +240,7 @@ private fun UnifiedRecordRow(
                         onCheckedChange = { onStateChange(state.copy(completed = it)) },
                     )
                 }
-                if (state.pinned && shelf != RecordShelf.TRASH) Icon(Icons.Default.PushPin, contentDescription = null, modifier = Modifier.size(16.dp), tint = contentColor)
+                if (state.pinned && shelf != RecordShelf.TRASH) Icon(Icons.Default.PushPin, contentDescription = null, modifier = Modifier.size(16.dp), tint = pinnedRecordAccentColor())
                 Text(recordDisplayTitle(item, state), maxLines = 1, overflow = TextOverflow.Ellipsis, color = contentColor)
             }
         },
