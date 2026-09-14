@@ -56,9 +56,13 @@ fun FolderScreen(categoryId: String, back: () -> Unit, go: (String) -> Unit) {
         categories.filter { it.parentId == categoryId && isFolderCategory(it) && !it.hidden }
             .sortedWith(compareBy<CategoryEntity> { it.sortOrder }.thenBy { it.name })
     }
-    val directItems = remember(activeItems, categoryId) {
+    val directItems = remember(activeItems, stateMap, categoryId) {
         activeItems.filter { categoryId in it.folderKeys }
-            .sortedWith(compareByDescending<UnifiedRecordItem> { isTodo(recordStateFor(it, stateMap)) && !recordStateFor(it, stateMap).completed }.thenByDescending { it.updatedAt })
+            .sortedWith(
+                compareByDescending<UnifiedRecordItem> { recordStateFor(it, stateMap).pinned }
+                    .thenByDescending { isTodo(recordStateFor(it, stateMap)) && !recordStateFor(it, stateMap).completed }
+                    .thenByDescending { it.updatedAt }
+            )
     }
     val collectableRecords = remember(activeItems, categoryId) {
         activeItems.filter { categoryId !in it.folderKeys }.sortedByDescending { it.updatedAt }
@@ -408,6 +412,11 @@ private fun FolderRecordCard(
                             text = { Text(if (isTodo(state)) "切换为普通条目" else "切换为待办事项") },
                             leadingIcon = { Icon(if (isTodo(state)) Icons.Default.Notes else Icons.Default.CheckBox, contentDescription = null) },
                             onClick = { menuOpen = false; onStateChange(toggleTodoDisplay(state)) },
+                        )
+                        DropdownMenuItem(
+                            text = { Text(if (state.pinned) "取消置顶" else "置顶") },
+                            leadingIcon = { Icon(Icons.Default.PushPin, contentDescription = null) },
+                            onClick = { menuOpen = false; onStateChange(state.copy(pinned = !state.pinned)) },
                         )
                     }
                 }

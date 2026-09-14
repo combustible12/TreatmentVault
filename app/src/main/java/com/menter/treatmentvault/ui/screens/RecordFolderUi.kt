@@ -4,6 +4,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -113,6 +115,25 @@ internal fun RecordFolderOwnershipDialog(
                             TextButton(onClick = { managing = true }, modifier = Modifier.weight(1f)) {
                                 Text("管理归属")
                             }
+                        }
+                    }
+                    currentState?.let { state ->
+                        FilledTonalButton(
+                            onClick = {
+                                val next = state.copy(
+                                    pinned = !state.pinned,
+                                    updatedAt = System.currentTimeMillis(),
+                                )
+                                scope.launch {
+                                    dao.saveRecordState(next)
+                                    currentState = next
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            Icon(Icons.Default.PushPin, contentDescription = null)
+                            Spacer(Modifier.width(6.dp))
+                            Text(if (state.pinned) "取消置顶" else "置顶")
                         }
                     }
                 } else {
