@@ -171,6 +171,8 @@ internal fun AdvancedAudioPlayer(
     var markerDialogOpen by remember { mutableStateOf(false) }
     var pendingMarkerMs by remember { mutableLongStateOf(0L) }
     var markerLabel by remember { mutableStateOf("") }
+    var editingMarker by remember { mutableStateOf<AudioTimeMarker?>(null) }
+    var editingLabel by remember { mutableStateOf("") }
 
     DisposableEffect(player) {
         player?.setOnCompletionListener {
@@ -335,13 +337,13 @@ internal fun AdvancedAudioPlayer(
 
             Text("标记列表 · ${markers.size}", style = MaterialTheme.typography.titleSmall)
             if (markers.isEmpty()) {
-                Text("还没有标记。播放到需要记住的位置时，点“添加标记”。", style = MaterialTheme.typography.bodySmall)
+                Text("还没有标记。播放到需要记住的位置时，点“添加标记”。录音时也可以长按悬浮方块快速打标。", style = MaterialTheme.typography.bodySmall)
             } else {
                 markers.sortedBy { it.positionMs }.forEach { marker ->
                     Row(
                         modifier = Modifier.fillMaxWidth().clickable { seekTo(marker.positionMs) }.padding(vertical = 4.dp),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
                     ) {
                         AssistChip(
                             onClick = { seekTo(marker.positionMs) },
@@ -349,6 +351,14 @@ internal fun AdvancedAudioPlayer(
                             leadingIcon = { Icon(Icons.Default.Flag, contentDescription = null, modifier = Modifier.size(16.dp)) },
                         )
                         Text(marker.label, modifier = Modifier.weight(1f), maxLines = 2, overflow = TextOverflow.Ellipsis)
+                        IconButton(
+                            onClick = {
+                                editingMarker = marker
+                                editingLabel = marker.label
+                            },
+                        ) {
+                            Icon(Icons.Default.Edit, contentDescription = "编辑标记")
+                        }
                         IconButton(
                             onClick = { onMarkersChange(markers.filterNot { it === marker }) },
                         ) {
@@ -385,6 +395,40 @@ internal fun AdvancedAudioPlayer(
                 }) { Text("保存") }
             },
             dismissButton = { TextButton(onClick = { markerDialogOpen = false }) { Text("取消") } },
+        )
+    }
+
+    editingMarker?.let { target ->
+        AlertDialog(
+            onDismissRequest = { editingMarker = null },
+            title = { Text("编辑标记") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text("时间点：${formatAudioTime(target.positionMs)}")
+                    OutlinedTextField(
+                        value = editingLabel,
+                        onValueChange = { editingLabel = it },
+                        label = { Text("标签内容") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    val newLabel = editingLabel.trim().ifBlank { target.label }
+                    var replaced = false
+                    val updated = markers.map { marker ->
+                        if (!replaced && marker === target) {
+                            replaced = true
+                            marker.copy(label = newLabel)
+                        } else marker
+                    }
+                    onMarkersChange(updated)
+                    editingMarker = null
+                }) { Text("保存") }
+            },
+            dismissButton = { TextButton(onClick = { editingMarker = null }) { Text("取消") } },
         )
     }
 }
