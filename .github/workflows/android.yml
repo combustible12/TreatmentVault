@@ -88,7 +88,7 @@ jobs:
               "versionName": os.environ["VERSION_NAME"],
               "apkUrl": "https://raw.githubusercontent.com/combustible12/TreatmentVault-Updates/main/TreatmentVault-latest.apk",
               "sha256": os.environ["SHA"],
-              "notes": "链接显示优化：单独粘贴 http/https 链接时自动收成小链接图标，点击图标仍可直接打开；原始 URL 继续完整保存在正文中，因此搜索、备份和恢复不受影响。文字中夹带链接时继续保留原来的可点击打开方式，并提供编辑/收起入口。"
+              "notes": "图片查看器优化：高清图片打开后默认在屏幕中央适配显示，不再贴顶部；新增顺时针/逆时针90°旋转与方向重置，横版票据可直接转正查看；支持双指缩放、放大后拖动，双击或点击“适应”可恢复居中适配。"
           }
           with open("update-repo/update.json", "w", encoding="utf-8") as f:
               json.dump(data, f, ensure_ascii=False, indent=2)
