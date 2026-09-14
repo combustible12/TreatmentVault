@@ -88,7 +88,7 @@ jobs:
               "versionName": os.environ["VERSION_NAME"],
               "apkUrl": "https://raw.githubusercontent.com/combustible12/TreatmentVault-Updates/main/TreatmentVault-latest.apk",
               "sha256": os.environ["SHA"],
-              "notes": "新增置顶专属颜色：普通置顶记录改为浅金橙底色并配套深色文字和金橙图钉，首页、搜索结果、文件夹和全部记录统一生效；若记录同时是待办，则继续保留待办高亮底色，仅用金橙图钉强调置顶状态。"
+              "notes": "新增独立“悬浮录音”板块：开启一次后可在桌面或其他 App 中使用常驻纯色悬浮球，单击直接开始/停止录音且不跳转录音页面；悬浮球待机约 30% 透明度、可拖动，录音完成后自动保存到悬浮录音列表并纳入现有附件备份。"
           }
           with open("update-repo/update.json", "w", encoding="utf-8") as f:
               json.dump(data, f, ensure_ascii=False, indent=2)

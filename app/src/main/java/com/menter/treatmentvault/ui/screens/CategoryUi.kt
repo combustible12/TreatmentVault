@@ -10,7 +10,7 @@ import androidx.compose.ui.platform.LocalContext
 import com.menter.treatmentvault.TreatmentVaultApplication
 import com.menter.treatmentvault.data.CategoryEntity
 
-private val directUtilityCategoryKeys = setOf("smart_input", "timeline", "import", "settings")
+private val directUtilityCategoryKeys = setOf("smart_input", "floating_audio", "timeline", "import", "settings")
 
 fun isFolderCategory(category: CategoryEntity): Boolean = category.key !in directUtilityCategoryKeys
 
@@ -19,6 +19,7 @@ fun categoryOpenRoute(category: CategoryEntity): String =
 
 fun categoryIcon(key: String): ImageVector = when (key) {
     "mic" -> Icons.Default.Mic
+    "circle" -> Icons.Default.Circle
     "timeline" -> Icons.Default.Timeline
     "description" -> Icons.Default.Description
     "medical" -> Icons.Default.MedicalServices

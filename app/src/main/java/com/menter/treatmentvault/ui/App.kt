@@ -75,6 +75,7 @@ fun TreatmentVaultApp() {
                 )
             }
             composable("smart_input") { SmartInputScreen { nav.popBackStack() } }
+            composable("floating_audio") { FloatingAudioScreen { nav.popBackStack() } }
 
             // System category roots always open the unified folder UI. The specialized
             // screens below are kept only for opening/editing one concrete structured record.
