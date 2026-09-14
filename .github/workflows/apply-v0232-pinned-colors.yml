@@ -1,0 +1,83 @@
+name: Apply 0.23.2 Pinned Colors
+
+on:
+  push:
+    branches:
+      - feature/pinned-colors-0.23.2
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/pinned-colors-0.23.2
+      - name: Apply pinned color patch
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          def replace_once(path, old, new):
+              p = Path(path)
+              text = p.read_text(encoding='utf-8')
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'{path}: expected exactly 1 match, found {count}')
+              p.write_text(text.replace(old, new, 1), encoding='utf-8')
+
+          presentation = 'app/src/main/java/com/menter/treatmentvault/ui/screens/RecordPresentationUi.kt'
+          replace_once(
+              presentation,
+              '''import androidx.compose.material3.Checkbox\nimport androidx.compose.material3.MaterialTheme\n''',
+              '''import androidx.compose.foundation.isSystemInDarkTheme\nimport androidx.compose.material3.Checkbox\nimport androidx.compose.material3.MaterialTheme\n'''
+          )
+          replace_once(
+              presentation,
+              '''@Composable\ninternal fun recordBackgroundColor(state: RecordStateEntity, normal: Color = Color.Transparent): Color = when {\n    isTodo(state) && state.completed -> MaterialTheme.colorScheme.surfaceVariant\n    isTodo(state) -> MaterialTheme.colorScheme.tertiaryContainer\n    else -> normal\n}\n\n@Composable\ninternal fun recordContentColor(state: RecordStateEntity): Color = when {\n    isTodo(state) && state.completed -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.55f)\n    isTodo(state) -> MaterialTheme.colorScheme.onTertiaryContainer\n    else -> MaterialTheme.colorScheme.onSurface\n}\n''',
+              '''@Composable\ninternal fun pinnedRecordContainerColor(): Color =\n    if (isSystemInDarkTheme()) Color(0xFF4A3620) else Color(0xFFFFF1D6)\n\n@Composable\ninternal fun pinnedRecordContentColor(): Color =\n    if (isSystemInDarkTheme()) Color(0xFFFFE0A8) else Color(0xFF3B2600)\n\n@Composable\ninternal fun pinnedRecordAccentColor(): Color =\n    if (isSystemInDarkTheme()) Color(0xFFFFB95C) else Color(0xFFB86B00)\n\n@Composable\ninternal fun recordBackgroundColor(state: RecordStateEntity, normal: Color = Color.Transparent): Color = when {\n    isTodo(state) && state.completed -> MaterialTheme.colorScheme.surfaceVariant\n    isTodo(state) -> MaterialTheme.colorScheme.tertiaryContainer\n    state.pinned -> pinnedRecordContainerColor()\n    else -> normal\n}\n\n@Composable\ninternal fun recordContentColor(state: RecordStateEntity): Color = when {\n    isTodo(state) && state.completed -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.55f)\n    isTodo(state) -> MaterialTheme.colorScheme.onTertiaryContainer\n    state.pinned -> pinnedRecordContentColor()\n    else -> MaterialTheme.colorScheme.onSurface\n}\n'''
+          )
+
+          replace_once(
+              'app/src/main/java/com/menter/treatmentvault/ui/screens/HomeScreen.kt',
+              '''                if (state.pinned) Icon(Icons.Default.PushPin, null, modifier = Modifier.size(16.dp), tint = contentColor)\n''',
+              '''                if (state.pinned) Icon(Icons.Default.PushPin, null, modifier = Modifier.size(16.dp), tint = pinnedRecordAccentColor())\n'''
+          )
+          replace_once(
+              'app/src/main/java/com/menter/treatmentvault/ui/screens/FolderScreen.kt',
+              '''                    if (state.pinned) Icon(Icons.Default.PushPin, contentDescription = null, modifier = Modifier.size(14.dp), tint = contentColor)\n''',
+              '''                    if (state.pinned) Icon(Icons.Default.PushPin, contentDescription = null, modifier = Modifier.size(14.dp), tint = pinnedRecordAccentColor())\n'''
+          )
+          replace_once(
+              'app/src/main/java/com/menter/treatmentvault/ui/screens/AllRecordsScreen.kt',
+              '''                if (state.pinned && shelf != RecordShelf.TRASH) Icon(Icons.Default.PushPin, contentDescription = null, modifier = Modifier.size(16.dp), tint = contentColor)\n''',
+              '''                if (state.pinned && shelf != RecordShelf.TRASH) Icon(Icons.Default.PushPin, contentDescription = null, modifier = Modifier.size(16.dp), tint = pinnedRecordAccentColor())\n'''
+          )
+          replace_once(
+              'app/build.gradle.kts',
+              '''        versionCode = 37\n        versionName = "0.23.1"\n''',
+              '''        versionCode = 38\n        versionName = "0.23.2"\n'''
+          )
+          PY
+
+      - name: Commit patched source
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git diff --quiet; then
+            echo "No changes to commit."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/src/main/java/com/menter/treatmentvault/ui/screens/RecordPresentationUi.kt \
+                  app/src/main/java/com/menter/treatmentvault/ui/screens/HomeScreen.kt \
+                  app/src/main/java/com/menter/treatmentvault/ui/screens/FolderScreen.kt \
+                  app/src/main/java/com/menter/treatmentvault/ui/screens/AllRecordsScreen.kt \
+                  app/build.gradle.kts
+          git commit -m "Add pinned record colors for 0.23.2"
+          git push origin HEAD:feature/pinned-colors-0.23.2
