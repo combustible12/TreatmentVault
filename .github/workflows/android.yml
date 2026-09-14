@@ -88,7 +88,7 @@ jobs:
               "versionName": os.environ["VERSION_NAME"],
               "apkUrl": "https://raw.githubusercontent.com/combustible12/TreatmentVault-Updates/main/TreatmentVault-latest.apk",
               "sha256": os.environ["SHA"],
-              "notes": "修复高清图片查看器底部操作面板仍会被屏幕底部遮挡的问题：面板现在使用 safeDrawing 底部安全区，并额外保留固定底部间距，避免部分全面屏设备或全屏 Dialog 下系统 inset 回报不足导致“适应/重置”被裁切。"
+              "notes": "新增置顶专属颜色：普通置顶记录改为浅金橙底色并配套深色文字和金橙图钉，首页、搜索结果、文件夹和全部记录统一生效；若记录同时是待办，则继续保留待办高亮底色，仅用金橙图钉强调置顶状态。"
           }
           with open("update-repo/update.json", "w", encoding="utf-8") as f:
               json.dump(data, f, ensure_ascii=False, indent=2)
