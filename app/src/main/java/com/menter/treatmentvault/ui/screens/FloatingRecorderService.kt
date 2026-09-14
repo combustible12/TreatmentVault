@@ -152,7 +152,7 @@ class FloatingRecorderService : Service() {
         runCatching { createAudioRecorderSession(this) }
             .onSuccess {
                 recorderSession = it
-                bubbleView?.animate()?.alpha(0.48f)?.setDuration(120)?.start()
+                bubbleView?.animate()?.alpha(0.38f)?.setDuration(120)?.start()
                 startForegroundCompat(buildNotification(recording = true))
             }
             .onFailure {
