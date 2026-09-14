@@ -27,17 +27,17 @@ internal data class AudioTimeMarker(
     val label: String,
 )
 
-private val audioMarkerRegex = Regex("\\[\\[audiomark:(\\d+):([^]]*)]]")
+private val audioTimeMarkerRegex = Regex("\\[\\[audiomark:(\\d+):([^]]*)]]")
 
 internal fun audioMarkersFromContent(content: String): List<AudioTimeMarker> =
-    audioMarkerRegex.findAll(content).mapNotNull { match ->
+    audioTimeMarkerRegex.findAll(content).mapNotNull { match ->
         val position = match.groupValues.getOrNull(1)?.toLongOrNull() ?: return@mapNotNull null
         val rawLabel = match.groupValues.getOrNull(2).orEmpty()
         AudioTimeMarker(position, Uri.decode(rawLabel).ifBlank { "标记" })
     }.sortedBy { it.positionMs }.toList()
 
 internal fun contentWithAudioMarkers(content: String, markers: List<AudioTimeMarker>): String {
-    val clean = audioMarkerRegex.replace(content, "")
+    val clean = audioTimeMarkerRegex.replace(content, "")
         .lineSequence()
         .map { it.trimEnd() }
         .filter { it.isNotBlank() }
