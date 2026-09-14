@@ -152,6 +152,7 @@ fun HomeScreen(go: (String) -> Unit) {
                         onClick = { open("todos") },
                     )
                     NavigationDrawerItem(icon = { Icon(Icons.Default.Mic, contentDescription = null) }, label = { Text("智能录入") }, selected = false, onClick = { open("smart_input") })
+                    NavigationDrawerItem(icon = { Icon(Icons.Default.GraphicEq, contentDescription = null) }, label = { Text("悬浮录音") }, selected = false, onClick = { open("floating_audio") })
                     NavigationDrawerItem(icon = { Icon(Icons.Default.AccountTree, contentDescription = null) }, label = { Text("资料树") }, selected = false, onClick = { open("structure") })
                     HorizontalDivider(Modifier.padding(vertical = 8.dp))
                     Row(Modifier.fillMaxWidth().padding(start = 20.dp, end = 8.dp), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -277,6 +278,14 @@ fun HomeScreen(go: (String) -> Unit) {
                             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 FilledTonalButton(onClick = { go("note/new/inbox") }, modifier = Modifier.weight(1f)) { Icon(Icons.Default.EditNote, null); Spacer(Modifier.width(6.dp)); Text("新建记录") }
                                 FilledTonalButton(onClick = { go("smart_input") }, modifier = Modifier.weight(1f)) { Icon(Icons.Default.Mic, null); Spacer(Modifier.width(6.dp)); Text("智能录入") }
+                            }
+                            FilledTonalButton(
+                                onClick = { go("floating_audio") },
+                                modifier = Modifier.fillMaxWidth(),
+                            ) {
+                                Icon(Icons.Default.GraphicEq, contentDescription = null)
+                                Spacer(Modifier.width(8.dp))
+                                Text("悬浮录音 · 进入录音板块")
                             }
                             FilledTonalButton(
                                 onClick = { go("todos") },
