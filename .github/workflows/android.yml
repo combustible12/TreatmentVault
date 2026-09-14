@@ -88,7 +88,7 @@ jobs:
               "versionName": os.environ["VERSION_NAME"],
               "apkUrl": "https://raw.githubusercontent.com/combustible12/TreatmentVault-Updates/main/TreatmentVault-latest.apk",
               "sha256": os.environ["SHA"],
-              "notes": "补齐悬浮录音的基础管理：每条录音新增删除入口并二次确认，确认后会同时清理录音记录、附件关联、时间标记和实际音频文件，避免残留占空间。录音页面新增列表/宫格显示切换并记住上次选择；宫格模式下普通录音以双列卡片展示，展开播放或标记时自动占满整行。"
+              "notes": "补齐基础管理：悬浮录音每条记录新增删除入口并二次确认，确认后同时清理录音记录、附件关联、时间标记和实际音频文件；录音页面新增列表/宫格切换并记住上次选择。笔记/记录卡片右上角三点菜单也新增“删除”，可直接移到回收站，无需先进入笔记编辑页，误删后仍可恢复。"
           }
           with open("update-repo/update.json", "w", encoding="utf-8") as f:
               json.dump(data, f, ensure_ascii=False, indent=2)
