@@ -590,27 +590,62 @@ private fun FullScreenImageViewer(file: File, onDismiss: () -> Unit) {
             ) { Icon(Icons.Default.Close, contentDescription = "关闭高清原图") }
 
             Surface(
-                modifier = Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(16.dp),
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .navigationBarsPadding()
+                    .padding(start = 12.dp, end = 12.dp, bottom = 20.dp),
                 color = Color(0xCC222222),
                 contentColor = Color.White,
                 shape = MaterialTheme.shapes.extraLarge,
             ) {
-                Row(
-                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(2.dp),
+                Column(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp),
+                    verticalArrangement = Arrangement.spacedBy(2.dp),
                 ) {
-                    IconButton(onClick = { rotateBy(-1) }) {
-                        Icon(Icons.Default.RotateLeft, contentDescription = "逆时针旋转90度")
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    ) {
+                        TextButton(
+                            modifier = Modifier.weight(1f),
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
+                            onClick = { rotateBy(-1) },
+                        ) {
+                            Icon(Icons.Default.RotateLeft, contentDescription = null)
+                            Spacer(Modifier.width(4.dp))
+                            Text("左转", color = Color.White)
+                        }
+                        TextButton(
+                            modifier = Modifier.weight(1f),
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
+                            onClick = { rotateBy(1) },
+                        ) {
+                            Icon(Icons.Default.RotateRight, contentDescription = null)
+                            Spacer(Modifier.width(4.dp))
+                            Text("右转", color = Color.White)
+                        }
                     }
-                    TextButton(onClick = { resetView() }) { Text("适应", color = Color.White) }
-                    IconButton(onClick = { rotateBy(1) }) {
-                        Icon(Icons.Default.RotateRight, contentDescription = "顺时针旋转90度")
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    ) {
+                        TextButton(
+                            modifier = Modifier.weight(1f),
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
+                            onClick = { resetView() },
+                        ) { Text("适应", color = Color.White) }
+                        TextButton(
+                            modifier = Modifier.weight(1f),
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
+                            onClick = {
+                                quarterTurns = 0
+                                resetView()
+                            },
+                        ) { Text("重置", color = Color.White) }
                     }
-                    TextButton(onClick = {
-                        quarterTurns = 0
-                        resetView()
-                    }) { Text("重置", color = Color.White) }
                 }
             }
         }
