@@ -17,7 +17,8 @@ internal fun recordDisplayTitle(item: UnifiedRecordItem, state: RecordStateEntit
     state.customTitle?.trim()?.takeIf { it.isNotEmpty() } ?: item.title
 
 @Composable
-internal fun pinnedRecordContainerColor(): Color = MaterialTheme.colorScheme.secondaryContainer
+internal fun pinnedRecordContainerColor(): Color =
+    MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.62f)
 
 @Composable
 internal fun pinnedRecordContentColor(): Color = MaterialTheme.colorScheme.onSecondaryContainer
