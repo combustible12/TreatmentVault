@@ -1,9 +1,12 @@
 package com.menter.treatmentvault.ui.screens
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckBox
 import androidx.compose.material.icons.filled.CheckBoxOutlineBlank
 import androidx.compose.material.icons.filled.DeleteOutline
@@ -14,6 +17,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextDecoration
@@ -51,6 +55,33 @@ internal fun serializeInlineTodoLines(lines: List<InlineTodoLine>): String =
     }
 
 internal fun stripInlineTodoMarkers(value: String): String = inlineTodoPrefixRegex.replace(value, "")
+
+@Composable
+private fun InlineTodoCheck(
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+) {
+    val accent = MaterialTheme.colorScheme.primary
+    val outline = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.42f)
+    Surface(
+        onClick = { onCheckedChange(!checked) },
+        modifier = Modifier.size(29.dp),
+        shape = CircleShape,
+        color = if (checked) accent else Color.Transparent,
+        contentColor = if (checked) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+        border = BorderStroke(1.5.dp, if (checked) accent else outline),
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            if (checked) {
+                Icon(
+                    Icons.Default.Check,
+                    contentDescription = "已完成",
+                    modifier = Modifier.size(19.dp),
+                )
+            }
+        }
+    }
+}
 
 @Composable
 internal fun InlineTodoTextEditor(
@@ -123,11 +154,12 @@ internal fun InlineTodoTextEditor(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     if (line.isTodo) {
-                        Checkbox(
-                            checked = line.isDone,
-                            onCheckedChange = { checked -> replaceLine(index, line.copy(isDone = checked)) },
-                            modifier = Modifier.size(42.dp),
-                        )
+                        Box(modifier = Modifier.width(42.dp), contentAlignment = Alignment.Center) {
+                            InlineTodoCheck(
+                                checked = line.isDone,
+                                onCheckedChange = { checked -> replaceLine(index, line.copy(isDone = checked)) },
+                            )
+                        }
                     }
 
                     BasicTextField(
