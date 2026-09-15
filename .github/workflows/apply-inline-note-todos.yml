@@ -38,38 +38,48 @@ jobs:
 
           old_help = '"文字、图片、录音和链接按当前顺序保存；连续放入 2 张及以上图片会自动变成宫格，点图片仍可查看高清原图。"'
           new_help = '"文字里可以直接混用普通行和待办行；勾选后只变灰并划线，不会删除。图片、录音和链接仍按当前顺序保存；连续 2 张及以上图片自动变成宫格。"'
-          if old_help not in text:
+          if old_help in text:
+              text = text.replace(old_help, new_help, 1)
+          elif new_help not in text:
               raise SystemExit('Help text target not found')
-          text = text.replace(old_help, new_help, 1)
 
-          old_editor = '''                                    OutlinedTextField(
-                                        value = block.text,
-                                        onValueChange = { next ->
-                                            val liveIndex = currentIndexFor(block)
-                                            if (liveIndex >= 0) {
-                                                blocks[liveIndex] = block.copy(text = next)
-                                                sync()
-                                            }
-                                        },
-                                        modifier = Modifier.fillMaxWidth(),
-                                        placeholder = { Text(if (blockIndex == 0) "直接写内容或粘贴链接…" else "继续写…") },
-                                        minLines = 3,
-                                    )'''
-          new_editor = '''                                    InlineTodoTextEditor(
-                                        value = block.text,
-                                        onValueChange = { next ->
-                                            val liveIndex = currentIndexFor(block)
-                                            if (liveIndex >= 0) {
-                                                blocks[liveIndex] = block.copy(text = next)
-                                                sync()
-                                            }
-                                        },
-                                        placeholder = if (blockIndex == 0) "直接写内容、待办或粘贴链接…" else "继续写…",
-                                    )'''
-          if old_editor not in text:
-              raise SystemExit('Text editor target not found')
-          text = text.replace(old_editor, new_editor, 1)
+          anchor = 'placeholder = { Text(if (blockIndex == 0) "直接写内容或粘贴链接…" else "继续写…") },'
+          anchor_index = text.find(anchor)
+          if anchor_index < 0:
+              if 'InlineTodoTextEditor(' in text:
+                  path.write_text(text, encoding='utf-8')
+                  raise SystemExit(0)
+              raise SystemExit('Text editor anchor not found')
 
+          start = text.rfind('OutlinedTextField(', 0, anchor_index)
+          if start < 0:
+              raise SystemExit('OutlinedTextField start not found')
+          line_start = text.rfind('\n', 0, start) + 1
+          indent = text[line_start:start]
+
+          min_lines = text.find('minLines = 3,', anchor_index)
+          if min_lines < 0:
+              raise SystemExit('Text editor end anchor not found')
+          closing = text.find('\n' + indent + ')', min_lines)
+          if closing < 0:
+              raise SystemExit('Text editor closing parenthesis not found')
+          end = closing + len('\n' + indent + ')')
+
+          inner = indent + '    '
+          new_editor = (
+              indent + 'InlineTodoTextEditor(\n'
+              + inner + 'value = block.text,\n'
+              + inner + 'onValueChange = { next ->\n'
+              + inner + '    val liveIndex = currentIndexFor(block)\n'
+              + inner + '    if (liveIndex >= 0) {\n'
+              + inner + '        blocks[liveIndex] = block.copy(text = next)\n'
+              + inner + '        sync()\n'
+              + inner + '    }\n'
+              + inner + '},\n'
+              + inner + 'placeholder = if (blockIndex == 0) "直接写内容、待办或粘贴链接…" else "继续写…",\n'
+              + indent + ')'
+          )
+          text = text[:start] + new_editor + text[end:]
           path.write_text(text, encoding='utf-8')
           PY
       - name: Run regression tests and build APK
