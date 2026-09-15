@@ -25,7 +25,7 @@ internal sealed interface RichBlock {
     ) : RichBlock
 }
 
-fun richBodyPlainText(value: String): String = mediaMarkerRegex.replace(value, "")
+fun richBodyPlainText(value: String): String = stripInlineTodoMarkers(mediaMarkerRegex.replace(value, ""))
     .replace(Regex("\\n{3,}"), "\n\n")
     .trim()
 
