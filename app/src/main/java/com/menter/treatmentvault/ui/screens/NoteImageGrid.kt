@@ -3,6 +3,8 @@ package com.menter.treatmentvault.ui.screens
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material.icons.filled.BrokenImage
 import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material3.*
@@ -25,6 +27,7 @@ internal fun AutomaticNoteImageGrid(
     images: List<NoteGridImage>,
     onOpen: (File) -> Unit,
     onDelete: (Int, RichBlock.ImageBlock) -> Unit,
+    onMove: (Int, Int) -> Unit,
 ) {
     if (images.isEmpty()) return
     if (images.size == 1) {
@@ -92,6 +95,11 @@ internal fun AutomaticNoteImageGrid(
                                 ) {
                                     Icon(Icons.Default.DeleteOutline, contentDescription = "删除图片", modifier = Modifier.size(18.dp))
                                 }
+                                Row(modifier = Modifier.align(Alignment.BottomStart).padding(4.dp), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                                    val localIndex = images.indexOf(image)
+                                    FilledIconButton(onClick = { onMove(image.index, -1) }, enabled = localIndex > 0, modifier = Modifier.size(32.dp)) { Icon(Icons.Default.ArrowBack, "图片前移", modifier = Modifier.size(17.dp)) }
+                                    FilledIconButton(onClick = { onMove(image.index, 1) }, enabled = localIndex in 0 until images.lastIndex, modifier = Modifier.size(32.dp)) { Icon(Icons.Default.ArrowForward, "图片后移", modifier = Modifier.size(17.dp)) }
+                                }
                             }
                         }
                     } else {
@@ -104,7 +112,7 @@ internal fun AutomaticNoteImageGrid(
             }
         }
         Text(
-            "${images.size} 张图片 · 自动宫格显示，点图片查看原图",
+            "${images.size} 张图片 · 可调整顺序 · 点图片查看/编辑，并可继续滑看其他照片",
             style = MaterialTheme.typography.labelSmall,
         )
     }

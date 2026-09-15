@@ -53,6 +53,8 @@ fun NoteEditorScreen(noteId: Long, initialCategoryId: String?, back: () -> Unit)
     var date by rememberSaveable(noteId) { mutableStateOf(today) }
     var tags by rememberSaveable(noteId) { mutableStateOf("") }
     var categoryId by rememberSaveable(noteId, initialCategoryId) { mutableStateOf(initialCategoryId.orEmpty()) }
+    var createdAtMs by rememberSaveable(noteId) { mutableLongStateOf(System.currentTimeMillis()) }
+    var lastSavedAtMs by rememberSaveable(noteId) { mutableLongStateOf(0L) }
     var categoryMenu by remember { mutableStateOf(false) }
     var confirmTrash by remember { mutableStateOf(false) }
     var pendingFiles by remember(noteId) { mutableStateOf<List<String>>(emptyList()) }
@@ -88,6 +90,8 @@ fun NoteEditorScreen(noteId: Long, initialCategoryId: String?, back: () -> Unit)
             date = note.date
             tags = note.tags
             categoryId = note.categoryId
+            createdAtMs = note.createdAt.takeIf { it > 0L } ?: note.updatedAt
+            lastSavedAtMs = note.updatedAt
             pendingFiles = emptyList()
             removedFiles = emptySet()
             initialized = true
@@ -119,6 +123,7 @@ fun NoteEditorScreen(noteId: Long, initialCategoryId: String?, back: () -> Unit)
             title = title.trim(),
             content = content,
             tags = tags.trim(),
+            createdAt = createdAtMs,
             updatedAt = System.currentTimeMillis(),
         )
 
@@ -126,6 +131,7 @@ fun NoteEditorScreen(noteId: Long, initialCategoryId: String?, back: () -> Unit)
         try {
             val savedId = if (value.id == 0L) dao.saveCustomEntry(value) else { dao.updateCustomEntry(value); value.id }
             persistedId = savedId
+            lastSavedAtMs = value.updatedAt
             reconcileRichAttachments(context, dao, "note", savedId, value.content, removedSnapshot)
             if (pendingSnapshot.isNotEmpty()) pendingFiles = pendingFiles.filterNot { it in pendingSnapshot }
             if (removedSnapshot.isNotEmpty()) removedFiles = removedFiles - removedSnapshot
@@ -248,6 +254,16 @@ fun NoteEditorScreen(noteId: Long, initialCategoryId: String?, back: () -> Unit)
                         singleLine = true,
                         leadingIcon = { Icon(Icons.Default.Tag, contentDescription = null) },
                     )
+                }
+                item {
+                    if (persistedId > 0L) {
+                        val timeFormat = remember { SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()) }
+                        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            Text("创建时间：${timeFormat.format(Date(createdAtMs))}", style = MaterialTheme.typography.labelSmall)
+                            val modified = lastSavedAtMs.takeIf { it > 0L } ?: createdAtMs
+                            Text("最后修改：${timeFormat.format(Date(modified))}", style = MaterialTheme.typography.labelSmall)
+                        }
+                    }
                 }
                 item {
                     Text(
