@@ -1,6 +1,5 @@
 package com.menter.treatmentvault.ui.screens
 
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
@@ -18,16 +17,13 @@ internal fun recordDisplayTitle(item: UnifiedRecordItem, state: RecordStateEntit
     state.customTitle?.trim()?.takeIf { it.isNotEmpty() } ?: item.title
 
 @Composable
-internal fun pinnedRecordContainerColor(): Color =
-    if (isSystemInDarkTheme()) Color(0xFF4A3620) else Color(0xFFFFF1D6)
+internal fun pinnedRecordContainerColor(): Color = MaterialTheme.colorScheme.secondaryContainer
 
 @Composable
-internal fun pinnedRecordContentColor(): Color =
-    if (isSystemInDarkTheme()) Color(0xFFFFE0A8) else Color(0xFF3B2600)
+internal fun pinnedRecordContentColor(): Color = MaterialTheme.colorScheme.onSecondaryContainer
 
 @Composable
-internal fun pinnedRecordAccentColor(): Color =
-    if (isSystemInDarkTheme()) Color(0xFFFFB95C) else Color(0xFFB86B00)
+internal fun pinnedRecordAccentColor(): Color = MaterialTheme.colorScheme.primary
 
 @Composable
 internal fun recordBackgroundColor(state: RecordStateEntity, normal: Color = Color.Transparent): Color = when {
