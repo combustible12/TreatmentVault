@@ -307,7 +307,7 @@ fun RichNoteBodyGridEditor(
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Text(label, style = MaterialTheme.typography.titleSmall)
         Text(
-            "文字、图片、录音和链接按当前顺序保存；连续放入 2 张及以上图片会自动变成宫格，点图片仍可查看高清原图。",
+            "文字里可以直接混用普通行和待办行；勾选后只变灰并划线，不会删除。图片、录音和链接仍按当前顺序保存；连续 2 张及以上图片自动变成宫格。",
             style = MaterialTheme.typography.bodySmall,
         )
         if (recorderSession == null) {
@@ -443,7 +443,7 @@ fun RichNoteBodyGridEditor(
                                 }
                             } else {
                                 Column {
-                                    OutlinedTextField(
+                                                                        InlineTodoTextEditor(
                                         value = block.text,
                                         onValueChange = { next ->
                                             val liveIndex = currentIndexFor(block)
@@ -452,9 +452,7 @@ fun RichNoteBodyGridEditor(
                                                 sync()
                                             }
                                         },
-                                        modifier = Modifier.fillMaxWidth(),
-                                        placeholder = { Text(if (blockIndex == 0) "直接写内容或粘贴链接…" else "继续写…") },
-                                        minLines = 3,
+                                        placeholder = if (blockIndex == 0) "直接写内容、待办或粘贴链接…" else "继续写…",
                                     )
                                     GridEditorLinkActions(block.text)
                                 }
