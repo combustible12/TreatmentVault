@@ -78,7 +78,10 @@ class BackupManager(private val context: Context, private val db: AppDatabase) {
             snap.questions.forEach { dao.saveQuestion(it) }; snap.expenses.forEach { dao.saveExpense(it) }
             snap.timeline.forEach { dao.saveTimeline(it) }
             snap.categories?.let { list -> dao.clearCategories(); list.forEach { dao.saveCategory(it) } }
-            snap.customEntries?.let { list -> dao.clearCustomEntries(); list.forEach { dao.saveCustomEntry(it) } }
+            snap.customEntries?.let { list ->
+                dao.clearCustomEntries()
+                list.forEach { entry -> dao.saveCustomEntry(if (entry.createdAt > 0L) entry else entry.copy(createdAt = entry.updatedAt)) }
+            }
             snap.tags?.let { list -> dao.clearTags(); list.forEach { dao.saveTag(it) } }
             snap.attachments.orEmpty().forEach { dao.saveAttachment(it) }
             snap.recordStates.orEmpty().forEach { dao.saveRecordState(it) }
