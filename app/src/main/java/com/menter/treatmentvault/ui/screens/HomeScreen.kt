@@ -212,20 +212,65 @@ fun HomeScreen(go: (String) -> Unit) {
                 Box {
                     FloatingActionButton(onClick = { addMenuOpen = true }) { Icon(Icons.Default.Add, contentDescription = "新建") }
                     DropdownMenu(expanded = addMenuOpen, onDismissRequest = { addMenuOpen = false }) {
-                        DropdownMenuItem(text = { Text("新建笔记") }, leadingIcon = { Icon(Icons.Default.EditNote, contentDescription = null) }, onClick = { addMenuOpen = false; go("note/new/inbox") })
-                        DropdownMenuItem(text = { Text("新建类目") }, leadingIcon = { Icon(Icons.Default.CreateNewFolder, contentDescription = null) }, onClick = { addMenuOpen = false; showAddCategory = true })
+                        DropdownMenuItem(
+                            text = { Text("新建笔记") },
+                            leadingIcon = { Icon(Icons.Default.EditNote, contentDescription = null) },
+                            onClick = { addMenuOpen = false; go("note/new/inbox") },
+                        )
+                        DropdownMenuItem(
+                            text = { Text("新建类目") },
+                            leadingIcon = { Icon(Icons.Default.CreateNewFolder, contentDescription = null) },
+                            onClick = { addMenuOpen = false; showAddCategory = true },
+                        )
                     }
                 }
             },
         ) { padding ->
-            LazyColumn(state = listState, modifier = Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(start = 14.dp, end = 14.dp, bottom = 96.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                item { OutlinedTextField(value = query, onValueChange = { query = it }, modifier = Modifier.fillMaxWidth(), singleLine = true, placeholder = { Text("搜索所有记录") }, leadingIcon = { Icon(Icons.Default.Search, null) }, trailingIcon = { if (query.isNotBlank()) IconButton(onClick = { query = "" }) { Icon(Icons.Default.Close, contentDescription = "清空") } }, shape = MaterialTheme.shapes.extraLarge) }
+            LazyColumn(
+                state = listState,
+                modifier = Modifier.fillMaxSize().padding(padding),
+                contentPadding = PaddingValues(start = 14.dp, end = 14.dp, bottom = 96.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                item {
+                    OutlinedTextField(
+                        value = query,
+                        onValueChange = { query = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        placeholder = { Text("搜索所有记录") },
+                        leadingIcon = { Icon(Icons.Default.Search, null) },
+                        trailingIcon = { if (query.isNotBlank()) IconButton(onClick = { query = "" }) { Icon(Icons.Default.Close, contentDescription = "清空") } },
+                        shape = MaterialTheme.shapes.extraLarge,
+                    )
+                }
                 if (q.isNotBlank()) {
                     item { Text("搜索结果 · ${recordSearch.size + categorySearch.size}", style = MaterialTheme.typography.titleSmall) }
-                    if (categorySearch.isNotEmpty()) item { Text("分类", style = MaterialTheme.typography.labelLarge) }
-                    items(categorySearch, key = { "category:${it.key}" }) { category -> HomeCategoryCard(category = category, depth = 0, supporting = "文件夹 · 打开后查看该分类全部记录", onClick = { go(categoryRoute(category)) }, onLongClick = { renameCategory = category }) }
-                    if (recordSearch.isNotEmpty()) item { Text("记录", style = MaterialTheme.typography.labelLarge) }
-                    items(recordSearch, key = { it.key }) { item -> val state = recordStateFor(item, stateMap); RecordListItem(item = item, state = state, onClick = { go(item.route) }, onLongClick = { ownershipItem = item }, onStateChange = ::saveState) }
+                    if (categorySearch.isNotEmpty()) {
+                        item { Text("分类", style = MaterialTheme.typography.labelLarge) }
+                    }
+                    items(categorySearch, key = { "category:${it.key}" }) { category ->
+                        HomeCategoryCard(
+                            category = category,
+                            depth = 0,
+                            supporting = "文件夹 · 打开后查看该分类全部记录",
+                            onClick = { go(categoryRoute(category)) },
+                            onLongClick = { renameCategory = category },
+                        )
+                    }
+                    if (recordSearch.isNotEmpty()) {
+                        item { Text("记录", style = MaterialTheme.typography.labelLarge) }
+                    }
+                    items(recordSearch, key = { it.key }) { item ->
+                        val state = recordStateFor(item, stateMap)
+                        RecordListItem(
+                            item = item,
+                            state = state,
+                            onClick = { go(item.route) },
+                            onLongClick = { ownershipItem = item },
+                            onStateChange = ::saveState,
+                        )
+                    }
                     if (recordSearch.isEmpty() && categorySearch.isEmpty()) item { Text("没有找到匹配内容", modifier = Modifier.padding(vertical = 20.dp)) }
                 } else {
                     item {
@@ -234,26 +279,208 @@ fun HomeScreen(go: (String) -> Unit) {
                                 FilledTonalButton(onClick = { go("note/new/inbox") }, modifier = Modifier.weight(1f)) { Icon(Icons.Default.EditNote, null); Spacer(Modifier.width(6.dp)); Text("新建记录") }
                                 FilledTonalButton(onClick = { go("smart_input") }, modifier = Modifier.weight(1f)) { Icon(Icons.Default.Mic, null); Spacer(Modifier.width(6.dp)); Text("智能录入") }
                             }
-                            FilledTonalButton(onClick = { go("floating_audio") }, modifier = Modifier.fillMaxWidth()) { Icon(Icons.Default.GraphicEq, contentDescription = null); Spacer(Modifier.width(8.dp)); Text("悬浮录音 · 进入录音板块") }
-                            FilledTonalButton(onClick = { go("todos") }, modifier = Modifier.fillMaxWidth()) { Icon(Icons.Default.Checklist, contentDescription = null); Spacer(Modifier.width(8.dp)); Text("全部待办 · $pendingTodoCount 未完成"); if (completedTodoCount > 0) { Spacer(Modifier.weight(1f)); Text("$completedTodoCount 已完成", style = MaterialTheme.typography.labelMedium) } }
+                            FilledTonalButton(
+                                onClick = { go("floating_audio") },
+                                modifier = Modifier.fillMaxWidth(),
+                            ) {
+                                Icon(Icons.Default.GraphicEq, contentDescription = null)
+                                Spacer(Modifier.width(8.dp))
+                                Text("悬浮录音 · 进入录音板块")
+                            }
+                            FilledTonalButton(
+                                onClick = { go("todos") },
+                                modifier = Modifier.fillMaxWidth(),
+                            ) {
+                                Icon(Icons.Default.Checklist, contentDescription = null)
+                                Spacer(Modifier.width(8.dp))
+                                Text("全部待办 · $pendingTodoCount 未完成")
+                                if (completedTodoCount > 0) {
+                                    Spacer(Modifier.weight(1f))
+                                    Text("$completedTodoCount 已完成", style = MaterialTheme.typography.labelMedium)
+                                }
+                            }
                         }
                     }
                     if (pinnedRecords.isNotEmpty()) {
-                        item { Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) { Text("置顶", style = MaterialTheme.typography.titleMedium); TextButton(onClick = { go("notes") }) { Text("管理") } } }
-                        items(pinnedRecords, key = { "pinned:${it.key}" }) { item -> RecordListItem(item, recordStateFor(item, stateMap), { go(item.route) }, { ownershipItem = item }, ::saveState) }
+                        item {
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Text("置顶", style = MaterialTheme.typography.titleMedium)
+                                TextButton(onClick = { go("notes") }) { Text("管理") }
+                            }
+                        }
+                        items(pinnedRecords, key = { "pinned:${it.key}" }) { item ->
+                            RecordListItem(item, recordStateFor(item, stateMap), { go(item.route) }, { ownershipItem = item }, ::saveState)
+                        }
                     }
-                    item { Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) { Text("最近记录", style = MaterialTheme.typography.titleMedium); TextButton(onClick = { go("notes") }) { Text("查看全部") } } }
-                    items(recentRecords, key = { "recent:${it.key}" }) { item -> RecordListItem(item, recordStateFor(item, stateMap), { go(item.route) }, { ownershipItem = item }, ::saveState) }
-                    item { Text("分类", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 6.dp)) }
-                    items(visibleCategories, key = { "home:${it.first.key}" }) { (category, depth) -> HomeCategoryCard(category = category, depth = depth, supporting = "${countFor(category)} 条记录", onClick = { go(categoryRoute(category)) }, onLongClick = { renameCategory = category }) }
+                    item {
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text("最近记录", style = MaterialTheme.typography.titleMedium)
+                            TextButton(onClick = { go("notes") }) { Text("全部") }
+                        }
+                    }
+                    if (recentRecords.isEmpty()) {
+                        item { Card(Modifier.fillMaxWidth()) { Column(Modifier.padding(16.dp)) { Text("还没有记录", style = MaterialTheme.typography.titleSmall); Text("先随手记下来，不用先决定放哪里。", style = MaterialTheme.typography.bodySmall) } } }
+                    } else {
+                        items(recentRecords, key = { "recent:${it.key}" }) { item ->
+                            RecordListItem(item, recordStateFor(item, stateMap), { go(item.route) }, { ownershipItem = item }, ::saveState)
+                        }
+                    }
+                    item {
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text("分类", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 10.dp))
+                            TextButton(onClick = { showAddCategory = true }) { Icon(Icons.Default.Add, null); Spacer(Modifier.width(4.dp)); Text("新建类目") }
+                        }
+                    }
+                    items(visibleCategories, key = { it.first.key }) { (category, depth) ->
+                        val count = countFor(category)
+                        HomeCategoryCard(
+                            category = category,
+                            depth = depth,
+                            supporting = if (count == 0) "文件夹 · 暂无记录" else "文件夹 · $count 条记录",
+                            onClick = { go(categoryRoute(category)) },
+                            onLongClick = { renameCategory = category },
+                        )
+                    }
                 }
             }
         }
     }
 
-    if (showAddCategory) {
-        AlertDialog(onDismissRequest = { showAddCategory = false }, title = { Text("新建类目") }, text = { Column(verticalArrangement = Arrangement.spacedBy(10.dp)) { OutlinedTextField(value = newCategoryName, onValueChange = { newCategoryName = it }, label = { Text("类目名称") }, singleLine = true); ExposedDropdownMenuBox(expanded = parentMenuOpen, onExpandedChange = { parentMenuOpen = it }) { OutlinedTextField(value = newCategoryParentId?.let { id -> categories.firstOrNull { it.key == id }?.name } ?: "一级类目", onValueChange = {}, readOnly = true, label = { Text("上级类目") }, trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(parentMenuOpen) }, modifier = Modifier.menuAnchor().fillMaxWidth()); ExposedDropdownMenu(expanded = parentMenuOpen, onDismissRequest = { parentMenuOpen = false }) { DropdownMenuItem(text = { Text("一级类目") }, onClick = { newCategoryParentId = null; parentMenuOpen = false }); categories.filterNot { it.hidden }.forEach { c -> DropdownMenuItem(text = { Text(c.name) }, onClick = { newCategoryParentId = c.key; parentMenuOpen = false }) } } } } }, confirmButton = { TextButton(onClick = ::createCategory, enabled = newCategoryName.isNotBlank()) { Text("创建") } }, dismissButton = { TextButton(onClick = { showAddCategory = false }) { Text("取消") } })
+    ownershipItem?.let { item ->
+        RecordFolderOwnershipDialog(
+            item = item,
+            categories = categories,
+            onDismiss = { ownershipItem = null },
+            onFoldersChange = { folders -> scope.launch { setUnifiedRecordFolders(dao, item, folders) } },
+        )
     }
-    renameCategory?.let { category -> RenameCategoryDialog(category = category, onDismiss = { renameCategory = null }, onSave = { next -> scope.launch { dao.saveCategory(next); renameCategory = null } }) }
-    ownershipItem?.let { item -> RecordOwnershipDialog(item = item, allCategories = categories, onDismiss = { ownershipItem = null }, onSave = { selected -> scope.launch { setUnifiedRecordFolders(dao, item, selected); ownershipItem = null } }) }
+
+    renameCategory?.let { target ->
+        RenameCategoryDialog(
+            category = target,
+            categories = categories,
+            onDismiss = { renameCategory = null },
+            onRename = { newName ->
+                scope.launch { dao.saveCategory(target.copy(name = newName)) }
+                renameCategory = null
+            },
+        )
+    }
+
+    if (showAddCategory) {
+        val cleanName = newCategoryName.trim()
+        val duplicate = categories.any { it.parentId == newCategoryParentId && it.name.equals(cleanName, true) }
+        val parentName = customCategories.firstOrNull { it.key == newCategoryParentId }?.name
+        AlertDialog(
+            onDismissRequest = { showAddCategory = false; newCategoryName = ""; newCategoryParentId = null; parentMenuOpen = false },
+            title = { Text("新建类目") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    OutlinedTextField(value = newCategoryName, onValueChange = { newCategoryName = it }, label = { Text("类目名称") }, singleLine = true, modifier = Modifier.fillMaxWidth(), isError = duplicate)
+                    Box(Modifier.fillMaxWidth()) {
+                        OutlinedButton(onClick = { parentMenuOpen = true }, modifier = Modifier.fillMaxWidth()) {
+                            Text(if (parentName == null) "顶级类目" else "上级：$parentName"); Spacer(Modifier.weight(1f)); Icon(Icons.Default.ArrowDropDown, null)
+                        }
+                        DropdownMenu(expanded = parentMenuOpen, onDismissRequest = { parentMenuOpen = false }) {
+                            DropdownMenuItem(text = { Text("顶级类目") }, onClick = { newCategoryParentId = null; parentMenuOpen = false })
+                            customCategories.filterNot { it.key == "inbox" }.forEach { category ->
+                                DropdownMenuItem(text = { Text(category.name) }, onClick = { newCategoryParentId = category.key; parentMenuOpen = false })
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = { TextButton(onClick = { createCategory() }, enabled = cleanName.isNotBlank() && !duplicate) { Text("创建") } },
+            dismissButton = { TextButton(onClick = { showAddCategory = false }) { Text("取消") } },
+        )
+    }
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun HomeCategoryCard(
+    category: CategoryEntity,
+    depth: Int,
+    supporting: String,
+    onClick: () -> Unit,
+    onLongClick: () -> Unit,
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth().padding(start = (depth * 12).dp).combinedClickable(onClick = onClick, onLongClick = onLongClick),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
+        shape = MaterialTheme.shapes.large,
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Surface(
+                shape = MaterialTheme.shapes.medium,
+                color = MaterialTheme.colorScheme.secondary,
+                contentColor = MaterialTheme.colorScheme.onSecondary,
+            ) {
+                Box(Modifier.padding(9.dp)) { Icon(categoryIcon(category.iconKey), contentDescription = "文件夹") }
+            }
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(category.name, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(supporting, style = MaterialTheme.typography.labelSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+            Icon(Icons.Default.ChevronRight, contentDescription = null)
+        }
+    }
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun RecordListItem(
+    item: UnifiedRecordItem,
+    state: RecordStateEntity,
+    onClick: () -> Unit,
+    onLongClick: () -> Unit,
+    onStateChange: (RecordStateEntity) -> Unit,
+) {
+    var menuOpen by remember(item.key) { mutableStateOf(false) }
+    val contentColor = recordContentColor(state)
+
+    ListItem(
+        modifier = Modifier.fillMaxWidth().combinedClickable(onClick = onClick, onLongClick = onLongClick),
+        colors = ListItemDefaults.colors(containerColor = recordBackgroundColor(state)),
+        headlineContent = {
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                if (isTodo(state)) {
+                    Checkbox(checked = state.completed, onCheckedChange = { onStateChange(state.copy(completed = it)) })
+                }
+                if (state.pinned) Icon(Icons.Default.PushPin, null, modifier = Modifier.size(16.dp), tint = pinnedRecordAccentColor())
+                Text(recordDisplayTitle(item, state), maxLines = 1, overflow = TextOverflow.Ellipsis, color = contentColor)
+            }
+        },
+        supportingContent = {
+            Column {
+                Text(item.section, style = MaterialTheme.typography.labelSmall, color = contentColor)
+                if (item.preview.isNotBlank()) Text(item.preview, maxLines = 2, overflow = TextOverflow.Ellipsis, color = contentColor)
+            }
+        },
+        leadingContent = { Icon(categoryIcon(item.iconKey), null, tint = contentColor) },
+        trailingContent = {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                RecordThumbnail(item.thumbnailFileName, size = 48.dp)
+                Box {
+                    IconButton(onClick = { menuOpen = true }) { Icon(Icons.Default.MoreVert, contentDescription = "更多", tint = contentColor) }
+                    DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                        DropdownMenuItem(
+                            text = { Text(if (isTodo(state)) "切换为普通条目" else "切换为待办事项") },
+                            leadingIcon = { Icon(if (isTodo(state)) Icons.Default.Notes else Icons.Default.CheckBox, contentDescription = null) },
+                            onClick = { menuOpen = false; onStateChange(toggleTodoDisplay(state)) },
+                        )
+                        DropdownMenuItem(
+                            text = { Text(if (state.pinned) "取消置顶" else "置顶") },
+                            leadingIcon = { Icon(Icons.Default.PushPin, contentDescription = null) },
+                            onClick = { menuOpen = false; onStateChange(state.copy(pinned = !state.pinned)) },
+                        )
+                    }
+                }
+            }
+        },
+    )
 }
