@@ -1,0 +1,88 @@
+name: Apply inline note todos
+
+on:
+  push:
+    branches:
+      - feature/inline-note-todos
+    paths:
+      - '.github/workflows/apply-inline-note-todos.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Restore canonical signing key
+        run: |
+          base64 --decode .github/keystore/treatmentvault-debug.keystore.b64 > .github/keystore/treatmentvault-debug.keystore
+          chmod 600 .github/keystore/treatmentvault-debug.keystore
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.10.2'
+      - name: Wire inline todo editor into rich note text blocks
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('app/src/main/java/com/menter/treatmentvault/ui/screens/RichNoteGridEditor.kt')
+          text = path.read_text(encoding='utf-8')
+
+          old_help = '"文字、图片、录音和链接按当前顺序保存；连续放入 2 张及以上图片会自动变成宫格，点图片仍可查看高清原图。"'
+          new_help = '"文字里可以直接混用普通行和待办行；勾选后只变灰并划线，不会删除。图片、录音和链接仍按当前顺序保存；连续 2 张及以上图片自动变成宫格。"'
+          if old_help not in text:
+              raise SystemExit('Help text target not found')
+          text = text.replace(old_help, new_help, 1)
+
+          old_editor = '''                                    OutlinedTextField(
+                                        value = block.text,
+                                        onValueChange = { next ->
+                                            val liveIndex = currentIndexFor(block)
+                                            if (liveIndex >= 0) {
+                                                blocks[liveIndex] = block.copy(text = next)
+                                                sync()
+                                            }
+                                        },
+                                        modifier = Modifier.fillMaxWidth(),
+                                        placeholder = { Text(if (blockIndex == 0) "直接写内容或粘贴链接…" else "继续写…") },
+                                        minLines = 3,
+                                    )'''
+          new_editor = '''                                    InlineTodoTextEditor(
+                                        value = block.text,
+                                        onValueChange = { next ->
+                                            val liveIndex = currentIndexFor(block)
+                                            if (liveIndex >= 0) {
+                                                blocks[liveIndex] = block.copy(text = next)
+                                                sync()
+                                            }
+                                        },
+                                        placeholder = if (blockIndex == 0) "直接写内容、待办或粘贴链接…" else "继续写…",
+                                    )'''
+          if old_editor not in text:
+              raise SystemExit('Text editor target not found')
+          text = text.replace(old_editor, new_editor, 1)
+
+          path.write_text(text, encoding='utf-8')
+          PY
+      - name: Run regression tests and build APK
+        run: gradle testDebugUnitTest assembleDebug --stacktrace
+      - name: Commit patched source
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/src/main/java/com/menter/treatmentvault/ui/screens/RichNoteGridEditor.kt
+          if git diff --cached --quiet; then
+            echo "No source changes to commit."
+            exit 0
+          fi
+          git commit -m "Add inline checklist rows to note text blocks"
+          git push origin HEAD:${GITHUB_REF_NAME}
