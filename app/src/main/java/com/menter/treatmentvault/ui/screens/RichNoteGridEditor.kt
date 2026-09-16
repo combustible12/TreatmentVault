@@ -9,6 +9,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -80,11 +81,8 @@ fun RichNoteBodyGridEditor(
     val uriHandler = LocalUriHandler.current
     val scope = rememberCoroutineScope()
     val existingState by produceState<List<AttachmentEntity>?>(initialValue = if (ownerId > 0) null else emptyList(), ownerType, ownerId) {
-        if (ownerId > 0) {
-            dao.attachments(ownerType, ownerId).collect { attachments -> this.value = attachments }
-        } else {
-            this.value = emptyList()
-        }
+        if (ownerId > 0) dao.attachments(ownerType, ownerId).collect { attachments -> this.value = attachments }
+        else this.value = emptyList()
     }
     val existing = existingState.orEmpty()
     val blocks = remember(ownerType, sessionKey) { mutableStateListOf<RichBlock>() }
@@ -96,6 +94,8 @@ fun RichNoteBodyGridEditor(
     var recorderSession by remember(ownerType, sessionKey) { mutableStateOf<AudioRecorderSession?>(null) }
     var audioMessage by remember(ownerType, sessionKey) { mutableStateOf<String?>(null) }
     var expandedLinkKeys by remember(ownerType, sessionKey) { mutableStateOf<Set<String>>(emptySet()) }
+    var imageMenuExpanded by remember(ownerType, sessionKey) { mutableStateOf(false) }
+    var audioMenuExpanded by remember(ownerType, sessionKey) { mutableStateOf(false) }
 
     fun sync() {
         val serialized = serializeRichBody(blocks)
@@ -105,72 +105,50 @@ fun RichNoteBodyGridEditor(
 
     LaunchedEffect(ownerType, sessionKey, value) {
         if (lastSerializedValue == null || value != lastSerializedValue) {
-            blocks.clear()
-            blocks.addAll(parseRichBody(value))
-            lastSerializedValue = value
-            insertIndex = blocks.size
-            hydrated = true
+            blocks.clear(); blocks.addAll(parseRichBody(value)); lastSerializedValue = value; insertIndex = blocks.size; hydrated = true
         }
     }
 
     LaunchedEffect(existingState, hydrated, ownerId) {
         if (!hydrated || legacyRecovered) return@LaunchedEffect
         val current = serializeRichBody(blocks)
-        if (ownerId <= 0L || richBodyImageNames(current).isNotEmpty()) {
-            legacyRecovered = true
-            return@LaunchedEffect
-        }
+        if (ownerId <= 0L || richBodyImageNames(current).isNotEmpty()) { legacyRecovered = true; return@LaunchedEffect }
         val loaded = existingState ?: return@LaunchedEffect
         legacyRecovered = true
         val recovered = recoverLegacyImageMarkers(current, loaded.map { it.fileName }.filterNot { it in removedFiles })
         if (recovered != current) {
-            blocks.clear()
-            blocks.addAll(parseRichBody(recovered))
-            lastSerializedValue = recovered
-            insertIndex = blocks.size
-            onValueChange(recovered)
+            blocks.clear(); blocks.addAll(parseRichBody(recovered)); lastSerializedValue = recovered; insertIndex = blocks.size; onValueChange(recovered)
         }
     }
 
     fun insertAudioBlock(fileName: String) {
         val at = insertIndex.coerceIn(0, blocks.size)
-        blocks.add(at, RichBlock.AudioBlock(fileName = fileName))
-        insertIndex = at + 1
-        onPendingFilesChange((pendingFiles + fileName).distinct())
-        sync()
+        blocks.add(at, RichBlock.AudioBlock(fileName = fileName)); insertIndex = at + 1
+        onPendingFilesChange((pendingFiles + fileName).distinct()); sync()
     }
 
     fun startRecordingNow() {
         if (recorderSession != null) return
         audioMessage = null
-        runCatching { createAudioRecorderSession(context) }
-            .onSuccess { recorderSession = it }
+        runCatching { createAudioRecorderSession(context) }.onSuccess { recorderSession = it }
             .onFailure { audioMessage = "无法开始录音：${it.message ?: "请检查麦克风"}" }
     }
 
     fun stopRecordingAndSave() {
         val session = recorderSession ?: return
         recorderSession = null
-        if (finishAudioRecording(context, session)) {
-            insertAudioBlock(session.fileName)
-            audioMessage = null
-        } else {
-            audioMessage = "录音没有保存成功，请重新录制。"
-        }
+        if (finishAudioRecording(context, session)) { insertAudioBlock(session.fileName); audioMessage = null }
+        else audioMessage = "录音没有保存成功，请重新录制。"
     }
 
     fun cancelRecording() {
         val session = recorderSession ?: return
-        recorderSession = null
-        cancelAudioRecording(context, session)
-        audioMessage = null
+        recorderSession = null; cancelAudioRecording(context, session); audioMessage = null
     }
 
     val recordPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-        if (granted) startRecordingNow()
-        else audioMessage = "需要麦克风权限才能在应用内录音。"
+        if (granted) startRecordingNow() else audioMessage = "需要麦克风权限才能在应用内录音。"
     }
-
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
         if (uris.isEmpty()) return@rememberLauncherForActivityResult
         scope.launch {
@@ -178,47 +156,32 @@ fun RichNoteBodyGridEditor(
             if (imported.isNotEmpty()) {
                 var at = insertIndex.coerceIn(0, blocks.size)
                 imported.forEach { fileName -> blocks.add(at++, RichBlock.ImageBlock(fileName = fileName)) }
-                insertIndex = at
-                onPendingFilesChange((pendingFiles + imported).distinct())
-                sync()
+                insertIndex = at; onPendingFilesChange((pendingFiles + imported).distinct()); sync()
             }
         }
     }
-
     val audioPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
         if (uris.isEmpty()) return@rememberLauncherForActivityResult
         scope.launch {
             val imported = uris.mapNotNull { uri -> runCatching { importAudioToApp(context, uri) }.getOrNull() }
-            if (imported.isEmpty()) {
-                audioMessage = "没有成功导入录音文件。"
-            } else {
+            if (imported.isEmpty()) audioMessage = "没有成功导入录音文件。"
+            else {
                 var at = insertIndex.coerceIn(0, blocks.size)
                 imported.forEach { fileName -> blocks.add(at++, RichBlock.AudioBlock(fileName = fileName)) }
-                insertIndex = at
-                onPendingFilesChange((pendingFiles + imported).distinct())
-                audioMessage = null
-                sync()
+                insertIndex = at; onPendingFilesChange((pendingFiles + imported).distinct()); audioMessage = null; sync()
             }
         }
     }
 
     val latestRecorderSession by rememberUpdatedState(recorderSession)
-    DisposableEffect(ownerType, sessionKey) {
-        onDispose { latestRecorderSession?.let { cancelAudioRecording(context, it) } }
-    }
+    DisposableEffect(ownerType, sessionKey) { onDispose { latestRecorderSession?.let { cancelAudioRecording(context, it) } } }
 
     fun currentIndexFor(block: RichBlock): Int = blocks.indexOfFirst { it.key == block.key }
-
     fun moveBlock(block: RichBlock, delta: Int) {
-        val from = currentIndexFor(block)
-        val to = from + delta
+        val from = currentIndexFor(block); val to = from + delta
         if (from !in blocks.indices || to !in blocks.indices) return
-        val item = blocks.removeAt(from)
-        blocks.add(to, item)
-        insertIndex = (to + 1).coerceAtMost(blocks.size)
-        sync()
+        val item = blocks.removeAt(from); blocks.add(to, item); insertIndex = (to + 1).coerceAtMost(blocks.size); sync()
     }
-
     fun remove(index: Int, block: RichBlock) {
         val actualIndex = currentIndexFor(block).takeIf { it >= 0 } ?: index
         if (actualIndex !in blocks.indices) return
@@ -229,140 +192,82 @@ fun RichNoteBodyGridEditor(
             }
             is RichBlock.ImageBlock -> {
                 if (block.fileName in pendingFiles && existing.none { it.fileName == block.fileName }) {
-                    onPendingFilesChange(pendingFiles - block.fileName)
-                    scope.launch(Dispatchers.IO) { attachmentFile(context, block.fileName).delete() }
-                } else if (existing.any { it.fileName == block.fileName }) {
-                    onRemovedFilesChange(removedFiles + block.fileName)
-                }
-                blocks.removeAt(actualIndex)
-                if (blocks.none { it is RichBlock.TextBlock }) blocks.add(0, RichBlock.TextBlock())
+                    onPendingFilesChange(pendingFiles - block.fileName); scope.launch(Dispatchers.IO) { attachmentFile(context, block.fileName).delete() }
+                } else if (existing.any { it.fileName == block.fileName }) onRemovedFilesChange(removedFiles + block.fileName)
+                blocks.removeAt(actualIndex); if (blocks.none { it is RichBlock.TextBlock }) blocks.add(0, RichBlock.TextBlock())
             }
             is RichBlock.AudioBlock -> {
                 if (block.fileName in pendingFiles && existing.none { it.fileName == block.fileName }) {
-                    onPendingFilesChange(pendingFiles - block.fileName)
-                    scope.launch(Dispatchers.IO) { attachmentFile(context, block.fileName).delete() }
-                } else if (existing.any { it.fileName == block.fileName }) {
-                    onRemovedFilesChange(removedFiles + block.fileName)
-                }
-                blocks.removeAt(actualIndex)
-                if (blocks.none { it is RichBlock.TextBlock }) blocks.add(0, RichBlock.TextBlock())
+                    onPendingFilesChange(pendingFiles - block.fileName); scope.launch(Dispatchers.IO) { attachmentFile(context, block.fileName).delete() }
+                } else if (existing.any { it.fileName == block.fileName }) onRemovedFilesChange(removedFiles + block.fileName)
+                blocks.removeAt(actualIndex); if (blocks.none { it is RichBlock.TextBlock }) blocks.add(0, RichBlock.TextBlock())
             }
         }
-        insertIndex = insertIndex.coerceAtMost(blocks.size)
-        sync()
+        insertIndex = insertIndex.coerceAtMost(blocks.size); sync()
     }
 
     @Composable
     fun StandardControls(blockIndex: Int, block: RichBlock) {
         val liveIndex = currentIndexFor(block).takeIf { it >= 0 } ?: blockIndex
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(2.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            IconButton(onClick = { moveBlock(block, -1) }, enabled = liveIndex > 0) {
-                Icon(Icons.Default.ArrowUpward, contentDescription = "上移")
-            }
-            IconButton(onClick = { moveBlock(block, 1) }, enabled = liveIndex in 0 until blocks.lastIndex) {
-                Icon(Icons.Default.ArrowDownward, contentDescription = "下移")
-            }
-            if (block is RichBlock.TextBlock && standaloneWebUrl(block.text) != null) {
-                val expanded = block.key in expandedLinkKeys
-                IconButton(
-                    onClick = {
-                        expandedLinkKeys = if (expanded) expandedLinkKeys - block.key else expandedLinkKeys + block.key
-                    },
-                ) {
-                    Icon(
-                        if (expanded) Icons.Default.Check else Icons.Default.Edit,
-                        contentDescription = if (expanded) "收起链接" else "编辑链接",
-                    )
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(0.dp), verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = { moveBlock(block, -1) }, enabled = liveIndex > 0) { Icon(Icons.Default.ArrowUpward, "上移") }
+            IconButton(onClick = { moveBlock(block, 1) }, enabled = liveIndex in 0 until blocks.lastIndex) { Icon(Icons.Default.ArrowDownward, "下移") }
+            if (block is RichBlock.TextBlock) {
+                IconButton(onClick = {
+                    val i = currentIndexFor(block)
+                    if (i >= 0) { blocks[i] = block.copy(text = block.text + "\n\n"); sync() }
+                }) { Icon(Icons.Default.KeyboardReturn, "空一行") }
+                if (standaloneWebUrl(block.text) != null) {
+                    val expanded = block.key in expandedLinkKeys
+                    IconButton(onClick = { expandedLinkKeys = if (expanded) expandedLinkKeys - block.key else expandedLinkKeys + block.key }) {
+                        Icon(if (expanded) Icons.Default.Check else Icons.Default.Edit, if (expanded) "收起链接" else "编辑链接")
+                    }
                 }
             }
-            TextButton(onClick = {
-                val at = (currentIndexFor(block) + 1).coerceIn(0, blocks.size)
-                blocks.add(at, RichBlock.TextBlock())
-                insertIndex = at + 1
-                sync()
-            }) {
-                Icon(Icons.Default.Add, contentDescription = null)
-                Spacer(Modifier.width(3.dp))
-                Text("文字")
-            }
-            TextButton(onClick = {
-                insertIndex = (currentIndexFor(block) + 1).coerceIn(0, blocks.size)
-                picker.launch(arrayOf("image/*"))
-            }) {
-                Icon(Icons.Default.AddPhotoAlternate, contentDescription = null)
-                Spacer(Modifier.width(3.dp))
-                Text("图片")
-            }
             Spacer(Modifier.weight(1f))
-            IconButton(onClick = { remove(liveIndex, block) }) {
-                Icon(Icons.Default.DeleteOutline, contentDescription = "删除区块")
-            }
+            IconButton(onClick = { remove(liveIndex, block) }) { Icon(Icons.Default.DeleteOutline, "删除区块") }
         }
     }
 
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Text(label, style = MaterialTheme.typography.titleSmall)
-        Text(
-            "文字、图片、录音和链接按当前顺序保存；连续放入 2 张及以上图片会自动变成宫格，点图片仍可查看高清原图。",
-            style = MaterialTheme.typography.bodySmall,
-        )
-        if (recorderSession == null) {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                FilledTonalButton(
-                    modifier = Modifier.weight(1f),
-                    onClick = {
-                        if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
-                            startRecordingNow()
-                        } else {
-                            recordPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
-                        }
-                    },
-                ) {
-                    Icon(Icons.Default.Mic, contentDescription = null)
-                    Spacer(Modifier.width(6.dp))
-                    Text("开始录音")
-                }
-                OutlinedButton(
-                    modifier = Modifier.weight(1f),
-                    onClick = { audioPicker.launch(arrayOf("audio/*")) },
-                ) {
-                    Icon(Icons.Default.LibraryMusic, contentDescription = null)
-                    Spacer(Modifier.width(6.dp))
-                    Text("导入录音")
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Box {
+                IconButton(onClick = { imageMenuExpanded = true }) { Icon(Icons.Default.AddPhotoAlternate, "添加图片") }
+                DropdownMenu(expanded = imageMenuExpanded, onDismissRequest = { imageMenuExpanded = false }) {
+                    DropdownMenuItem(text = { Text("图库") }, leadingIcon = { Icon(Icons.Default.PhotoLibrary, null) }, onClick = {
+                        imageMenuExpanded = false; insertIndex = blocks.size; picker.launch(arrayOf("image/*"))
+                    })
                 }
             }
-        } else {
+            Box {
+                IconButton(onClick = { audioMenuExpanded = true }) { Icon(Icons.Default.Mic, "录音") }
+                DropdownMenu(expanded = audioMenuExpanded, onDismissRequest = { audioMenuExpanded = false }) {
+                    DropdownMenuItem(text = { Text("开始录音") }, leadingIcon = { Icon(Icons.Default.Mic, null) }, onClick = {
+                        audioMenuExpanded = false
+                        if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) startRecordingNow()
+                        else recordPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                    })
+                    DropdownMenuItem(text = { Text("导入录音") }, leadingIcon = { Icon(Icons.Default.LibraryMusic, null) }, onClick = {
+                        audioMenuExpanded = false; insertIndex = blocks.size; audioPicker.launch(arrayOf("audio/*"))
+                    })
+                }
+            }
+            IconButton(onClick = {
+                val at = blocks.size; blocks.add(RichBlock.TextBlock()); insertIndex = at + 1; sync()
+            }) { Icon(Icons.Default.Add, "新增文字") }
+        }
+
+        if (recorderSession != null) {
             val session = recorderSession!!
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    Icon(Icons.Default.Mic, contentDescription = null, tint = MaterialTheme.colorScheme.onErrorContainer)
-                    Column(Modifier.weight(1f)) {
-                        Text("正在录音", style = MaterialTheme.typography.titleSmall)
-                        RecordingDuration(session.startedAtMs)
-                    }
-                    TextButton(onClick = { stopRecordingAndSave() }) {
-                        Icon(Icons.Default.Stop, contentDescription = null)
-                        Spacer(Modifier.width(4.dp))
-                        Text("停止并保存")
-                    }
-                    IconButton(onClick = { cancelRecording() }) {
-                        Icon(Icons.Default.Close, contentDescription = "取消录音")
-                    }
+            Surface(Modifier.fillMaxWidth(), color = MaterialTheme.colorScheme.errorContainer, shape = MaterialTheme.shapes.medium) {
+                Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.Mic, null); Spacer(Modifier.width(8.dp)); RecordingDuration(session.startedAtMs); Spacer(Modifier.weight(1f))
+                    TextButton(onClick = { stopRecordingAndSave() }) { Text("停止并保存") }
+                    IconButton(onClick = { cancelRecording() }) { Icon(Icons.Default.Close, "取消录音") }
                 }
             }
         }
-
         audioMessage?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
 
         var index = 0
@@ -373,11 +278,7 @@ fun RichNoteBodyGridEditor(
                 while (end < blocks.size && blocks[end] is RichBlock.ImageBlock) end++
                 val imageItems = (index until end).mapNotNull { imageIndex ->
                     val imageBlock = blocks[imageIndex] as? RichBlock.ImageBlock ?: return@mapNotNull null
-                    NoteGridImage(
-                        index = imageIndex,
-                        block = imageBlock,
-                        file = attachmentFile(context, imageBlock.fileName),
-                    )
+                    NoteGridImage(imageIndex, imageBlock, attachmentFile(context, imageBlock.fileName))
                 }
                 val firstBlock = imageItems.firstOrNull()?.block
                 val lastBlock = imageItems.lastOrNull()?.block
@@ -388,41 +289,18 @@ fun RichNoteBodyGridEditor(
                         onDelete = { imageIndex, imageBlock -> remove(imageIndex, imageBlock) },
                         onMove = { imageIndex, delta -> (blocks.getOrNull(imageIndex) as? RichBlock.ImageBlock)?.let { moveBlock(it, delta) } },
                     )
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        TextButton(
-                            onClick = {
-                                val lastLive = lastBlock?.let(::currentIndexFor)?.takeIf { it >= 0 } ?: blocks.lastIndex
-                                val at = (lastLive + 1).coerceIn(0, blocks.size)
-                                blocks.add(at, RichBlock.TextBlock())
-                                insertIndex = at + 1
-                                sync()
-                            },
-                        ) {
-                            Icon(Icons.Default.Add, contentDescription = null)
-                            Spacer(Modifier.width(3.dp))
-                            Text("宫格后写文字")
-                        }
-                        TextButton(
-                            onClick = {
-                                val lastLive = lastBlock?.let(::currentIndexFor)?.takeIf { it >= 0 } ?: blocks.lastIndex
-                                insertIndex = (lastLive + 1).coerceIn(0, blocks.size)
-                                picker.launch(arrayOf("image/*"))
-                            },
-                        ) {
-                            Icon(Icons.Default.AddPhotoAlternate, contentDescription = null)
-                            Spacer(Modifier.width(3.dp))
-                            Text("继续加图")
-                        }
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        IconButton(onClick = {
+                            val lastLive = lastBlock?.let(::currentIndexFor)?.takeIf { it >= 0 } ?: blocks.lastIndex
+                            val at = (lastLive + 1).coerceIn(0, blocks.size); blocks.add(at, RichBlock.TextBlock()); insertIndex = at + 1; sync()
+                        }) { Icon(Icons.Default.Add, "图片后写文字") }
+                        IconButton(onClick = {
+                            val lastLive = lastBlock?.let(::currentIndexFor)?.takeIf { it >= 0 } ?: blocks.lastIndex
+                            insertIndex = (lastLive + 1).coerceIn(0, blocks.size); picker.launch(arrayOf("image/*"))
+                        }) { Icon(Icons.Default.AddPhotoAlternate, "继续加图") }
                         Spacer(Modifier.weight(1f))
-                        IconButton(
-                            onClick = { firstBlock?.let { moveBlock(it, -1) } },
-                            enabled = firstBlock?.let(::currentIndexFor)?.let { it > 0 } == true,
-                        ) {
-                            Icon(Icons.Default.ArrowUpward, contentDescription = "第一张图片上移")
+                        IconButton(onClick = { firstBlock?.let { moveBlock(it, -1) } }, enabled = firstBlock?.let(::currentIndexFor)?.let { it > 0 } == true) {
+                            Icon(Icons.Default.ArrowUpward, "图片组上移")
                         }
                     }
                 }
@@ -434,28 +312,25 @@ fun RichNoteBodyGridEditor(
                         is RichBlock.TextBlock -> {
                             val compactUrl = standaloneWebUrl(block.text)
                             if (compactUrl != null && block.key !in expandedLinkKeys) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                ) {
-                                    FilledTonalIconButton(onClick = { runCatching { uriHandler.openUri(compactUrl) } }) {
-                                        Icon(Icons.Default.Link, contentDescription = "打开链接")
-                                    }
+                                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                                    FilledTonalIconButton(onClick = { runCatching { uriHandler.openUri(compactUrl) } }) { Icon(Icons.Default.Link, "打开链接") }
                                 }
                             } else {
                                 Column {
-                                    OutlinedTextField(
+                                    BasicTextField(
                                         value = block.text,
                                         onValueChange = { next ->
                                             val liveIndex = currentIndexFor(block)
-                                            if (liveIndex >= 0) {
-                                                blocks[liveIndex] = block.copy(text = next)
-                                                sync()
+                                            if (liveIndex >= 0) { blocks[liveIndex] = block.copy(text = next); sync() }
+                                        },
+                                        modifier = Modifier.fillMaxWidth().defaultMinSize(minHeight = 112.dp).padding(horizontal = 2.dp, vertical = 10.dp),
+                                        textStyle = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onSurface),
+                                        decorationBox = { inner ->
+                                            Box(Modifier.fillMaxWidth()) {
+                                                if (block.text.isEmpty()) Text(if (blockIndex == 0) "直接写内容或粘贴链接…" else "继续写…", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                                inner()
                                             }
                                         },
-                                        modifier = Modifier.fillMaxWidth(),
-                                        placeholder = { Text(if (blockIndex == 0) "直接写内容或粘贴链接…" else "继续写…") },
-                                        minLines = 3,
                                     )
                                     GridEditorLinkActions(block.text)
                                 }
@@ -463,18 +338,10 @@ fun RichNoteBodyGridEditor(
                         }
                         is RichBlock.AudioBlock -> {
                             val file = attachmentFile(context, block.fileName)
-                            if (file.isFile) {
-                                AudioBlockPlayer(file)
-                            } else {
-                                Card(Modifier.fillMaxWidth()) {
-                                    Row(
-                                        Modifier.padding(16.dp),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                    ) {
-                                        Icon(Icons.Default.LibraryMusic, contentDescription = null)
-                                        Text("录音文件暂时不可用，但位置已保留。", style = MaterialTheme.typography.bodySmall)
-                                    }
+                            if (file.isFile) AudioBlockPlayer(file)
+                            else Surface(Modifier.fillMaxWidth(), tonalElevation = 1.dp, shape = MaterialTheme.shapes.medium) {
+                                Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    Icon(Icons.Default.LibraryMusic, null); Text("录音文件暂时不可用", style = MaterialTheme.typography.bodySmall)
                                 }
                             }
                         }
