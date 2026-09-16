@@ -22,8 +22,8 @@ android {
         applicationId = "com.menter.treatmentvault"
         minSdk = 26
         targetSdk = 35
-        versionCode = 47
-        versionName = "0.30.1"
+        versionCode = 48
+        versionName = "0.30.2"
     }
 
     buildTypes {
@@ -56,7 +56,6 @@ dependencies {
     ksp("androidx.room:room-compiler:2.6.1")
     implementation("com.google.code.gson:gson:2.11.0")
     implementation("androidx.documentfile:documentfile:1.0.1")
-    implementation("io.coil-kt:coil-compose:2.7.0")
     testImplementation("junit:junit:4.13.2")
     debugImplementation("androidx.compose.ui:ui-tooling")
 }
