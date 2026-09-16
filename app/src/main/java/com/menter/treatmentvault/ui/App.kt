@@ -9,39 +9,42 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.menter.treatmentvault.ui.screens.*
 
-private val NeutralWhiteScheme = lightColorScheme(
-    primary = Color(0xFF252525),
+private val SoftWarmWhiteScheme = lightColorScheme(
+    primary = Color(0xFF292623),
     onPrimary = Color(0xFFFFFFFF),
-    primaryContainer = Color(0xFFF1F1F1),
-    onPrimaryContainer = Color(0xFF202020),
-    secondary = Color(0xFF666666),
+    primaryContainer = Color(0xFFF5F2EE),
+    onPrimaryContainer = Color(0xFF292623),
+    secondary = Color(0xFF6D6862),
     onSecondary = Color(0xFFFFFFFF),
-    secondaryContainer = Color(0xFFF2F2F2),
-    onSecondaryContainer = Color(0xFF303030),
-    tertiary = Color(0xFF777777),
+    secondaryContainer = Color(0xFFF6F3EF),
+    onSecondaryContainer = Color(0xFF37332F),
+    tertiary = Color(0xFF9A7462),
     onTertiary = Color(0xFFFFFFFF),
-    background = Color(0xFFFCFCFC),
-    onBackground = Color(0xFF202020),
-    surface = Color(0xFFFCFCFC),
-    onSurface = Color(0xFF202020),
-    surfaceVariant = Color(0xFFF3F3F3),
-    onSurfaceVariant = Color(0xFF5F5F5F),
+    tertiaryContainer = Color(0xFFF7EEE9),
+    onTertiaryContainer = Color(0xFF49372E),
+    background = Color(0xFFFEFDFC),
+    onBackground = Color(0xFF242220),
+    surface = Color(0xFFFEFDFC),
+    onSurface = Color(0xFF242220),
+    surfaceVariant = Color(0xFFF7F4F0),
+    onSurfaceVariant = Color(0xFF68625D),
     surfaceContainerLowest = Color(0xFFFFFFFF),
-    surfaceContainerLow = Color(0xFFF8F8F8),
-    surfaceContainer = Color(0xFFF4F4F4),
-    surfaceContainerHigh = Color(0xFFEEEEEE),
-    surfaceContainerHighest = Color(0xFFE8E8E8),
-    outline = Color(0xFFBDBDBD),
-    outlineVariant = Color(0xFFE2E2E2),
+    surfaceContainerLow = Color(0xFFFBF9F6),
+    surfaceContainer = Color(0xFFF8F5F1),
+    surfaceContainerHigh = Color(0xFFF4F1ED),
+    surfaceContainerHighest = Color(0xFFF0ECE7),
+    outline = Color(0xFFC8C1BA),
+    outlineVariant = Color(0xFFE9E4DE),
 )
 
 @Composable
 fun TreatmentVaultApp() {
-    MaterialTheme(colorScheme = NeutralWhiteScheme) {
+    MaterialTheme(colorScheme = SoftWarmWhiteScheme) {
         val nav = rememberNavController()
         NavHost(nav, "home") {
             composable("home") { HomeScreen { nav.navigate(it) } }
             composable("notes") { AllRecordsScreen(back = { nav.popBackStack() }, go = { nav.navigate(it) }) }
+            composable("notes/manage") { AllRecordsScreen(back = { nav.popBackStack() }, go = { nav.navigate(it) }, startInManageMode = true) }
             composable("todos") { TodoCenterScreen(back = { nav.popBackStack() }, go = { nav.navigate(it) }) }
             composable("note/new/{categoryId}") { entry ->
                 NoteEditorScreen(noteId = 0L, initialCategoryId = entry.arguments?.getString("categoryId"), back = { nav.popBackStack() })
