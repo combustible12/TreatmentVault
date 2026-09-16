@@ -26,7 +26,11 @@ private enum class RecordShelf(val label: String) {
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
-fun AllRecordsScreen(back: () -> Unit, go: (String) -> Unit) {
+fun AllRecordsScreen(
+    back: () -> Unit,
+    go: (String) -> Unit,
+    startInManagementMode: Boolean = false,
+) {
     val app = androidx.compose.ui.platform.LocalContext.current.applicationContext as TreatmentVaultApplication
     val dao = app.database.dao()
     val categories by dao.categories().collectAsState(emptyList())
@@ -48,6 +52,8 @@ fun AllRecordsScreen(back: () -> Unit, go: (String) -> Unit) {
     var query by rememberSaveable { mutableStateOf("") }
     var shelfName by rememberSaveable { mutableStateOf(RecordShelf.ALL.name) }
     var selectedKeys by remember { mutableStateOf<Set<String>>(emptySet()) }
+    var managementMode by rememberSaveable { mutableStateOf(startInManagementMode) }
+    var batchMenuOpen by remember { mutableStateOf(false) }
     var moveKeys by remember { mutableStateOf<Set<String>>(emptySet()) }
     var ownershipItem by remember { mutableStateOf<UnifiedRecordItem?>(null) }
     val shelf = runCatching { RecordShelf.valueOf(shelfName) }.getOrDefault(RecordShelf.ALL)
@@ -82,13 +88,43 @@ fun AllRecordsScreen(back: () -> Unit, go: (String) -> Unit) {
         scope.launch { dao.saveRecordState(next.copy(updatedAt = System.currentTimeMillis())) }
     }
 
+    fun updateSelected(transform: (RecordStateEntity) -> RecordStateEntity) {
+        val keys = selectedKeys
+        if (keys.isEmpty()) return
+        scope.launch {
+            val now = System.currentTimeMillis()
+            allItems.filter { it.key in keys }.forEach { item ->
+                dao.saveRecordState(transform(recordStateFor(item, stateMap)).copy(updatedAt = now))
+            }
+            selectedKeys = emptySet()
+        }
+    }
+
     Scaffold(
         topBar = {
-            if (selectedKeys.isNotEmpty()) {
+            if (managementMode) {
                 TopAppBar(
-                    title = { Text("已选 ${selectedKeys.size} 条记录") },
-                    navigationIcon = { IconButton(onClick = { selectedKeys = emptySet() }) { Icon(Icons.Default.Close, contentDescription = "取消选择") } },
-                    actions = { IconButton(onClick = { moveKeys = selectedKeys }) { Icon(Icons.Default.FolderOpen, contentDescription = "移动到") } },
+                    title = { Text(if (selectedKeys.isEmpty()) "批量管理" else "已选 ${selectedKeys.size} 条记录") },
+                    navigationIcon = { IconButton(onClick = { if (startInManagementMode) back() else { managementMode = false; selectedKeys = emptySet() } }) { Icon(Icons.Default.Close, contentDescription = "退出批量管理") } },
+                    actions = {
+                        TextButton(onClick = { selectedKeys = if (filtered.all { it.key in selectedKeys }) emptySet() else filtered.map { it.key }.toSet() }) {
+                            Text(if (filtered.isNotEmpty() && filtered.all { it.key in selectedKeys }) "取消全选" else "全选")
+                        }
+                        IconButton(onClick = { moveKeys = selectedKeys }, enabled = selectedKeys.isNotEmpty() && shelf != RecordShelf.TRASH) { Icon(Icons.Default.FolderOpen, contentDescription = "移动到") }
+                        Box {
+                            IconButton(onClick = { batchMenuOpen = true }, enabled = selectedKeys.isNotEmpty()) { Icon(Icons.Default.MoreVert, contentDescription = "批量操作") }
+                            DropdownMenu(expanded = batchMenuOpen, onDismissRequest = { batchMenuOpen = false }) {
+                                if (shelf == RecordShelf.TRASH) {
+                                    DropdownMenuItem(text = { Text("批量恢复") }, leadingIcon = { Icon(Icons.Default.RestoreFromTrash, null) }, onClick = { batchMenuOpen = false; updateSelected { it.copy(trashedAt = null, archived = false) } })
+                                } else {
+                                    DropdownMenuItem(text = { Text("批量置顶") }, leadingIcon = { Icon(Icons.Default.PushPin, null) }, onClick = { batchMenuOpen = false; updateSelected { it.copy(pinned = true) } })
+                                    DropdownMenuItem(text = { Text("批量收藏") }, leadingIcon = { Icon(Icons.Default.Favorite, null) }, onClick = { batchMenuOpen = false; updateSelected { it.copy(favorite = true) } })
+                                    DropdownMenuItem(text = { Text("批量归档") }, leadingIcon = { Icon(Icons.Default.Archive, null) }, onClick = { batchMenuOpen = false; updateSelected { it.copy(archived = true, pinned = false) } })
+                                    DropdownMenuItem(text = { Text("移到回收站") }, leadingIcon = { Icon(Icons.Default.DeleteOutline, null) }, onClick = { batchMenuOpen = false; updateSelected { it.copy(trashedAt = System.currentTimeMillis(), pinned = false) } })
+                                }
+                            }
+                        }
+                    },
                 )
             } else {
                 TopAppBar(
@@ -102,11 +138,12 @@ fun AllRecordsScreen(back: () -> Unit, go: (String) -> Unit) {
                         )
                     },
                     navigationIcon = { IconButton(onClick = back) { Icon(Icons.Default.ArrowBack, contentDescription = "返回") } },
+                    actions = { TextButton(onClick = { managementMode = true }) { Text("批量管理") } },
                 )
             }
         },
         floatingActionButton = {
-            if (shelf != RecordShelf.TRASH && selectedKeys.isEmpty()) {
+            if (shelf != RecordShelf.TRASH && !managementMode) {
                 FloatingActionButton(onClick = { go("note/new/inbox") }) { Icon(Icons.Default.Add, contentDescription = "新建笔记") }
             }
         },
@@ -141,7 +178,7 @@ fun AllRecordsScreen(back: () -> Unit, go: (String) -> Unit) {
                 }
             }
             if (selectedKeys.isEmpty()) {
-                item { Text("${filtered.size} 条记录 · 长按可重命名并查看全部归属文件夹", style = MaterialTheme.typography.bodySmall) }
+                item { Text(if (managementMode) "${filtered.size} 条记录 · 点击勾选，可全选后批量处理" else "${filtered.size} 条记录 · 长按可重命名并查看全部归属文件夹", style = MaterialTheme.typography.bodySmall) }
             }
             if (filtered.isEmpty()) {
                 item {
@@ -159,11 +196,11 @@ fun AllRecordsScreen(back: () -> Unit, go: (String) -> Unit) {
                         item = item,
                         state = state,
                         shelf = shelf,
-                        selectionMode = selectedKeys.isNotEmpty(),
+                        selectionMode = managementMode,
                         selected = item.key in selectedKeys,
-                        onOpen = { if (selectedKeys.isNotEmpty()) toggle(item) else go(item.route) },
+                        onOpen = { if (managementMode) toggle(item) else go(item.route) },
                         onLongPress = {
-                            if (selectedKeys.isNotEmpty() && shelf != RecordShelf.TRASH) toggle(item)
+                            if (managementMode) toggle(item)
                             else ownershipItem = item
                         },
                         onMoveRequested = { moveKeys = setOf(item.key) },

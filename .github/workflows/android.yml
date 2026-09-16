@@ -89,7 +89,7 @@ jobs:
               "versionName": os.environ["VERSION_NAME"],
               "apkUrl": "https://raw.githubusercontent.com/combustible12/TreatmentVault-Updates/main/TreatmentVault-latest.apk",
               "sha256": os.environ["SHA"],
-              "notes": "新增笔记媒体能力：全文搜索保持完整正文搜索；多图支持调整顺序并持久保存；点任意图片进入整篇笔记图库，可左右或上下滑动查看其他图片；已有图片可直接裁剪、画笔涂画、马赛克和添加文字；笔记新增创建时间并区分最后修改时间。数据库仅做向前兼容迁移，旧笔记用原更新时间回填创建时间，现有笔记、图片、类目、置顶与备份数据保持兼容。"
+              "notes": "首页快捷入口整合为一排图标，并新增直接进入批量管理的入口；全部记录支持全选、逐条勾选、批量移动、置顶、收藏、归档、移到回收站以及批量恢复；笔记编辑器新增空一行和空两行操作，按当前光标或选区插入后自动把焦点与光标移到新增空行之后。修复上一版首页组件缺失导致的构建失败。"
           }
           with open("update-repo/update.json", "w", encoding="utf-8") as f:
               json.dump(data, f, ensure_ascii=False, indent=2)

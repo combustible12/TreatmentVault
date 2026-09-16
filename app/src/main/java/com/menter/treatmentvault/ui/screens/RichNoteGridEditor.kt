@@ -19,10 +19,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
@@ -84,6 +88,8 @@ fun RichNoteBodyGridEditor(
     var expandedLinkKeys by remember(ownerType, sessionKey) { mutableStateOf<Set<String>>(emptySet()) }
     var imageMenuExpanded by remember(ownerType, sessionKey) { mutableStateOf(false) }
     var audioMenuExpanded by remember(ownerType, sessionKey) { mutableStateOf(false) }
+    val textSelections = remember(ownerType, sessionKey) { mutableStateMapOf<String, TextRange>() }
+    val textFocusRequesters = remember(ownerType, sessionKey) { mutableMapOf<String, FocusRequester>() }
 
     fun sync() { val serialized = serializeRichBody(blocks); lastSerializedValue = serialized; onValueChange(serialized) }
 
@@ -144,6 +150,22 @@ fun RichNoteBodyGridEditor(
     DisposableEffect(ownerType, sessionKey) { onDispose { latestRecorderSession?.let { cancelAudioRecording(context, it) } } }
 
     fun currentIndexFor(block: RichBlock): Int = blocks.indexOfFirst { it.key == block.key }
+    fun focusRequesterFor(block: RichBlock.TextBlock): FocusRequester =
+        textFocusRequesters.getOrPut(block.key) { FocusRequester() }
+    fun insertBlankLines(block: RichBlock.TextBlock, blankLineCount: Int) {
+        val index = currentIndexFor(block)
+        if (index < 0) return
+        val selection = (textSelections[block.key] ?: TextRange(block.text.length)).let {
+            TextRange(it.start.coerceIn(0, block.text.length), it.end.coerceIn(0, block.text.length))
+        }
+        val inserted = "\n".repeat(blankLineCount + 1)
+        val nextText = block.text.replaceRange(selection.min, selection.max, inserted)
+        val nextCursor = selection.min + inserted.length
+        blocks[index] = block.copy(text = nextText)
+        textSelections[block.key] = TextRange(nextCursor)
+        sync()
+        focusRequesterFor(block).requestFocus()
+    }
     fun moveBlock(block: RichBlock, delta: Int) {
         val from = currentIndexFor(block); val to = from + delta
         if (from !in blocks.indices || to !in blocks.indices) return
@@ -177,7 +199,8 @@ fun RichNoteBodyGridEditor(
             IconButton(onClick = { moveBlock(block, -1) }, enabled = liveIndex > 0) { Icon(Icons.Default.ArrowUpward, "上移") }
             IconButton(onClick = { moveBlock(block, 1) }, enabled = liveIndex in 0 until blocks.lastIndex) { Icon(Icons.Default.ArrowDownward, "下移") }
             if (block is RichBlock.TextBlock) {
-                IconButton(onClick = { val i = currentIndexFor(block); if (i >= 0) { blocks[i] = block.copy(text = block.text + "\n\n"); sync() } }) { Icon(Icons.Default.KeyboardReturn, "空一行") }
+                TextButton(onClick = { insertBlankLines(block, 1) }) { Text("空一行") }
+                TextButton(onClick = { insertBlankLines(block, 2) }) { Text("空两行") }
                 if (standaloneWebUrl(block.text) != null) {
                     val expanded = block.key in expandedLinkKeys
                     IconButton(onClick = { expandedLinkKeys = if (expanded) expandedLinkKeys - block.key else expandedLinkKeys + block.key }) { Icon(if (expanded) Icons.Default.Check else Icons.Default.Edit, if (expanded) "收起链接" else "编辑链接") }
@@ -247,9 +270,18 @@ fun RichNoteBodyGridEditor(
                             } else {
                                 Column {
                                     BasicTextField(
-                                        value = block.text,
-                                        onValueChange = { next -> val liveIndex = currentIndexFor(block); if (liveIndex >= 0) { blocks[liveIndex] = block.copy(text = next); sync() } },
-                                        modifier = Modifier.fillMaxWidth().defaultMinSize(minHeight = 112.dp).padding(horizontal = 2.dp, vertical = 10.dp),
+                                        value = TextFieldValue(
+                                            text = block.text,
+                                            selection = (textSelections[block.key] ?: TextRange(block.text.length)).let {
+                                                TextRange(it.start.coerceIn(0, block.text.length), it.end.coerceIn(0, block.text.length))
+                                            },
+                                        ),
+                                        onValueChange = { next ->
+                                            textSelections[block.key] = next.selection
+                                            val liveIndex = currentIndexFor(block)
+                                            if (liveIndex >= 0) { blocks[liveIndex] = block.copy(text = next.text); sync() }
+                                        },
+                                        modifier = Modifier.fillMaxWidth().defaultMinSize(minHeight = 112.dp).focusRequester(focusRequesterFor(block)).padding(horizontal = 2.dp, vertical = 10.dp),
                                         textStyle = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onSurface),
                                     )
                                     GridEditorLinkActions(block.text)
