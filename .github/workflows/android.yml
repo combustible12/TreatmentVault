@@ -89,7 +89,7 @@ jobs:
               "versionName": os.environ["VERSION_NAME"],
               "apkUrl": "https://raw.githubusercontent.com/combustible12/TreatmentVault-Updates/main/TreatmentVault-latest.apk",
               "sha256": os.environ["SHA"],
-              "notes": "首页快捷入口整合为一排图标，并新增直接进入批量管理的入口；全部记录支持全选、逐条勾选、批量移动、置顶、收藏、归档、移到回收站以及批量恢复；笔记编辑器新增空一行和空两行操作，按当前光标或选区插入后自动把焦点与光标移到新增空行之后。修复上一版首页组件缺失导致的构建失败。"
+              "notes": "修复图片进入编辑模式后工具按钮被系统导航区域遮挡的问题。编辑器改为固定顶部操作栏和固定底部工具栏，并按系统安全区定位；裁剪、画笔、马赛克、文字四个按钮等宽显示，避免不同屏幕尺寸下被挤出画面。"
           }
           with open("update-repo/update.json", "w", encoding="utf-8") as f:
               json.dump(data, f, ensure_ascii=False, indent=2)
