@@ -89,7 +89,7 @@ jobs:
               "versionName": os.environ["VERSION_NAME"],
               "apkUrl": "https://raw.githubusercontent.com/combustible12/TreatmentVault-Updates/main/TreatmentVault-latest.apk",
               "sha256": os.environ["SHA"],
-              "notes": "修复图片进入编辑模式后工具按钮被系统导航区域遮挡的问题。编辑器改为固定顶部操作栏和固定底部工具栏，并按系统安全区定位；裁剪、画笔、马赛克、文字四个按钮等宽显示，避免不同屏幕尺寸下被挤出画面。"
+              "notes": "修复图片编辑页底部工具栏在部分全面屏设备上仍被裁出屏幕的问题：编辑工具改到顶部固定区域，不再依赖底部导航栏定位；新增撤销与重做，支持画笔、马赛克、裁剪和文字操作的历史回退/恢复；保留取消、重置、保存以及原图片浏览功能。"
           }
           with open("update-repo/update.json", "w", encoding="utf-8") as f:
               json.dump(data, f, ensure_ascii=False, indent=2)
