@@ -380,19 +380,17 @@ internal fun NoteImageEditorContent(
         }
     }
 
-    Surface(
+    Scaffold(
         modifier = Modifier.fillMaxSize(),
-        color = MaterialTheme.colorScheme.surface,
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .windowInsetsPadding(WindowInsets.safeDrawing),
-        ) {
+        contentWindowInsets = WindowInsets.safeDrawing,
+        topBar = {
             Surface(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .statusBarsPadding(),
                 tonalElevation = 4.dp,
-                shadowElevation = 2.dp,
+                shadowElevation = 4.dp,
+                color = MaterialTheme.colorScheme.surface,
             ) {
                 Column(
                     modifier = Modifier
@@ -531,25 +529,25 @@ internal fun NoteImageEditorContent(
                     }
                 }
             }
-
-            AndroidView(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f),
-                factory = { ctx ->
-                    NoteImageEditView(ctx).also {
-                        it.onHistoryChanged = historyCallback
-                        it.load(file)
-                        it.mode = mode
-                        viewRef = it
-                    }
-                },
-                update = {
-                    it.mode = mode
+        },
+    ) { innerPadding ->
+        AndroidView(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding),
+            factory = { ctx ->
+                NoteImageEditView(ctx).also {
                     it.onHistoryChanged = historyCallback
-                },
-            )
-        }
+                    it.load(file)
+                    it.mode = mode
+                    viewRef = it
+                }
+            },
+            update = {
+                it.mode = mode
+                it.onHistoryChanged = historyCallback
+            },
+        )
     }
 }
 
