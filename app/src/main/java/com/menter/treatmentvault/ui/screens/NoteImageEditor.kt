@@ -361,25 +361,204 @@ private class NoteImageEditView(context: Context) : View(context) {
 }
 
 @Composable
-internal fun NoteImageEditorDialog(
+internal fun NoteImageEditorContent(
     file: File,
     onDismiss: () -> Unit,
     onSaved: () -> Unit,
 ) {
-    var mode by remember { mutableStateOf(NoteImageEditMode.DRAW) }
-    var textValue by remember { mutableStateOf("") }
-    var viewRef by remember { mutableStateOf<NoteImageEditView?>(null) }
-    var message by remember { mutableStateOf<String?>(null) }
-    var canUndo by remember { mutableStateOf(false) }
-    var canRedo by remember { mutableStateOf(false) }
+    var mode by remember(file.absolutePath) { mutableStateOf(NoteImageEditMode.DRAW) }
+    var textValue by remember(file.absolutePath) { mutableStateOf("") }
+    var viewRef by remember(file.absolutePath) { mutableStateOf<NoteImageEditView?>(null) }
+    var message by remember(file.absolutePath) { mutableStateOf<String?>(null) }
+    var canUndo by remember(file.absolutePath) { mutableStateOf(false) }
+    var canRedo by remember(file.absolutePath) { mutableStateOf(false) }
 
-    val historyCallback = remember {
+    val historyCallback = remember(file.absolutePath) {
         { undo: Boolean, redo: Boolean ->
             canUndo = undo
             canRedo = redo
         }
     }
 
+    Surface(
+        modifier = Modifier.fillMaxSize(),
+        color = MaterialTheme.colorScheme.surface,
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .windowInsetsPadding(WindowInsets.safeDrawing),
+        ) {
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                tonalElevation = 4.dp,
+                shadowElevation = 2.dp,
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 8.dp, vertical = 6.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(2.dp),
+                    ) {
+                        TextButton(
+                            onClick = onDismiss,
+                            modifier = Modifier.defaultMinSize(minWidth = 0.dp),
+                            contentPadding = PaddingValues(horizontal = 7.dp, vertical = 4.dp),
+                        ) { Text("取消") }
+
+                        Spacer(Modifier.weight(1f))
+
+                        TextButton(
+                            onClick = {
+                                if (viewRef?.undo() == true) message = null
+                            },
+                            enabled = canUndo,
+                            modifier = Modifier.defaultMinSize(minWidth = 0.dp),
+                            contentPadding = PaddingValues(horizontal = 7.dp, vertical = 4.dp),
+                        ) { Text("撤销") }
+
+                        TextButton(
+                            onClick = {
+                                if (viewRef?.redo() == true) message = null
+                            },
+                            enabled = canRedo,
+                            modifier = Modifier.defaultMinSize(minWidth = 0.dp),
+                            contentPadding = PaddingValues(horizontal = 7.dp, vertical = 4.dp),
+                        ) { Text("重做") }
+
+                        TextButton(
+                            onClick = {
+                                viewRef?.reset()
+                                message = "已恢复到打开编辑器时的原图"
+                            },
+                            modifier = Modifier.defaultMinSize(minWidth = 0.dp),
+                            contentPadding = PaddingValues(horizontal = 7.dp, vertical = 4.dp),
+                        ) { Text("重置") }
+
+                        Button(
+                            onClick = {
+                                if (viewRef?.save(file) == true) {
+                                    onSaved()
+                                } else {
+                                    message = "保存失败，请重试"
+                                }
+                            },
+                            modifier = Modifier.defaultMinSize(minWidth = 0.dp),
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                        ) { Text("保存") }
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    ) {
+                        FilterChip(
+                            modifier = Modifier.weight(1f),
+                            selected = mode == NoteImageEditMode.CROP,
+                            onClick = { mode = NoteImageEditMode.CROP; message = null },
+                            label = { Text("裁剪", maxLines = 1, overflow = TextOverflow.Clip) },
+                            leadingIcon = { Icon(Icons.Default.Crop, null, modifier = Modifier.size(18.dp)) },
+                        )
+                        FilterChip(
+                            modifier = Modifier.weight(1f),
+                            selected = mode == NoteImageEditMode.DRAW,
+                            onClick = { mode = NoteImageEditMode.DRAW; message = null },
+                            label = { Text("画笔", maxLines = 1, overflow = TextOverflow.Clip) },
+                            leadingIcon = { Icon(Icons.Default.Brush, null, modifier = Modifier.size(18.dp)) },
+                        )
+                        FilterChip(
+                            modifier = Modifier.weight(1f),
+                            selected = mode == NoteImageEditMode.MOSAIC,
+                            onClick = { mode = NoteImageEditMode.MOSAIC; message = null },
+                            label = { Text("马赛克", maxLines = 1, overflow = TextOverflow.Clip) },
+                            leadingIcon = { Icon(Icons.Default.GridOn, null, modifier = Modifier.size(18.dp)) },
+                        )
+                        FilterChip(
+                            modifier = Modifier.weight(1f),
+                            selected = mode == NoteImageEditMode.TEXT,
+                            onClick = { mode = NoteImageEditMode.TEXT; message = null },
+                            label = { Text("文字", maxLines = 1, overflow = TextOverflow.Clip) },
+                            leadingIcon = { Icon(Icons.Default.TextFields, null, modifier = Modifier.size(18.dp)) },
+                        )
+                    }
+
+                    if (mode == NoteImageEditMode.CROP) {
+                        Button(
+                            onClick = {
+                                if (viewRef?.commitCrop() == true) {
+                                    message = null
+                                } else {
+                                    message = "请先在图片上拖出裁剪范围"
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                        ) { Text("应用当前裁剪范围") }
+                    }
+
+                    if (mode == NoteImageEditMode.TEXT) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            OutlinedTextField(
+                                value = textValue,
+                                onValueChange = { textValue = it },
+                                modifier = Modifier.weight(1f),
+                                placeholder = { Text("输入文字后点图片选择位置") },
+                                singleLine = true,
+                            )
+                            Button(
+                                onClick = {
+                                    if (viewRef?.addText(textValue) == true) {
+                                        textValue = ""
+                                        message = null
+                                    }
+                                },
+                            ) { Text("写入") }
+                        }
+                    }
+
+                    message?.let {
+                        Text(
+                            text = it,
+                            modifier = Modifier.padding(horizontal = 4.dp),
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                    }
+                }
+            }
+
+            AndroidView(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f),
+                factory = { ctx ->
+                    NoteImageEditView(ctx).also {
+                        it.onHistoryChanged = historyCallback
+                        it.load(file)
+                        it.mode = mode
+                        viewRef = it
+                    }
+                },
+                update = {
+                    it.mode = mode
+                    it.onHistoryChanged = historyCallback
+                },
+            )
+        }
+    }
+}
+
+@Composable
+internal fun NoteImageEditorDialog(
+    file: File,
+    onDismiss: () -> Unit,
+    onSaved: () -> Unit,
+) {
     Dialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(
@@ -387,170 +566,13 @@ internal fun NoteImageEditorDialog(
             decorFitsSystemWindows = true,
         ),
     ) {
-        Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.surface) {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .windowInsetsPadding(WindowInsets.safeDrawing),
-            ) {
-                Surface(tonalElevation = 3.dp) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 8.dp, vertical = 6.dp),
-                        verticalArrangement = Arrangement.spacedBy(4.dp),
-                    ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(2.dp),
-                        ) {
-                            TextButton(
-                                onClick = onDismiss,
-                                modifier = Modifier.defaultMinSize(minWidth = 0.dp),
-                                contentPadding = PaddingValues(horizontal = 7.dp, vertical = 4.dp),
-                            ) { Text("取消") }
-
-                            Spacer(Modifier.weight(1f))
-
-                            TextButton(
-                                onClick = {
-                                    if (viewRef?.undo() == true) message = null
-                                },
-                                enabled = canUndo,
-                                modifier = Modifier.defaultMinSize(minWidth = 0.dp),
-                                contentPadding = PaddingValues(horizontal = 7.dp, vertical = 4.dp),
-                            ) { Text("撤销") }
-
-                            TextButton(
-                                onClick = {
-                                    if (viewRef?.redo() == true) message = null
-                                },
-                                enabled = canRedo,
-                                modifier = Modifier.defaultMinSize(minWidth = 0.dp),
-                                contentPadding = PaddingValues(horizontal = 7.dp, vertical = 4.dp),
-                            ) { Text("重做") }
-
-                            TextButton(
-                                onClick = {
-                                    viewRef?.reset()
-                                    message = "已恢复到打开编辑器时的原图"
-                                },
-                                modifier = Modifier.defaultMinSize(minWidth = 0.dp),
-                                contentPadding = PaddingValues(horizontal = 7.dp, vertical = 4.dp),
-                            ) { Text("重置") }
-
-                            Button(
-                                onClick = {
-                                    if (viewRef?.save(file) == true) {
-                                        onSaved()
-                                        onDismiss()
-                                    } else {
-                                        message = "保存失败，请重试"
-                                    }
-                                },
-                                modifier = Modifier.defaultMinSize(minWidth = 0.dp),
-                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
-                            ) { Text("保存") }
-                        }
-
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(4.dp),
-                        ) {
-                            FilterChip(
-                                modifier = Modifier.weight(1f),
-                                selected = mode == NoteImageEditMode.CROP,
-                                onClick = { mode = NoteImageEditMode.CROP; message = null },
-                                label = { Text("裁剪", maxLines = 1, overflow = TextOverflow.Clip) },
-                                leadingIcon = { Icon(Icons.Default.Crop, null, modifier = Modifier.size(18.dp)) },
-                            )
-                            FilterChip(
-                                modifier = Modifier.weight(1f),
-                                selected = mode == NoteImageEditMode.DRAW,
-                                onClick = { mode = NoteImageEditMode.DRAW; message = null },
-                                label = { Text("画笔", maxLines = 1, overflow = TextOverflow.Clip) },
-                                leadingIcon = { Icon(Icons.Default.Brush, null, modifier = Modifier.size(18.dp)) },
-                            )
-                            FilterChip(
-                                modifier = Modifier.weight(1f),
-                                selected = mode == NoteImageEditMode.MOSAIC,
-                                onClick = { mode = NoteImageEditMode.MOSAIC; message = null },
-                                label = { Text("马赛克", maxLines = 1, overflow = TextOverflow.Clip) },
-                                leadingIcon = { Icon(Icons.Default.GridOn, null, modifier = Modifier.size(18.dp)) },
-                            )
-                            FilterChip(
-                                modifier = Modifier.weight(1f),
-                                selected = mode == NoteImageEditMode.TEXT,
-                                onClick = { mode = NoteImageEditMode.TEXT; message = null },
-                                label = { Text("文字", maxLines = 1, overflow = TextOverflow.Clip) },
-                                leadingIcon = { Icon(Icons.Default.TextFields, null, modifier = Modifier.size(18.dp)) },
-                            )
-                        }
-
-                        if (mode == NoteImageEditMode.CROP) {
-                            Button(
-                                onClick = {
-                                    if (viewRef?.commitCrop() == true) {
-                                        message = null
-                                    } else {
-                                        message = "请先在图片上拖出裁剪范围"
-                                    }
-                                },
-                                modifier = Modifier.fillMaxWidth(),
-                            ) { Text("应用当前裁剪范围") }
-                        }
-
-                        if (mode == NoteImageEditMode.TEXT) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            ) {
-                                OutlinedTextField(
-                                    value = textValue,
-                                    onValueChange = { textValue = it },
-                                    modifier = Modifier.weight(1f),
-                                    placeholder = { Text("输入文字后点图片选择位置") },
-                                    singleLine = true,
-                                )
-                                Button(
-                                    onClick = {
-                                        if (viewRef?.addText(textValue) == true) {
-                                            textValue = ""
-                                            message = null
-                                        }
-                                    },
-                                ) { Text("写入") }
-                            }
-                        }
-
-                        message?.let {
-                            Text(
-                                text = it,
-                                modifier = Modifier.padding(horizontal = 4.dp),
-                                style = MaterialTheme.typography.bodySmall,
-                            )
-                        }
-                    }
-                }
-
-                AndroidView(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .weight(1f),
-                    factory = { ctx ->
-                        NoteImageEditView(ctx).also {
-                            it.onHistoryChanged = historyCallback
-                            it.load(file)
-                            it.mode = mode
-                            viewRef = it
-                        }
-                    },
-                    update = {
-                        it.mode = mode
-                        it.onHistoryChanged = historyCallback
-                    },
-                )
-            }
-        }
+        NoteImageEditorContent(
+            file = file,
+            onDismiss = onDismiss,
+            onSaved = {
+                onSaved()
+                onDismiss()
+            },
+        )
     }
 }

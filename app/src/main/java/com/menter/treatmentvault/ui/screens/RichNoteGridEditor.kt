@@ -314,35 +314,166 @@ fun RichNoteBodyGridEditor(
 private fun GridFullScreenImageViewer(files: List<File>, initialIndex: Int, onDismiss: () -> Unit) {
     var currentIndex by remember(files, initialIndex) { mutableIntStateOf(initialIndex.coerceIn(0, files.lastIndex)) }
     val file = files[currentIndex]
-    val sourceSize = remember(file.absolutePath, file.lastModified()) { val o = BitmapFactory.Options().apply { inJustDecodeBounds = true }; BitmapFactory.decodeFile(file.absolutePath, o); (o.outWidth.takeIf { it > 0 } ?: 1) to (o.outHeight.takeIf { it > 0 } ?: 1) }
+    val sourceSize = remember(file.absolutePath, file.lastModified()) {
+        val o = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        BitmapFactory.decodeFile(file.absolutePath, o)
+        (o.outWidth.takeIf { it > 0 } ?: 1) to (o.outHeight.takeIf { it > 0 } ?: 1)
+    }
     var quarterTurns by remember(file.absolutePath) { mutableIntStateOf(0) }
     var zoom by remember(file.absolutePath) { mutableFloatStateOf(1f) }
     var pan by remember(file.absolutePath) { mutableStateOf(Offset.Zero) }
     var swipeAccum by remember(file.absolutePath) { mutableStateOf(Offset.Zero) }
     var editing by remember(file.absolutePath) { mutableStateOf(false) }
     var editRevision by remember(file.absolutePath) { mutableIntStateOf(0) }
-    fun resetView() { zoom = 1f; pan = Offset.Zero; swipeAccum = Offset.Zero }
-    fun rotateBy(turns: Int) { quarterTurns = (quarterTurns + turns).mod(4); resetView() }
-    fun moveGallery(delta: Int) { if (files.size > 1) { currentIndex = (currentIndex + delta + files.size) % files.size; quarterTurns = 0; resetView() } }
-    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
-        BoxWithConstraints(modifier = Modifier.fillMaxSize().background(Color.Black).pointerInput(file.absolutePath, currentIndex) {
-            detectTransformGestures { _, drag, gestureZoom, _ ->
-                val nextZoom = (zoom * gestureZoom).coerceIn(1f, 6f); zoom = nextZoom
-                if (nextZoom <= 1.001f) { pan = Offset.Zero; swipeAccum += drag; val x = swipeAccum.x; val y = swipeAccum.y; if (kotlin.math.abs(x) > 120f || kotlin.math.abs(y) > 120f) { if (kotlin.math.abs(x) >= kotlin.math.abs(y)) moveGallery(if (x < 0) 1 else -1) else moveGallery(if (y < 0) 1 else -1); swipeAccum = Offset.Zero } } else pan += drag
-            }
-        }.pointerInput(file.absolutePath) { detectTapGestures(onDoubleTap = { resetView() }) }, contentAlignment = Alignment.Center) {
-            val sw = sourceSize.first.toFloat(); val sh = sourceSize.second.toFloat(); val rotated = quarterTurns % 2 != 0; val fit = minOf(maxWidth.value / if (rotated) sh else sw, maxHeight.value / if (rotated) sw else sh)
-            key(file.absolutePath, editRevision) { AsyncImage(model = file, contentDescription = "高清原图", modifier = Modifier.size((sw * fit).dp, (sh * fit).dp).graphicsLayer { rotationZ = quarterTurns * 90f; scaleX = zoom; scaleY = zoom; translationX = pan.x; translationY = pan.y }, contentScale = ContentScale.FillBounds) }
-            FilledIconButton(onClick = onDismiss, modifier = Modifier.align(Alignment.TopEnd).statusBarsPadding().padding(16.dp), colors = IconButtonDefaults.filledIconButtonColors(containerColor = Color(0xAA2A2A2A), contentColor = Color.White)) { Icon(Icons.Default.Close, "关闭高清原图") }
-            if (files.size > 1) Surface(modifier = Modifier.align(Alignment.TopCenter).statusBarsPadding().padding(top = 18.dp), color = Color(0x99222222), contentColor = Color.White, shape = MaterialTheme.shapes.large) { Text("${currentIndex + 1} / ${files.size} · 左右或上下滑动", Modifier.padding(horizontal = 12.dp, vertical = 6.dp)) }
-            Surface(modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth().windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom)).padding(start = 12.dp, end = 12.dp, bottom = 48.dp), color = Color(0xCC222222), contentColor = Color.White, shape = MaterialTheme.shapes.extraLarge) {
-                Column(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Row(Modifier.fillMaxWidth()) { TextButton(onClick = { rotateBy(-1) }, modifier = Modifier.weight(1f)) { Text("左转", color = Color.White) }; TextButton(onClick = { rotateBy(1) }, modifier = Modifier.weight(1f)) { Text("右转", color = Color.White) } }
-                    Row(Modifier.fillMaxWidth()) { TextButton(onClick = { resetView() }, modifier = Modifier.weight(1f)) { Text("适应", color = Color.White) }; TextButton(onClick = { quarterTurns = 0; resetView() }, modifier = Modifier.weight(1f)) { Text("重置", color = Color.White) }; TextButton(onClick = { editing = true }, modifier = Modifier.weight(1f)) { Text("编辑", color = Color.White) } }
-                    if (files.size > 1) Row(Modifier.fillMaxWidth()) { TextButton(onClick = { moveGallery(-1) }, modifier = Modifier.weight(1f)) { Text("上一张", color = Color.White) }; TextButton(onClick = { moveGallery(1) }, modifier = Modifier.weight(1f)) { Text("下一张", color = Color.White) } }
+
+    fun resetView() {
+        zoom = 1f
+        pan = Offset.Zero
+        swipeAccum = Offset.Zero
+    }
+
+    fun rotateBy(turns: Int) {
+        quarterTurns = (quarterTurns + turns).mod(4)
+        resetView()
+    }
+
+    fun moveGallery(delta: Int) {
+        if (files.size > 1) {
+            currentIndex = (currentIndex + delta + files.size) % files.size
+            quarterTurns = 0
+            editing = false
+            resetView()
+        }
+    }
+
+    Dialog(
+        onDismissRequest = {
+            if (editing) editing = false else onDismiss()
+        },
+        properties = DialogProperties(usePlatformDefaultWidth = false),
+    ) {
+        if (editing) {
+            NoteImageEditorContent(
+                file = file,
+                onDismiss = { editing = false },
+                onSaved = {
+                    editRevision += 1
+                    resetView()
+                    editing = false
+                },
+            )
+        } else {
+            BoxWithConstraints(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black)
+                    .pointerInput(file.absolutePath, currentIndex) {
+                        detectTransformGestures { _, drag, gestureZoom, _ ->
+                            val nextZoom = (zoom * gestureZoom).coerceIn(1f, 6f)
+                            zoom = nextZoom
+                            if (nextZoom <= 1.001f) {
+                                pan = Offset.Zero
+                                swipeAccum += drag
+                                val x = swipeAccum.x
+                                val y = swipeAccum.y
+                                if (kotlin.math.abs(x) > 120f || kotlin.math.abs(y) > 120f) {
+                                    if (kotlin.math.abs(x) >= kotlin.math.abs(y)) {
+                                        moveGallery(if (x < 0) 1 else -1)
+                                    } else {
+                                        moveGallery(if (y < 0) 1 else -1)
+                                    }
+                                    swipeAccum = Offset.Zero
+                                }
+                            } else {
+                                pan += drag
+                            }
+                        }
+                    }
+                    .pointerInput(file.absolutePath) {
+                        detectTapGestures(onDoubleTap = { resetView() })
+                    },
+                contentAlignment = Alignment.Center,
+            ) {
+                val sw = sourceSize.first.toFloat()
+                val sh = sourceSize.second.toFloat()
+                val rotated = quarterTurns % 2 != 0
+                val fit = minOf(
+                    maxWidth.value / if (rotated) sh else sw,
+                    maxHeight.value / if (rotated) sw else sh,
+                )
+
+                key(file.absolutePath, editRevision) {
+                    AsyncImage(
+                        model = file,
+                        contentDescription = "高清原图",
+                        modifier = Modifier
+                            .size((sw * fit).dp, (sh * fit).dp)
+                            .graphicsLayer {
+                                rotationZ = quarterTurns * 90f
+                                scaleX = zoom
+                                scaleY = zoom
+                                translationX = pan.x
+                                translationY = pan.y
+                            },
+                        contentScale = ContentScale.FillBounds,
+                    )
+                }
+
+                FilledIconButton(
+                    onClick = onDismiss,
+                    modifier = Modifier.align(Alignment.TopEnd).statusBarsPadding().padding(16.dp),
+                    colors = IconButtonDefaults.filledIconButtonColors(
+                        containerColor = Color(0xAA2A2A2A),
+                        contentColor = Color.White,
+                    ),
+                ) { Icon(Icons.Default.Close, "关闭高清原图") }
+
+                if (files.size > 1) {
+                    Surface(
+                        modifier = Modifier.align(Alignment.TopCenter).statusBarsPadding().padding(top = 18.dp),
+                        color = Color(0x99222222),
+                        contentColor = Color.White,
+                        shape = MaterialTheme.shapes.large,
+                    ) {
+                        Text(
+                            "${currentIndex + 1} / ${files.size} · 左右或上下滑动",
+                            Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                        )
+                    }
+                }
+
+                Surface(
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .fillMaxWidth()
+                        .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom))
+                        .padding(start = 12.dp, end = 12.dp, bottom = 48.dp),
+                    color = Color(0xCC222222),
+                    contentColor = Color.White,
+                    shape = MaterialTheme.shapes.extraLarge,
+                ) {
+                    Column(
+                        Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp),
+                        verticalArrangement = Arrangement.spacedBy(2.dp),
+                    ) {
+                        Row(Modifier.fillMaxWidth()) {
+                            TextButton(onClick = { rotateBy(-1) }, modifier = Modifier.weight(1f)) { Text("左转", color = Color.White) }
+                            TextButton(onClick = { rotateBy(1) }, modifier = Modifier.weight(1f)) { Text("右转", color = Color.White) }
+                        }
+                        Row(Modifier.fillMaxWidth()) {
+                            TextButton(onClick = { resetView() }, modifier = Modifier.weight(1f)) { Text("适应", color = Color.White) }
+                            TextButton(onClick = { quarterTurns = 0; resetView() }, modifier = Modifier.weight(1f)) { Text("重置", color = Color.White) }
+                            TextButton(onClick = { editing = true }, modifier = Modifier.weight(1f)) { Text("编辑", color = Color.White) }
+                        }
+                        if (files.size > 1) {
+                            Row(Modifier.fillMaxWidth()) {
+                                TextButton(onClick = { moveGallery(-1) }, modifier = Modifier.weight(1f)) { Text("上一张", color = Color.White) }
+                                TextButton(onClick = { moveGallery(1) }, modifier = Modifier.weight(1f)) { Text("下一张", color = Color.White) }
+                            }
+                        }
+                    }
                 }
             }
         }
     }
-    if (editing) NoteImageEditorDialog(file, { editing = false }) { editRevision += 1; resetView() }
 }

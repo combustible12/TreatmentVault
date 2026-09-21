@@ -89,7 +89,7 @@ jobs:
               "versionName": os.environ["VERSION_NAME"],
               "apkUrl": "https://raw.githubusercontent.com/combustible12/TreatmentVault-Updates/main/TreatmentVault-latest.apk",
               "sha256": os.environ["SHA"],
-              "notes": "修复图片编辑页底部工具栏在部分全面屏设备上仍被裁出屏幕的问题：编辑工具改到顶部固定区域，不再依赖底部导航栏定位；新增撤销与重做，支持画笔、马赛克、裁剪和文字操作的历史回退/恢复；保留取消、重置、保存以及原图片浏览功能。"
+              "notes": "修复图片编辑器在图片查看器上方以第二个全屏 Dialog 打开时，部分荣耀/全面屏设备会只显示图片而把编辑工具栏遮掉的问题。编辑模式现在与图片查看器共用同一个全屏 Dialog，在同一窗口内切换；顶部始终显示取消、撤销、重做、重置、保存以及裁剪、画笔、马赛克、文字工具。"
           }
           with open("update-repo/update.json", "w", encoding="utf-8") as f:
               json.dump(data, f, ensure_ascii=False, indent=2)
