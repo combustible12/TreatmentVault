@@ -35,22 +35,24 @@ fun ExamScreen(back: () -> Unit, initialEditId: Long = 0L) {
         }
     }
 
-    Page("检查报告", back) {
-        Text("按笔记来记：标题 + 可穿插的文字/图片。日期、医院、类型等都只是选填。", style = MaterialTheme.typography.bodySmall)
-        LazyColumn(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            items(list, key = { it.id }) { value ->
-                Card(Modifier.fillMaxWidth().clickable { editing = value; editorOpen = true }) {
-                    Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text(value.name, style = MaterialTheme.typography.titleMedium)
-                        val meta = listOf(value.date, value.type, value.hospital).filter { it.isNotBlank() && it != "其他" }.joinToString(" · ")
-                        if (meta.isNotBlank()) Text(meta, style = MaterialTheme.typography.bodySmall)
-                        val body = richBodyPlainText(value.summary.ifBlank { value.notes })
-                        if (body.isNotBlank()) Text(body, maxLines = 3)
+    if (initialEditId <= 0L) {
+        Page("检查报告", back) {
+            Text("按笔记来记：标题 + 可穿插的文字/图片。日期、医院、类型等都只是选填。", style = MaterialTheme.typography.bodySmall)
+            LazyColumn(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                items(list, key = { it.id }) { value ->
+                    Card(Modifier.fillMaxWidth().clickable { editing = value; editorOpen = true }) {
+                        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text(value.name, style = MaterialTheme.typography.titleMedium)
+                            val meta = listOf(value.date, value.type, value.hospital).filter { it.isNotBlank() && it != "其他" }.joinToString(" · ")
+                            if (meta.isNotBlank()) Text(meta, style = MaterialTheme.typography.bodySmall)
+                            val body = richBodyPlainText(value.summary.ifBlank { value.notes })
+                            if (body.isNotBlank()) Text(body, maxLines = 3)
+                        }
                     }
                 }
             }
+            Button(onClick = { editing = null; editorOpen = true }, modifier = Modifier.fillMaxWidth()) { Text("新增检查笔记") }
         }
-        Button(onClick = { editing = null; editorOpen = true }, modifier = Modifier.fillMaxWidth()) { Text("新增检查笔记") }
     }
 
     if (editorOpen) {
@@ -75,7 +77,10 @@ fun ExamScreen(back: () -> Unit, initialEditId: Long = 0L) {
 
         FullScreenEditorDialog(
             title = if (initial == null) "新增检查笔记" else "编辑检查笔记",
-            onDismiss = { editorOpen = false },
+            onDismiss = {
+                editorOpen = false
+                if (initialEditId > 0L) back()
+            },
             canSave = name.isNotBlank() || richBodyHasContent(body) || pendingFiles.isNotEmpty(),
             hasPersistedRecord = initial != null,
             onSave = {
@@ -102,6 +107,7 @@ fun ExamScreen(back: () -> Unit, initialEditId: Long = 0L) {
                     pendingFiles = emptyList()
                     removedFiles = emptySet()
                     editorOpen = false
+                    if (initialEditId > 0L) back()
                 }
             },
         ) {
