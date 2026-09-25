@@ -444,7 +444,7 @@ private fun GridFullScreenImageViewer(files: List<File>, initialIndex: Int, onDi
                     contentColor = Color.White,
                 ) {
                     Row(
-                        Modifier.fillMaxWidth().heightIn(min = 48.dp).padding(horizontal = 4.dp),
+                        Modifier.fillMaxWidth().padding(horizontal = 4.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         TextButton(onClick = { rotateBy(-1) }, modifier = Modifier.weight(1f)) { Text("左转", color = Color.White) }
