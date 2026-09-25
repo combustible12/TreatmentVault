@@ -253,7 +253,15 @@ fun AllRecordsScreen(
             },
         )
     }
-}
+
+
+    overlayRoute?.let { route ->
+        AllRecordsDetailOverlay(
+            route = route,
+            onClose = { overlayRoute = null },
+            go = go,
+        )
+    }}
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -370,14 +378,6 @@ private fun UnifiedRecordRow(
             dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text("取消") } },
         )
     }
-    overlayRoute?.let { route ->
-        AllRecordsDetailOverlay(
-            route = route,
-            onClose = { overlayRoute = null },
-            go = go,
-        )
-    }
-
 }
 
 
