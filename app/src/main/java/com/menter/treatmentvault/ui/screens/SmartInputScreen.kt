@@ -73,7 +73,7 @@ fun SmartInputScreen(back: () -> Unit) {
         if (parsed.isNotEmpty()) {
             val counts = parsed.groupingBy { it.displayLabel }.eachCount()
             Text(counts.entries.joinToString(" · ") { "${it.key} ${it.value}" }, style = MaterialTheme.typography.titleSmall)
-            LazyColumn(modifier = Modifier.fillMaxWidth().heightIn(max = 330.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            FastScrollLazyColumn(modifier = Modifier.fillMaxWidth().heightIn(max = 330.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 items(parsed) { item ->
                     Card(Modifier.fillMaxWidth()) {
                         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
