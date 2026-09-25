@@ -446,31 +446,19 @@ private fun GridFullScreenImageViewer(files: List<File>, initialIndex: Int, onDi
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
                         .fillMaxWidth()
-                        .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom))
-                        .padding(start = 12.dp, end = 12.dp, bottom = 48.dp),
-                    color = Color(0xCC222222),
+                        .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom)),
+                    color = Color(0xEE222222),
                     contentColor = Color.White,
-                    shape = MaterialTheme.shapes.extraLarge,
                 ) {
-                    Column(
-                        Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp),
-                        verticalArrangement = Arrangement.spacedBy(2.dp),
+                    Row(
+                        Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 2.dp),
+                        verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Row(Modifier.fillMaxWidth()) {
-                            TextButton(onClick = { rotateBy(-1) }, modifier = Modifier.weight(1f)) { Text("左转", color = Color.White) }
-                            TextButton(onClick = { rotateBy(1) }, modifier = Modifier.weight(1f)) { Text("右转", color = Color.White) }
-                        }
-                        Row(Modifier.fillMaxWidth()) {
-                            TextButton(onClick = { resetView() }, modifier = Modifier.weight(1f)) { Text("适应", color = Color.White) }
-                            TextButton(onClick = { quarterTurns = 0; resetView() }, modifier = Modifier.weight(1f)) { Text("重置", color = Color.White) }
-                            TextButton(onClick = { editing = true }, modifier = Modifier.weight(1f)) { Text("编辑", color = Color.White) }
-                        }
-                        if (files.size > 1) {
-                            Row(Modifier.fillMaxWidth()) {
-                                TextButton(onClick = { moveGallery(-1) }, modifier = Modifier.weight(1f)) { Text("上一张", color = Color.White) }
-                                TextButton(onClick = { moveGallery(1) }, modifier = Modifier.weight(1f)) { Text("下一张", color = Color.White) }
-                            }
-                        }
+                        TextButton(onClick = { rotateBy(-1) }, modifier = Modifier.weight(1f), contentPadding = PaddingValues(horizontal = 2.dp, vertical = 2.dp)) { Text("左转", color = Color.White) }
+                        TextButton(onClick = { rotateBy(1) }, modifier = Modifier.weight(1f), contentPadding = PaddingValues(horizontal = 2.dp, vertical = 2.dp)) { Text("右转", color = Color.White) }
+                        TextButton(onClick = { resetView() }, modifier = Modifier.weight(1f), contentPadding = PaddingValues(horizontal = 2.dp, vertical = 2.dp)) { Text("适应", color = Color.White) }
+                        TextButton(onClick = { quarterTurns = 0; resetView() }, modifier = Modifier.weight(1f), contentPadding = PaddingValues(horizontal = 2.dp, vertical = 2.dp)) { Text("重置", color = Color.White) }
+                        TextButton(onClick = { editing = true }, modifier = Modifier.weight(1f), contentPadding = PaddingValues(horizontal = 2.dp, vertical = 2.dp)) { Text("编辑", color = Color.White) }
                     }
                 }
             }
