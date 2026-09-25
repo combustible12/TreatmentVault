@@ -118,7 +118,7 @@ fun MoveRecordsDialog(
             if (targets.isEmpty()) {
                 Text("目前没有其他可用文件夹。可以先新建一个文件夹。")
             } else {
-                LazyColumn(modifier = Modifier.fillMaxWidth().heightIn(max = 440.dp)) {
+                FastScrollLazyColumn(modifier = Modifier.fillMaxWidth().heightIn(max = 440.dp)) {
                     items(targets, key = { it.key }) { category ->
                         val path = categoryPath(category, categories)
                         ListItem(
@@ -214,7 +214,7 @@ fun CollectExistingContentDialog(
                         }
                     ) { Text(if (currentAllSelected) "取消全选" else "全选 $currentCount 项") }
 
-                    LazyColumn(modifier = Modifier.fillMaxWidth().heightIn(max = 390.dp)) {
+                    FastScrollLazyColumn(modifier = Modifier.fillMaxWidth().heightIn(max = 390.dp)) {
                         if (section == "folders") {
                             items(folders, key = { it.key }) { folder ->
                                 val path = categoryPath(folder, categories)
@@ -297,7 +297,7 @@ fun CollectExistingNotesDialog(
                     TextButton(onClick = { selected = if (allSelected) emptySet() else notes.map { it.id }.toSet() }) {
                         Text(if (allSelected) "取消全选" else "全选 ${notes.size} 条")
                     }
-                    LazyColumn(modifier = Modifier.fillMaxWidth().heightIn(max = 420.dp)) {
+                    FastScrollLazyColumn(modifier = Modifier.fillMaxWidth().heightIn(max = 420.dp)) {
                         items(notes, key = { it.id }) { note ->
                             val plain = richBodyPlainText(note.content)
                             val title = note.title.ifBlank {
