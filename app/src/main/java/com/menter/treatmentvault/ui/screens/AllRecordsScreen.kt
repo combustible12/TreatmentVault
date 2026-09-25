@@ -12,6 +12,7 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
@@ -48,13 +49,12 @@ fun AllRecordsScreen(
     val recordFolders by dao.recordFolders().collectAsState(emptyList())
     val scope = rememberCoroutineScope()
 
-    var savedScrollIndex by rememberSaveable { mutableIntStateOf(0) }
-    var savedScrollOffset by rememberSaveable { mutableIntStateOf(0) }
-    var restoreScrollPending by rememberSaveable { mutableStateOf(false) }
-    val listState = rememberLazyListState(
-        initialFirstVisibleItemIndex = savedScrollIndex,
-        initialFirstVisibleItemScrollOffset = savedScrollOffset,
-    )
+    val listState = rememberSaveable(
+        saver = listSaver(
+            save = { listOf(it.firstVisibleItemIndex, it.firstVisibleItemScrollOffset) },
+            restore = { saved -> androidx.compose.foundation.lazy.LazyListState(saved[0], saved[1]) },
+        )
+    ) { androidx.compose.foundation.lazy.LazyListState() }
 
     var query by rememberSaveable { mutableStateOf("") }
     var shelfName by rememberSaveable { mutableStateOf(RecordShelf.ALL.name) }
@@ -87,26 +87,7 @@ fun AllRecordsScreen(
         )
     }
 
-    LaunchedEffect(listState) {
-        snapshotFlow { listState.firstVisibleItemIndex to listState.firstVisibleItemScrollOffset }
-            .collect { (index, offset) ->
-                savedScrollIndex = index
-                savedScrollOffset = offset
-            }
-    }
-
-    LaunchedEffect(restoreScrollPending, filtered.size) {
-        if (restoreScrollPending && filtered.isNotEmpty()) {
-            val maxIndex = filtered.size + 2
-            listState.scrollToItem(savedScrollIndex.coerceIn(0, maxIndex), savedScrollOffset)
-            restoreScrollPending = false
-        }
-    }
-
     fun openItem(item: UnifiedRecordItem) {
-        savedScrollIndex = listState.firstVisibleItemIndex
-        savedScrollOffset = listState.firstVisibleItemScrollOffset
-        restoreScrollPending = true
         go(item.route)
     }
 
