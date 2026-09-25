@@ -113,7 +113,7 @@ fun TodoCenterScreen(back: () -> Unit, go: (String) -> Unit) {
             )
         },
     ) { padding ->
-        LazyColumn(
+        FastScrollLazyColumn(
             state = listState,
             modifier = Modifier.fillMaxSize().padding(padding),
             contentPadding = PaddingValues(start = 14.dp, end = 14.dp, bottom = 32.dp),
