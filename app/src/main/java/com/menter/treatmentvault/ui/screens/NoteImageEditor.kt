@@ -51,6 +51,7 @@ private data class NoteImageTextItem(
     val sizePx: Float,
     val color: Int,
     val style: NoteImageTextStyle,
+    val backgroundColor: Int = AndroidColor.TRANSPARENT,
 )
 
 private data class NoteImageEditorSnapshot(
@@ -93,6 +94,8 @@ private class NoteImageEditView(context: Context) : View(context) {
     private var textDragStartItem: NoteImageTextItem? = null
     private var textDragHistoryPushed = false
     private var scaleHistoryPushed = false
+    private var scaleStartSizePx = 0f
+    private var scaleGestureFactor = 1f
 
     private val drawPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = AndroidColor.RED
@@ -116,10 +119,16 @@ private class NoteImageEditView(context: Context) : View(context) {
         object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
             override fun onScaleBegin(detector: ScaleGestureDetector): Boolean {
                 if (mode != NoteImageEditMode.TEXT || selectedText() == null) return false
+                val item = selectedText() ?: return false
                 if (!scaleHistoryPushed) {
                     pushHistory()
                     scaleHistoryPushed = true
                 }
+                scaleStartSizePx = item.sizePx
+                scaleGestureFactor = 1f
+                textDragStartPoint = null
+                textDragStartItem = null
+                textDragHistoryPushed = false
                 return true
             }
 
@@ -127,12 +136,16 @@ private class NoteImageEditView(context: Context) : View(context) {
                 val item = selectedText() ?: return false
                 val minSize = 18f
                 val maxSize = ((working?.let { max(it.width, it.height) } ?: 2048) * 0.45f).coerceAtLeast(220f)
-                replaceText(item.copy(sizePx = (item.sizePx * detector.scaleFactor).coerceIn(minSize, maxSize)))
+                scaleGestureFactor *= detector.scaleFactor
+                val next = (scaleStartSizePx * scaleGestureFactor).coerceIn(minSize, maxSize)
+                replaceText(item.copy(sizePx = next))
                 return true
             }
 
             override fun onScaleEnd(detector: ScaleGestureDetector) {
                 scaleHistoryPushed = false
+                scaleStartSizePx = 0f
+                scaleGestureFactor = 1f
             }
         },
     )
@@ -260,6 +273,14 @@ private class NoteImageEditView(context: Context) : View(context) {
         return true
     }
 
+    fun updateSelectedTextBackground(color: Int): Boolean {
+        val item = selectedText() ?: return false
+        if (item.backgroundColor == color) return false
+        pushHistory()
+        replaceText(item.copy(backgroundColor = color))
+        return true
+    }
+
     fun updateSelectedTextStyle(style: NoteImageTextStyle): Boolean {
         val item = selectedText() ?: return false
         if (item.style == style) return false
@@ -290,6 +311,8 @@ private class NoteImageEditView(context: Context) : View(context) {
         textDragStartItem = null
         textDragHistoryPushed = false
         scaleHistoryPushed = false
+        scaleStartSizePx = 0f
+        scaleGestureFactor = 1f
     }
 
     private fun copyPoint(point: PointF): PointF = PointF(point.x, point.y)
@@ -348,6 +371,25 @@ private class NoteImageEditView(context: Context) : View(context) {
     }
 
     private fun drawTextItem(canvas: Canvas, item: NoteImageTextItem) {
+        if (item.backgroundColor != AndroidColor.TRANSPARENT) {
+            val paint = textPaint(item)
+            val fm = paint.fontMetrics
+            val width = paint.measureText(item.text)
+            val padX = max(10f, item.sizePx * 0.18f)
+            val padY = max(6f, item.sizePx * 0.12f)
+            val backgroundRect = RectF(
+                item.x - padX,
+                item.y + fm.ascent - padY,
+                item.x + width + padX,
+                item.y + fm.descent + padY,
+            )
+            canvas.drawRoundRect(
+                backgroundRect,
+                item.sizePx * 0.12f,
+                item.sizePx * 0.12f,
+                Paint(Paint.ANTI_ALIAS_FLAG).apply { color = item.backgroundColor },
+            )
+        }
         if (item.style == NoteImageTextStyle.OUTLINE) {
             canvas.drawText(item.text, item.x, item.y, textPaint(item, stroke = true))
         }
@@ -633,6 +675,7 @@ private class NoteImageEditView(context: Context) : View(context) {
             sizePx = baseSize,
             color = AndroidColor.WHITE,
             style = NoteImageTextStyle.OUTLINE,
+            backgroundColor = AndroidColor.TRANSPARENT,
         )
         textItems += item
         textPoint = null
@@ -814,6 +857,25 @@ internal fun NoteImageEditorContent(
                             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
                                 listOf(NoteImageTextStyle.NORMAL to "常规", NoteImageTextStyle.BOLD to "粗体", NoteImageTextStyle.ITALIC to "斜体", NoteImageTextStyle.OUTLINE to "描边").forEach { (style, label) ->
                                     TextButton(onClick = { viewRef?.updateSelectedTextStyle(style) }, modifier = Modifier.weight(1f), contentPadding = PaddingValues(horizontal = 2.dp, vertical = 1.dp)) { Text(if (item.style == style) "✓$label" else label, maxLines = 1) }
+                                }
+                            }
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(2.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Text("底色", style = MaterialTheme.typography.bodySmall)
+                                listOf(
+                                    "无" to AndroidColor.TRANSPARENT,
+                                    "白" to AndroidColor.WHITE,
+                                    "黑" to AndroidColor.BLACK,
+                                    "红" to AndroidColor.RED,
+                                    "橙" to AndroidColor.rgb(255, 152, 0),
+                                    "黄" to AndroidColor.YELLOW,
+                                    "绿" to AndroidColor.rgb(0, 160, 80),
+                                    "蓝" to AndroidColor.BLUE,
+                                ).forEach { (label, value) ->
+                                    TextButton(
+                                        onClick = { viewRef?.updateSelectedTextBackground(value) },
+                                        modifier = Modifier.weight(1f),
+                                        contentPadding = PaddingValues(horizontal = 1.dp, vertical = 1.dp),
+                                    ) { Text(if (item.backgroundColor == value) "✓$label" else label, maxLines = 1) }
                                 }
                             }
                         }
