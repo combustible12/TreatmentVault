@@ -141,7 +141,7 @@ internal fun RecordFolderOwnershipDialog(
                         "可以自由调整归属文件夹；编辑时可以先取消旧归属，但保存前至少选择一个。取消当前文件夹并勾选新文件夹后，会真正移动，不会暗中保留旧归属。",
                         style = MaterialTheme.typography.bodySmall,
                     )
-                    LazyColumn(modifier = Modifier.fillMaxWidth().heightIn(max = 420.dp)) {
+                    FastScrollLazyColumn(modifier = Modifier.fillMaxWidth().heightIn(max = 420.dp)) {
                         items(availableFolders, key = { it.key }) { folder ->
                             val checked = folder.key in selected
                             ListItem(
