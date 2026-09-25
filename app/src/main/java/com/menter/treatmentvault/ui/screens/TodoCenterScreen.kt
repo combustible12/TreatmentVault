@@ -50,6 +50,7 @@ fun TodoCenterScreen(back: () -> Unit, go: (String) -> Unit) {
     var shelfName by rememberSaveable { mutableStateOf(TodoShelf.PENDING.name) }
     var selectedCategory by rememberSaveable { mutableStateOf<String?>(null) }
     var ownershipItem by remember { mutableStateOf<UnifiedRecordItem?>(null) }
+    var overlayRoute by remember { mutableStateOf<String?>(null) }
     val shelf = runCatching { TodoShelf.valueOf(shelfName) }.getOrDefault(TodoShelf.PENDING)
 
     val stateMap = remember(states) { states.associateBy { "${it.ownerType}:${it.ownerId}" } }
@@ -206,13 +207,17 @@ fun TodoCenterScreen(back: () -> Unit, go: (String) -> Unit) {
                         item = item,
                         state = state,
                         categoryNames = item.folderKeys.mapNotNull { key -> categories.firstOrNull { it.key == key }?.name },
-                        onOpen = { go(item.route) },
+                        onOpen = { overlayRoute = item.route },
                         onLongPress = { ownershipItem = item },
                         onStateChange = ::saveState,
                     )
                 }
             }
         }
+    }
+
+    overlayRoute?.let { route ->
+        FolderDetailOverlayForLists(route = route, onClose = { overlayRoute = null }, go = go)
     }
 
     ownershipItem?.let { item ->
@@ -289,4 +294,26 @@ private fun TodoCenterRow(
             }
         },
     )
+}
+
+
+@Composable
+internal fun FolderDetailOverlayForLists(route: String, onClose: () -> Unit, go: (String) -> Unit) {
+    Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+        when {
+            route.startsWith("note/") -> route.substringAfter("note/").substringBefore("/").toLongOrNull()?.let {
+                NoteEditorScreen(noteId = it, initialCategoryId = null, back = onClose)
+            } ?: onClose()
+            route.startsWith("supplies/") -> SupplyScreen(back = onClose, initialEditId = route.substringAfterLast("/").toLongOrNull() ?: 0L)
+            route.startsWith("exams/") -> ExamScreen(back = onClose, initialEditId = route.substringAfterLast("/").toLongOrNull() ?: 0L)
+            route.startsWith("treatment/plan/") -> TreatmentScreen(back = onClose, initialPlanId = route.substringAfterLast("/").toLongOrNull() ?: 0L)
+            route.startsWith("treatment/record/") -> TreatmentScreen(back = onClose, initialRecordId = route.substringAfterLast("/").toLongOrNull() ?: 0L)
+            route.startsWith("symptoms/") -> SymptomScreen(back = onClose, initialEditId = route.substringAfterLast("/").toLongOrNull() ?: 0L)
+            route.startsWith("temperature/") -> TemperatureScreen(back = onClose, initialEditId = route.substringAfterLast("/").toLongOrNull() ?: 0L)
+            route.startsWith("questions/") -> QuestionScreen(back = onClose, initialEditId = route.substringAfterLast("/").toLongOrNull() ?: 0L)
+            route.startsWith("expenses/") -> ExpenseScreen(back = onClose, initialEditId = route.substringAfterLast("/").toLongOrNull() ?: 0L)
+            route.startsWith("timeline/") -> TimelineScreen(back = onClose, go = go, initialEditId = route.substringAfterLast("/").toLongOrNull() ?: 0L)
+            else -> LaunchedEffect(route) { onClose(); go(route) }
+        }
+    }
 }
