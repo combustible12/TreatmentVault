@@ -126,7 +126,7 @@ fun FolderScreen(categoryId: String, back: () -> Unit, go: (String) -> Unit) {
             }
         },
     ) { padding ->
-        FastScrollLazyColumn(
+        FastScrollFastScrollLazyColumn(
             state = listState,
             modifier = Modifier.fillMaxSize().padding(padding),
             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 10.dp),
