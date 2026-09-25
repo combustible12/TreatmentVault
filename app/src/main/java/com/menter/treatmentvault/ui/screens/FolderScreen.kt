@@ -241,7 +241,7 @@ fun FolderScreen(categoryId: String, back: () -> Unit, go: (String) -> Unit) {
 
 
     overlayRoute?.let { route ->
-        FolderDetailOverlay(
+        FolderDetailOverlayForLists(
             route = route,
             onClose = { overlayRoute = null },
             go = go,
@@ -454,37 +454,3 @@ private fun FolderRecordCard(
 }
 
 
-@Composable
-private fun FolderDetailOverlay(
-    route: String,
-    onClose: () -> Unit,
-    go: (String) -> Unit,
-) {
-    Surface(
-        modifier = Modifier.fillMaxSize(),
-        color = MaterialTheme.colorScheme.background,
-        tonalElevation = 0.dp,
-    ) {
-        when {
-            route.startsWith("note/") -> {
-                val id = route.substringAfter("note/").substringBefore("/").toLongOrNull()
-                if (id != null) NoteEditorScreen(noteId = id, initialCategoryId = null, back = onClose) else onClose()
-            }
-            route.startsWith("supplies/") -> SupplyScreen(back = onClose, initialEditId = route.substringAfterLast("/").toLongOrNull() ?: 0L)
-            route.startsWith("exams/") -> ExamScreen(back = onClose, initialEditId = route.substringAfterLast("/").toLongOrNull() ?: 0L)
-            route.startsWith("treatment/plan/") -> TreatmentScreen(back = onClose, initialPlanId = route.substringAfterLast("/").toLongOrNull() ?: 0L)
-            route.startsWith("treatment/record/") -> TreatmentScreen(back = onClose, initialRecordId = route.substringAfterLast("/").toLongOrNull() ?: 0L)
-            route.startsWith("symptoms/") -> SymptomScreen(back = onClose, initialEditId = route.substringAfterLast("/").toLongOrNull() ?: 0L)
-            route.startsWith("temperature/") -> TemperatureScreen(back = onClose, initialEditId = route.substringAfterLast("/").toLongOrNull() ?: 0L)
-            route.startsWith("questions/") -> QuestionScreen(back = onClose, initialEditId = route.substringAfterLast("/").toLongOrNull() ?: 0L)
-            route.startsWith("expenses/") -> ExpenseScreen(back = onClose, initialEditId = route.substringAfterLast("/").toLongOrNull() ?: 0L)
-            route.startsWith("timeline/") -> TimelineScreen(back = onClose, go = go, initialEditId = route.substringAfterLast("/").toLongOrNull() ?: 0L)
-            else -> {
-                LaunchedEffect(route) {
-                    onClose()
-                    go(route)
-                }
-            }
-        }
-    }
-}
