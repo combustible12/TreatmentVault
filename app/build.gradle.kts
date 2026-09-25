@@ -22,8 +22,8 @@ android {
         applicationId = "com.menter.treatmentvault"
         minSdk = 26
         targetSdk = 35
-        versionCode = 61
-        versionName = "0.32.2"
+        versionCode = 62
+        versionName = "0.32.3"
     }
 
     buildTypes {
