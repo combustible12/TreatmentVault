@@ -12,7 +12,6 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
@@ -31,6 +30,8 @@ fun AllRecordsScreen(
     back: () -> Unit,
     go: (String) -> Unit,
     startInManagementMode: Boolean = false,
+    scrollMemory: AllRecordsScrollMemory = AllRecordsScrollMemory(),
+    onScrollMemoryChange: (AllRecordsScrollMemory) -> Unit = {},
 ) {
     val app = androidx.compose.ui.platform.LocalContext.current.applicationContext as TreatmentVaultApplication
     val dao = app.database.dao()
@@ -49,12 +50,7 @@ fun AllRecordsScreen(
     val recordFolders by dao.recordFolders().collectAsState(emptyList())
     val scope = rememberCoroutineScope()
 
-    val listState = rememberSaveable(
-        saver = listSaver(
-            save = { listOf(it.firstVisibleItemIndex, it.firstVisibleItemScrollOffset) },
-            restore = { saved -> androidx.compose.foundation.lazy.LazyListState(saved[0], saved[1]) },
-        )
-    ) { androidx.compose.foundation.lazy.LazyListState() }
+    val listState = rememberLazyListState()
 
     var query by rememberSaveable { mutableStateOf("") }
     var shelfName by rememberSaveable { mutableStateOf(RecordShelf.ALL.name) }
@@ -87,7 +83,20 @@ fun AllRecordsScreen(
         )
     }
 
+    LaunchedEffect(scrollMemory.restorePending, filtered.size) {
+        resolveAllRecordsRestoreTarget(scrollMemory, filtered.size)?.let { target ->
+            listState.scrollToItem(target.index, target.offset)
+            onScrollMemoryChange(scrollMemory.copy(restorePending = false))
+        }
+    }
+
     fun openItem(item: UnifiedRecordItem) {
+        onScrollMemoryChange(
+            scrollMemory.capture(
+                listState.firstVisibleItemIndex,
+                listState.firstVisibleItemScrollOffset,
+            )
+        )
         go(item.route)
     }
 
