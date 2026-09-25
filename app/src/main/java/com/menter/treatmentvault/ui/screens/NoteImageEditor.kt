@@ -95,7 +95,7 @@ private class NoteImageEditView(context: Context) : View(context) {
     private var textDragHistoryPushed = false
     private var scaleHistoryPushed = false
     private var scaleStartSizePx = 0f
-    private var scaleGestureFactor = 1f
+    private var scaleStartSpan = 0f
 
     private val drawPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = AndroidColor.RED
@@ -125,7 +125,7 @@ private class NoteImageEditView(context: Context) : View(context) {
                     scaleHistoryPushed = true
                 }
                 scaleStartSizePx = item.sizePx
-                scaleGestureFactor = 1f
+                scaleStartSpan = detector.currentSpan.coerceAtLeast(1f)
                 textDragStartPoint = null
                 textDragStartItem = null
                 textDragHistoryPushed = false
@@ -136,8 +136,8 @@ private class NoteImageEditView(context: Context) : View(context) {
                 val item = selectedText() ?: return false
                 val minSize = 18f
                 val maxSize = ((working?.let { max(it.width, it.height) } ?: 2048) * 0.45f).coerceAtLeast(220f)
-                scaleGestureFactor *= detector.scaleFactor
-                val next = (scaleStartSizePx * scaleGestureFactor).coerceIn(minSize, maxSize)
+                val totalScale = (detector.currentSpan / scaleStartSpan.coerceAtLeast(1f)).coerceIn(0.25f, 4f)
+                val next = (scaleStartSizePx * totalScale).coerceIn(minSize, maxSize)
                 replaceText(item.copy(sizePx = next))
                 return true
             }
@@ -145,7 +145,7 @@ private class NoteImageEditView(context: Context) : View(context) {
             override fun onScaleEnd(detector: ScaleGestureDetector) {
                 scaleHistoryPushed = false
                 scaleStartSizePx = 0f
-                scaleGestureFactor = 1f
+                scaleStartSpan = 0f
             }
         },
     )
@@ -312,7 +312,7 @@ private class NoteImageEditView(context: Context) : View(context) {
         textDragHistoryPushed = false
         scaleHistoryPushed = false
         scaleStartSizePx = 0f
-        scaleGestureFactor = 1f
+        scaleStartSpan = 0f
     }
 
     private fun copyPoint(point: PointF): PointF = PointF(point.x, point.y)
