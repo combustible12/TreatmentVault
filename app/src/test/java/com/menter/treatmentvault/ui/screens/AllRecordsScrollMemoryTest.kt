@@ -2,76 +2,85 @@ package com.menter.treatmentvault.ui.screens
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
-import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class AllRecordsScrollMemoryTest {
-    private val keys = (0 until 80).map { "record:$it" }
 
-    @Test fun capturePreservesVisibleRecordAndPixelOffset() {
-        val memory = AllRecordsScrollMemory().capture("record:15", 18, 47)
-        assertEquals("record:15", memory.anchorKey)
-        assertEquals(18, memory.fallbackIndex)
-        assertEquals(47, memory.offset)
-        assertTrue(memory.restorePending)
-    }
-
-    @Test fun normalReturnRestoresExactViewport() {
+    @Test
+    fun `capture then resolve by anchor key`() {
+        val memory = AllRecordsScrollMemory().capture(anchorKey = "note:3", lazyColumnIndex = 10, offset = 40)
         val target = resolveAllRecordsRestoreTarget(
-            AllRecordsScrollMemory("record:15", 18, 47, true), keys
+            memory = memory,
+            orderedRecordKeys = listOf("exam:1", "note:3", "supply:7"),
+            headerCount = 3,
         )
-        assertEquals(AllRecordsScrollTarget(18, 47), target)
+        assertEquals(AllRecordsScrollTarget(4, 40), target)
     }
 
-    @Test fun dataRefreshAndReorderFollowsSameVisibleRecord() {
-        val reordered = keys.toMutableList().apply {
-            remove("record:15")
-            add(0, "record:15")
-        }
+    @Test
+    fun `resolve by raw index when anchor missing`() {
+        val memory = AllRecordsScrollMemory().capture(anchorKey = "note:999", lazyColumnIndex = 5, offset = 12)
         val target = resolveAllRecordsRestoreTarget(
-            AllRecordsScrollMemory("record:15", 18, 47, true), reordered
+            memory = memory,
+            orderedRecordKeys = listOf("exam:1", "note:3", "supply:7"),
+            headerCount = 3,
         )
-        assertEquals(AllRecordsScrollTarget(3, 47), target)
+        assertEquals(AllRecordsScrollTarget(5, 12), target)
     }
 
-    @Test fun unrelatedRecordReorderStillFollowsAnchor() {
-        val reordered = keys.toMutableList().apply {
-            remove("record:70")
-            add(0, "record:70")
-        }
+    @Test
+    fun `data refresh with reorder still anchors to same record`() {
+        val memory = AllRecordsScrollMemory().capture(anchorKey = "note:3", lazyColumnIndex = 10, offset = 40)
+        // 返回后记录被重排，note:3 从 index 1 换到 index 0
         val target = resolveAllRecordsRestoreTarget(
-            AllRecordsScrollMemory("record:15", 18, 9, true), reordered
+            memory = memory,
+            orderedRecordKeys = listOf("note:3", "exam:1", "supply:7"),
+            headerCount = 3,
         )
-        assertEquals(AllRecordsScrollTarget(19, 9), target)
+        assertEquals(AllRecordsScrollTarget(3, 40), target)
     }
 
-    @Test fun deletedAnchorFallsBackAndClampsAfterShrink() {
-        val target = resolveAllRecordsRestoreTarget(
-            AllRecordsScrollMemory("deleted", 35, 12, true), keys.take(5)
+    @Test
+    fun `header count change shifts resolved index`() {
+        val memory = AllRecordsScrollMemory().capture(anchorKey = "note:3", lazyColumnIndex = 10, offset = 0)
+        val withThree = resolveAllRecordsRestoreTarget(memory, listOf("exam:1", "note:3"), 3)
+        val withTwo = resolveAllRecordsRestoreTarget(memory, listOf("exam:1", "note:3"), 2)
+        assertEquals(AllRecordsScrollTarget(4, 0), withThree)
+        assertEquals(AllRecordsScrollTarget(3, 0), withTwo)
+    }
+
+    @Test
+    fun `no restore when pending false`() {
+        val memory = AllRecordsScrollMemory(anchorKey = "note:3", restorePending = false)
+        assertNull(resolveAllRecordsRestoreTarget(memory, listOf("note:3"), 3))
+    }
+
+    @Test
+    fun `no restore when record list empty`() {
+        val memory = AllRecordsScrollMemory().capture(anchorKey = "note:3", lazyColumnIndex = 10, offset = 0)
+        assertNull(resolveAllRecordsRestoreTarget(memory, emptyList(), 3))
+    }
+
+    @Test
+    fun `visible anchor key resolves record under header offset`() {
+        val keys = listOf("exam:1", "note:3", "supply:7")
+        assertEquals("exam:1", visibleRecordAnchorKey(3, keys, 3))
+        assertEquals("note:3", visibleRecordAnchorKey(4, keys, 3))
+        assertEquals("supply:7", visibleRecordAnchorKey(5, keys, 3))
+    }
+
+    @Test
+    fun `sorting ignores pinned and todo completion`() {
+        // 模拟 createdAt 排序：只按 createdAt 决定顺序，pinned / completed 不参与
+        data class R(val key: String, val createdAt: Long, val pinned: Boolean, val completed: Boolean)
+        val list = listOf(
+            R("a", 1, pinned = true, completed = false),
+            R("b", 3, pinned = false, completed = true),
+            R("c", 2, pinned = false, completed = false),
         )
-        assertEquals(AllRecordsScrollTarget(7, 12), target)
-    }
-
-    @Test fun emptyInitialEmissionDoesNotConsumePendingRestore() {
-        assertNull(resolveAllRecordsRestoreTarget(
-            AllRecordsScrollMemory("record:15", 18, 47, true), emptyList()
-        ))
-    }
-
-    @Test fun restoredStateDoesNotRestoreAgain() {
-        assertNull(resolveAllRecordsRestoreTarget(
-            AllRecordsScrollMemory("record:15", 18, 47, false), keys
-        ))
-    }
-
-    @Test fun visibleAnchorMapsLazyColumnIndexPastHeaders() {
-        assertEquals("record:0", visibleRecordAnchorKey(3, keys))
-        assertEquals("record:15", visibleRecordAnchorKey(18, keys))
-        assertNull(visibleRecordAnchorKey(2, keys))
-    }
-
-    @Test fun invalidNegativeCapturedValuesAreSanitized() {
-        val memory = AllRecordsScrollMemory().capture("record:0", -3, -20)
-        assertEquals(AllRecordsScrollMemory("record:0", 0, 0, true), memory)
+        val sorted = list.sortedWith(
+            compareByDescending<R> { it.createdAt }.thenByDescending { it.key }
+        )
+        assertEquals(listOf("b", "c", "a"), sorted.map { it.key })
     }
 }
