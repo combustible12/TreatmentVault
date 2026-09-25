@@ -64,8 +64,6 @@ fun AllRecordsScreen(
     var moveKeys by remember { mutableStateOf<Set<String>>(emptySet()) }
     var ownershipItem by remember { mutableStateOf<UnifiedRecordItem?>(null) }
     var overlayRoute by remember { mutableStateOf<String?>(null) }
-    var fastScrollDragging by remember { mutableStateOf(false) }
-    var fastScrollHeightPx by remember { mutableFloatStateOf(1f) }
     val shelf = runCatching { RecordShelf.valueOf(shelfName) }.getOrDefault(RecordShelf.ALL)
     val stateMap = remember(states) { states.associateBy { "${it.ownerType}:${it.ownerId}" } }
     val allItems = remember(categories, supplies, exams, plans, records, symptoms, temperatures, questions, expenses, timeline, notes, recordFolders) {
@@ -166,10 +164,9 @@ fun AllRecordsScreen(
             }
         },
     ) { padding ->
-        Box(Modifier.fillMaxSize().padding(padding)) {
-        LazyColumn(
+        FastScrollLazyColumn(
             state = listState,
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier.fillMaxSize().padding(padding),
             contentPadding = PaddingValues(start = 14.dp, end = 14.dp, bottom = 96.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
@@ -228,51 +225,6 @@ fun AllRecordsScreen(
                     )
                 }
             }
-        }
-
-        val totalCount = listState.layoutInfo.totalItemsCount
-        if (totalCount > 1 && (listState.isScrollInProgress || fastScrollDragging)) {
-            val first = listState.firstVisibleItemIndex
-            val progress = first.toFloat() / (totalCount - 1).coerceAtLeast(1)
-            Box(
-                Modifier
-                    .align(Alignment.CenterEnd)
-                    .padding(end = 4.dp)
-                    .fillMaxHeight(0.72f)
-                    .width(28.dp)
-                    .onSizeChanged { fastScrollHeightPx = it.height.toFloat().coerceAtLeast(1f) }
-                    .pointerInput(totalCount) {
-                        detectVerticalDragGestures(
-                            onDragStart = { offset ->
-                                fastScrollDragging = true
-                                val target = ((offset.y / fastScrollHeightPx).coerceIn(0f, 1f) * (totalCount - 1)).toInt()
-                                scope.launch { listState.scrollToItem(target) }
-                            },
-                            onVerticalDrag = { change, _ ->
-                                val target = ((change.position.y / fastScrollHeightPx).coerceIn(0f, 1f) * (totalCount - 1)).toInt()
-                                scope.launch { listState.scrollToItem(target) }
-                            },
-                            onDragEnd = { fastScrollDragging = false },
-                            onDragCancel = { fastScrollDragging = false },
-                        )
-                    },
-                contentAlignment = Alignment.TopCenter,
-            ) {
-                Box(
-                    Modifier
-                        .fillMaxHeight()
-                        .width(3.dp)
-                        .background(Color.Black.copy(alpha = 0.12f), MaterialTheme.shapes.small)
-                )
-                Box(
-                    Modifier
-                        .graphicsLayer { translationY = progress * (fastScrollHeightPx - 72.dp.toPx()).coerceAtLeast(0f) }
-                        .width(8.dp)
-                        .height(72.dp)
-                        .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f), MaterialTheme.shapes.large)
-                )
-            }
-        }
         }
     }
 
