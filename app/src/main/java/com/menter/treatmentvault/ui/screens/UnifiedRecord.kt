@@ -13,10 +13,10 @@ data class UnifiedRecordItem(
     val iconKey: String,
     val date: String,
     val updatedAt: Long,
-    val createdAt: Long = ownerId,
     val folderKeys: Set<String> = setOf(categoryKey),
     val thumbnailFileName: String? = null,
     val searchText: String = preview,
+    val createdAt: Long = ownerId,
 ) {
     val key: String get() = "$ownerType:$ownerId"
 }
