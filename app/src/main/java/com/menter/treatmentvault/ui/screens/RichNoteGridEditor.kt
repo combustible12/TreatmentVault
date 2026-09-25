@@ -325,6 +325,7 @@ private fun GridFullScreenImageViewer(files: List<File>, initialIndex: Int, onDi
     var swipeAccum by remember(file.absolutePath) { mutableStateOf(Offset.Zero) }
     var editing by remember(file.absolutePath) { mutableStateOf(false) }
     var editRevision by remember(file.absolutePath) { mutableIntStateOf(0) }
+    var controlsVisible by remember(file.absolutePath) { mutableStateOf(false) }
 
     fun resetView() {
         zoom = 1f
@@ -363,16 +364,26 @@ private fun GridFullScreenImageViewer(files: List<File>, initialIndex: Int, onDi
                 },
             )
         } else {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(Color.Black)
-                    .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom)),
-            ) {
+            Scaffold(
+                modifier = Modifier.fillMaxSize(),
+                containerColor = Color.Black,
+                contentWindowInsets = WindowInsets.safeDrawing,
+                bottomBar = {
+                    if (controlsVisible) {
+                        Surface(Modifier.fillMaxWidth(), color = Color(0xFF222222), contentColor = Color.White) {
+                            Row(Modifier.fillMaxWidth().padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                                TextButton({ rotateBy(-1) }, Modifier.weight(1f)) { Text("左转", color = Color.White) }
+                                TextButton({ rotateBy(1) }, Modifier.weight(1f)) { Text("右转", color = Color.White) }
+                                TextButton({ resetView() }, Modifier.weight(1f)) { Text("适应", color = Color.White) }
+                                TextButton({ quarterTurns = 0; resetView() }, Modifier.weight(1f)) { Text("重置", color = Color.White) }
+                                TextButton({ editing = true }, Modifier.weight(1f)) { Text("编辑", color = Color.White) }
+                            }
+                        }
+                    }
+                },
+            ) { scaffoldPadding ->
                 Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxWidth()
+                    modifier = Modifier.fillMaxSize().padding(scaffoldPadding)
                         .pointerInput(file.absolutePath, currentIndex) {
                             detectTransformGestures { _, drag, gestureZoom, _ ->
                                 val nextZoom = (zoom * gestureZoom).coerceIn(1f, 6f)
@@ -380,80 +391,42 @@ private fun GridFullScreenImageViewer(files: List<File>, initialIndex: Int, onDi
                                 if (nextZoom <= 1.001f) {
                                     pan = Offset.Zero
                                     swipeAccum += drag
-                                    val x = swipeAccum.x
-                                    val y = swipeAccum.y
+                                    val x = swipeAccum.x; val y = swipeAccum.y
                                     if (kotlin.math.abs(x) > 120f || kotlin.math.abs(y) > 120f) {
                                         if (kotlin.math.abs(x) >= kotlin.math.abs(y)) moveGallery(if (x < 0) 1 else -1)
                                         else moveGallery(if (y < 0) 1 else -1)
                                         swipeAccum = Offset.Zero
                                     }
-                                } else {
-                                    pan += drag
-                                }
+                                } else pan += drag
                             }
                         }
                         .pointerInput(file.absolutePath) {
-                            detectTapGestures(onDoubleTap = { resetView() })
+                            detectTapGestures(onTap = { controlsVisible = !controlsVisible }, onDoubleTap = { resetView() })
                         },
                     contentAlignment = Alignment.Center,
                 ) {
                     key(file.absolutePath, editRevision) {
                         AsyncImage(
-                            model = file,
-                            contentDescription = "高清原图",
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .graphicsLayer {
-                                    rotationZ = quarterTurns * 90f
-                                    scaleX = zoom
-                                    scaleY = zoom
-                                    translationX = pan.x
-                                    translationY = pan.y
-                                },
+                            model = file, contentDescription = "高清原图",
+                            modifier = Modifier.fillMaxSize().graphicsLayer {
+                                rotationZ = quarterTurns * 90f; scaleX = zoom; scaleY = zoom
+                                translationX = pan.x; translationY = pan.y
+                            },
                             contentScale = ContentScale.Fit,
                         )
                     }
-
                     FilledIconButton(
-                        onClick = onDismiss,
-                        modifier = Modifier.align(Alignment.TopEnd).statusBarsPadding().padding(16.dp),
-                        colors = IconButtonDefaults.filledIconButtonColors(
-                            containerColor = Color(0xAA2A2A2A),
-                            contentColor = Color.White,
-                        ),
+                        onClick = onDismiss, modifier = Modifier.align(Alignment.TopEnd).padding(16.dp),
+                        colors = IconButtonDefaults.filledIconButtonColors(containerColor = Color(0xAA2A2A2A), contentColor = Color.White),
                     ) { Icon(Icons.Default.Close, "关闭高清原图") }
-
                     if (files.size > 1) {
                         Surface(
-                            modifier = Modifier.align(Alignment.TopCenter).statusBarsPadding().padding(top = 18.dp),
-                            color = Color(0x99222222),
-                            contentColor = Color.White,
-                            shape = MaterialTheme.shapes.large,
-                        ) {
-                            Text(
-                                "${currentIndex + 1} / ${files.size} · 左右或上下滑动",
-                                Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                            )
-                        }
+                            modifier = Modifier.align(Alignment.TopCenter).padding(top = 18.dp),
+                            color = Color(0x99222222), contentColor = Color.White, shape = MaterialTheme.shapes.large,
+                        ) { Text("${currentIndex + 1} / ${files.size} · 左右或上下滑动", Modifier.padding(horizontal = 12.dp, vertical = 6.dp)) }
                     }
                 }
-
-                Surface(
-                    modifier = Modifier.fillMaxWidth(),
-                    color = Color(0xFF222222),
-                    contentColor = Color.White,
-                ) {
-                    Row(
-                        Modifier.fillMaxWidth().padding(horizontal = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        TextButton(onClick = { rotateBy(-1) }, modifier = Modifier.weight(1f)) { Text("左转", color = Color.White) }
-                        TextButton(onClick = { rotateBy(1) }, modifier = Modifier.weight(1f)) { Text("右转", color = Color.White) }
-                        TextButton(onClick = { resetView() }, modifier = Modifier.weight(1f)) { Text("适应", color = Color.White) }
-                        TextButton(onClick = { quarterTurns = 0; resetView() }, modifier = Modifier.weight(1f)) { Text("重置", color = Color.White) }
-                        TextButton(onClick = { editing = true }, modifier = Modifier.weight(1f)) { Text("编辑", color = Color.White) }
-                    }
-                }
+            }
             }
         }
     }
