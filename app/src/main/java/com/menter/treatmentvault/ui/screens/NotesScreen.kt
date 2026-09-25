@@ -122,7 +122,7 @@ fun NoteEditorScreen(noteId: Long, initialCategoryId: String?, back: () -> Unit)
         )
     }) { padding ->
         if (!initialized) Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
-        else FastScrollLazyColumn(
+        else FastScrollFastScrollLazyColumn(
             modifier = Modifier.fillMaxSize().padding(padding),
             contentPadding = PaddingValues(horizontal = 18.dp, vertical = 10.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
