@@ -427,7 +427,6 @@ private fun GridFullScreenImageViewer(files: List<File>, initialIndex: Int, onDi
                     }
                 }
             }
-            }
         }
     }
 }
