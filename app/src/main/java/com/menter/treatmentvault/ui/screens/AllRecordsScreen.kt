@@ -83,18 +83,22 @@ fun AllRecordsScreen(
         )
     }
 
-    LaunchedEffect(scrollMemory.restorePending, filtered.size) {
-        resolveAllRecordsRestoreTarget(scrollMemory, filtered.size)?.let { target ->
+    val orderedRecordKeys = remember(filtered) { filtered.map { it.key } }
+
+    LaunchedEffect(scrollMemory.restorePending, orderedRecordKeys) {
+        resolveAllRecordsRestoreTarget(scrollMemory, orderedRecordKeys)?.let { target ->
             listState.scrollToItem(target.index, target.offset)
             onScrollMemoryChange(scrollMemory.copy(restorePending = false))
         }
     }
 
     fun openItem(item: UnifiedRecordItem) {
+        val firstIndex = listState.firstVisibleItemIndex
         onScrollMemoryChange(
             scrollMemory.capture(
-                listState.firstVisibleItemIndex,
-                listState.firstVisibleItemScrollOffset,
+                anchorKey = visibleRecordAnchorKey(firstIndex, orderedRecordKeys),
+                index = firstIndex,
+                offset = listState.firstVisibleItemScrollOffset,
             )
         )
         go(item.route)
