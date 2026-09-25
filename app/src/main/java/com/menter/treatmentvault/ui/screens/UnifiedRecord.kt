@@ -13,6 +13,7 @@ data class UnifiedRecordItem(
     val iconKey: String,
     val date: String,
     val updatedAt: Long,
+    val createdAt: Long = ownerId,
     val folderKeys: Set<String> = setOf(categoryKey),
     val thumbnailFileName: String? = null,
     val searchText: String = preview,
@@ -68,7 +69,8 @@ fun buildUnifiedRecords(
         questions.forEach { item -> val f=typedFolders("question",item.id,"questions"); val p=primaryFolder(f,"questions"); add(UnifiedRecordItem("question",item.id,item.question.ifBlank{"医生问诊"},trimPreview(item.answer.ifBlank{item.notes}),section(p,"医生问诊"),p,"questions/${item.id}",icon("questions","question"),item.date,item.updatedAt,f,firstImage(item.answer,item.notes),search(item.question,item.answer,item.followUp,item.notes,item.hospital,item.doctor,item.status))) }
         expenses.forEach { item -> val f=typedFolders("expense",item.id,"expenses"); val p=primaryFolder(f,"expenses"); add(UnifiedRecordItem("expense",item.id,"${item.type.ifBlank{"费用"}} ¥${item.amount}",trimPreview(item.notes.ifBlank{item.merchant}),section(p,"费用记录"),p,"expenses/${item.id}",icon("expenses","payments"),item.date,item.updatedAt,f,firstImage(item.notes),search(item.type,item.merchant,item.notes,item.date,item.amount.toString()))) }
         timeline.forEach { item -> val f=typedFolders("timeline",item.id,"timeline"); val p=primaryFolder(f,"timeline"); add(UnifiedRecordItem("timeline",item.id,item.title.ifBlank{item.type.ifBlank{"时间线记录"}},trimPreview(item.content),section(p,"总时间轴"),p,"timeline/${item.id}",icon("timeline","timeline"),item.date,item.updatedAt,f,firstImage(item.content),search(item.title,item.type,item.content,item.date))) }
-    }.sortedByDescending { it.updatedAt }
+    }
+    // 注意：这里不再排序。排序由 AllRecordsScreen 统一负责。
 }
 
 fun recordStateFor(item: UnifiedRecordItem, states: Map<String, RecordStateEntity>): RecordStateEntity = states[item.key] ?: RecordStateEntity(ownerType=item.ownerType, ownerId=item.ownerId)
