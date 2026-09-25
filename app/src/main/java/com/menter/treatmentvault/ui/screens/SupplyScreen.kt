@@ -41,7 +41,7 @@ fun SupplyScreen(back: () -> Unit, initialEditId: Long = 0L) {
             listOf("待购", "已购", "暂不购买").forEach { status -> AssistChip(onClick = {}, label = { Text("$status ${list.count { it.purchaseStatus == status }}") }) }
         }
         Text("名称下面直接记文字和图片；购买状态、使用阶段等放到更多信息里。", style = MaterialTheme.typography.bodySmall)
-        FastScrollFastScrollLazyColumn(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        FastScrollLazyColumn(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             items(list, key = { it.id }) { value ->
                 Card(Modifier.fillMaxWidth().clickable { editing = value; editorOpen = true }) {
                     Column(Modifier.padding(12.dp)) {
@@ -111,7 +111,7 @@ fun SupplyScreen(back: () -> Unit, initialEditId: Long = 0L) {
                 }
             },
         ) {
-            FastScrollFastScrollLazyColumn(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp), contentPadding = PaddingValues(bottom = 24.dp)) {
+            FastScrollLazyColumn(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp), contentPadding = PaddingValues(bottom = 24.dp)) {
                 item { Field(name, { name = it }, "标题/名称") }
                 item {
                     RichNoteBodyEditor(
