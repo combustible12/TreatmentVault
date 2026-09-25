@@ -352,9 +352,7 @@ private class NoteImageEditView(context: Context) : View(context) {
                 NoteImageTextStyle.ITALIC -> Typeface.create(Typeface.DEFAULT, Typeface.ITALIC)
                 else -> Typeface.DEFAULT
             }
-            if (item.style != NoteImageTextStyle.OUTLINE && !stroke) {
-                setShadowLayer(max(2f, item.sizePx * 0.035f), 1f, 1f, AndroidColor.BLACK)
-            }
+
         }
 
     private fun textBounds(item: NoteImageTextItem): RectF {
