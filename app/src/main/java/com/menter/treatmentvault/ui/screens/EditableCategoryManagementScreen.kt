@@ -148,7 +148,7 @@ fun EditableCategoryManagementScreen(back: () -> Unit) {
             }
         }
 
-        LazyColumn(
+        FastScrollLazyColumn(
             modifier = Modifier.fillMaxWidth().weight(1f),
             verticalArrangement = Arrangement.spacedBy(8.dp),
             contentPadding = PaddingValues(bottom = 24.dp),
@@ -361,7 +361,7 @@ private fun EditableCategoryDialog(
         onDismissRequest = onDismiss,
         title = { Text(title) },
         text = {
-            LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            FastScrollLazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 item { OutlinedTextField(name, { name = it }, label = { Text("类目名称") }, modifier = Modifier.fillMaxWidth()) }
                 item { OutlinedTextField(keywords, { keywords = it }, label = { Text("智能分类关键词（逗号分隔）") }, modifier = Modifier.fillMaxWidth()) }
                 item {
