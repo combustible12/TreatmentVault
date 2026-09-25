@@ -6,7 +6,6 @@ import android.graphics.BitmapFactory
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
-import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.*
@@ -401,10 +400,12 @@ private fun GridFullScreenImageViewer(files: List<File>, initialIndex: Int, onDi
                                 } else pan += drag
                             }
                         }
-                        .combinedClickable(
-                            onClick = { controlsVisible = !controlsVisible },
-                            onDoubleClick = { resetView() },
-                        ),
+                        .pointerInput(file.absolutePath) {
+                            detectTapGestures(
+                                onTap = { controlsVisible = !controlsVisible },
+                                onDoubleTap = { resetView() },
+                            )
+                        },
                     contentAlignment = Alignment.Center,
                 ) {
                     key(file.absolutePath, editRevision) {
