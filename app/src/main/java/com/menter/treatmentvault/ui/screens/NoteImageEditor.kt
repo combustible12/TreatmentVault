@@ -444,13 +444,15 @@ private class NoteImageEditView(context: Context) : View(context) {
                     }
                     NoteImageEditMode.TEXT -> {
                         val hit = hitTestText(point)
-                        if (hit != null) {
-                            selectText(hit.id)
+                        val active = hit ?: selectedText()
+                        if (active != null) {
+                            // In text mode the whole image is a drag surface for the
+                            // active text. Tapping another text switches the target.
+                            if (hit != null && hit.id != selectedTextId) selectText(hit.id)
                             textDragStartPoint = copyPoint(point)
-                            textDragStartItem = hit
+                            textDragStartItem = active
                             textDragHistoryPushed = false
                         } else {
-                            selectText(null)
                             textPoint = copyPoint(point)
                         }
                     }
