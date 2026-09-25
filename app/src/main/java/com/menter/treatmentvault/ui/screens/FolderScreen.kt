@@ -76,6 +76,7 @@ fun FolderScreen(categoryId: String, back: () -> Unit, go: (String) -> Unit) {
     var newFolderName by remember { mutableStateOf("") }
     var ownershipItem by remember { mutableStateOf<UnifiedRecordItem?>(null) }
     var renameFolder by remember { mutableStateOf<CategoryEntity?>(null) }
+    var overlayRoute by remember(categoryId) { mutableStateOf<String?>(null) }
 
     val q = query.trim()
     val visibleChildren = remember(childFolders, q) {
@@ -86,6 +87,10 @@ fun FolderScreen(categoryId: String, back: () -> Unit, go: (String) -> Unit) {
             val state = recordStateFor(item, stateMap)
             listOf(recordDisplayTitle(item, state), item.preview, item.date, item.section).any { it.contains(q, true) }
         }
+    }
+
+    fun openItem(item: UnifiedRecordItem) {
+        overlayRoute = item.route
     }
 
     fun toggle(item: UnifiedRecordItem) {
@@ -200,7 +205,7 @@ fun FolderScreen(categoryId: String, back: () -> Unit, go: (String) -> Unit) {
                         state = state,
                         selectionMode = selectedKeys.isNotEmpty(),
                         selected = item.key in selectedKeys,
-                        onClick = { if (selectedKeys.isNotEmpty()) toggle(item) else go(item.route) },
+                        onClick = { if (selectedKeys.isNotEmpty()) toggle(item) else openItem(item) },
                         onLongClick = {
                             if (selectedKeys.isNotEmpty()) toggle(item)
                             else ownershipItem = item
@@ -232,6 +237,15 @@ fun FolderScreen(categoryId: String, back: () -> Unit, go: (String) -> Unit) {
             }
             item { Spacer(Modifier.height(24.dp)) }
         }
+    }
+
+
+    overlayRoute?.let { route ->
+        FolderDetailOverlay(
+            route = route,
+            onClose = { overlayRoute = null },
+            go = go,
+        )
     }
 
     ownershipItem?.let { item ->
@@ -433,6 +447,42 @@ private fun FolderRecordCard(
                             },
                         )
                     }
+                }
+            }
+        }
+    }
+}
+
+
+@Composable
+private fun FolderDetailOverlay(
+    route: String,
+    onClose: () -> Unit,
+    go: (String) -> Unit,
+) {
+    Surface(
+        modifier = Modifier.fillMaxSize(),
+        color = MaterialTheme.colorScheme.background,
+        tonalElevation = 0.dp,
+    ) {
+        when {
+            route.startsWith("note/") -> {
+                val id = route.substringAfter("note/").substringBefore("/").toLongOrNull()
+                if (id != null) NoteEditorScreen(noteId = id, initialCategoryId = null, back = onClose) else onClose()
+            }
+            route.startsWith("supplies/") -> SupplyScreen(back = onClose, initialEditId = route.substringAfterLast("/").toLongOrNull() ?: 0L)
+            route.startsWith("exams/") -> ExamScreen(back = onClose, initialEditId = route.substringAfterLast("/").toLongOrNull() ?: 0L)
+            route.startsWith("treatment/plan/") -> TreatmentScreen(back = onClose, initialPlanId = route.substringAfterLast("/").toLongOrNull() ?: 0L)
+            route.startsWith("treatment/record/") -> TreatmentScreen(back = onClose, initialRecordId = route.substringAfterLast("/").toLongOrNull() ?: 0L)
+            route.startsWith("symptoms/") -> SymptomScreen(back = onClose, initialEditId = route.substringAfterLast("/").toLongOrNull() ?: 0L)
+            route.startsWith("temperature/") -> TemperatureScreen(back = onClose, initialEditId = route.substringAfterLast("/").toLongOrNull() ?: 0L)
+            route.startsWith("questions/") -> QuestionScreen(back = onClose, initialEditId = route.substringAfterLast("/").toLongOrNull() ?: 0L)
+            route.startsWith("expenses/") -> ExpenseScreen(back = onClose, initialEditId = route.substringAfterLast("/").toLongOrNull() ?: 0L)
+            route.startsWith("timeline/") -> TimelineScreen(back = onClose, go = go, initialEditId = route.substringAfterLast("/").toLongOrNull() ?: 0L)
+            else -> {
+                LaunchedEffect(route) {
+                    onClose()
+                    go(route)
                 }
             }
         }
