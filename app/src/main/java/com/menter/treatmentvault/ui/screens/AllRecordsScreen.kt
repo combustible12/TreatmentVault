@@ -77,27 +77,35 @@ fun AllRecordsScreen(
             }
             shelfMatch && (q.isBlank() || listOf(recordDisplayTitle(item, state), item.preview, item.section, item.date).any { it.contains(q, true) })
         }.sortedWith(
-            compareByDescending<UnifiedRecordItem> { recordStateFor(it, stateMap).pinned && shelf == RecordShelf.ALL }
-                .thenByDescending { isTodo(recordStateFor(it, stateMap)) && !recordStateFor(it, stateMap).completed }
-                .thenByDescending { it.updatedAt }
+            // 「全部记录」以及其他筛选页均只按记录自身的稳定时间排序。
+            // createdAt 来自自增主键，永远不会被写，因此不会因状态变更而重排。
+            // pinned / displayType(todo) / completed 不再影响排序。
+            compareByDescending<UnifiedRecordItem> { it.createdAt }
+                .thenByDescending { it.key }
         )
     }
 
     val orderedRecordKeys = remember(filtered) { filtered.map { it.key } }
 
-    LaunchedEffect(scrollMemory.restorePending, orderedRecordKeys) {
-        resolveAllRecordsRestoreTarget(scrollMemory, orderedRecordKeys)?.let { target ->
+    // 当前 LazyColumn 中，记录列表之前的 header 数量。
+    // 真实 header：搜索框(1) + 筛选栏(1) + 可选数量提示(0 或 1)。
+    val headerCount = if (selectedKeys.isEmpty() && filtered.isNotEmpty()) 3 else 2
+
+    // 等待数据稳定后再消费恢复逻辑，避免空数据发射时提前消耗 restorePending。
+    LaunchedEffect(scrollMemory.restorePending, orderedRecordKeys, headerCount) {
+        if (!scrollMemory.restorePending) return@LaunchedEffect
+        if (orderedRecordKeys.isEmpty()) return@LaunchedEffect
+        resolveAllRecordsRestoreTarget(scrollMemory, orderedRecordKeys, headerCount)?.let { target ->
             listState.scrollToItem(target.index, target.offset)
             onScrollMemoryChange(scrollMemory.copy(restorePending = false))
         }
     }
 
     fun openItem(item: UnifiedRecordItem) {
-        val firstIndex = listState.firstVisibleItemIndex
         onScrollMemoryChange(
             scrollMemory.capture(
-                anchorKey = visibleRecordAnchorKey(firstIndex, orderedRecordKeys),
-                index = firstIndex,
+                anchorKey = visibleRecordAnchorKey(listState.firstVisibleItemIndex, orderedRecordKeys, headerCount),
+                lazyColumnIndex = listState.firstVisibleItemIndex,
                 offset = listState.firstVisibleItemScrollOffset,
             )
         )
@@ -109,16 +117,16 @@ fun AllRecordsScreen(
     }
 
     fun saveState(next: RecordStateEntity) {
-        scope.launch { dao.saveRecordState(next.copy(updatedAt = System.currentTimeMillis())) }
+        // 只保存状态本体，不写 updatedAt，避免干扰「全部记录」的稳定排序。
+        scope.launch { dao.saveRecordState(next) }
     }
 
     fun updateSelected(transform: (RecordStateEntity) -> RecordStateEntity) {
         val keys = selectedKeys
         if (keys.isEmpty()) return
         scope.launch {
-            val now = System.currentTimeMillis()
             allItems.filter { it.key in keys }.forEach { item ->
-                dao.saveRecordState(transform(recordStateFor(item, stateMap)).copy(updatedAt = now))
+                dao.saveRecordState(transform(recordStateFor(item, stateMap)))
             }
             selectedKeys = emptySet()
         }
@@ -201,7 +209,7 @@ fun AllRecordsScreen(
                     }
                 }
             }
-            if (selectedKeys.isEmpty()) {
+            if (selectedKeys.isEmpty() && filtered.isNotEmpty()) {
                 item { Text(if (managementMode) "${filtered.size} 条记录 · 点击勾选，可全选后批量处理" else "${filtered.size} 条记录 · 长按可重命名并查看全部归属文件夹", style = MaterialTheme.typography.bodySmall) }
             }
             if (filtered.isEmpty()) {
