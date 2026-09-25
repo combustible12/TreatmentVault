@@ -337,7 +337,7 @@ private class NoteImageEditView(context: Context) : View(context) {
         val paint = textPaint(item)
         val fm = paint.fontMetrics
         val width = paint.measureText(item.text)
-        val pad = max(10f, item.sizePx * 0.12f)
+        val pad = max(28f, item.sizePx * 0.32f)
         return RectF(
             item.x - pad,
             item.y + fm.ascent - pad,
@@ -698,7 +698,7 @@ internal fun NoteImageEditorContent(
                 color = MaterialTheme.colorScheme.surface,
             ) {
                 Column(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp),
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 3.dp),
                     verticalArrangement = Arrangement.spacedBy(4.dp),
                 ) {
                     Row(
@@ -791,115 +791,29 @@ internal fun NoteImageEditorContent(
                     }
 
                     if (mode == NoteImageEditMode.TEXT) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        ) {
-                            OutlinedTextField(
-                                value = textValue,
-                                onValueChange = { textValue = it },
-                                modifier = Modifier.weight(1f),
-                                placeholder = { Text("输入文字；点图片可指定新增位置") },
-                                singleLine = true,
-                            )
-                            Button(
-                                onClick = {
-                                    val ok = if (selectedText != null) {
-                                        viewRef?.updateSelectedTextContent(textValue) == true
-                                    } else {
-                                        viewRef?.addText(textValue) == true
-                                    }
-                                    if (!ok && textValue.isBlank()) message = "请输入文字"
-                                },
-                            ) { Text(if (selectedText != null) "更新" else "添加") }
-                            if (selectedText != null) {
-                                TextButton(
-                                    onClick = {
-                                        viewRef?.clearTextSelection()
-                                        selectedText = null
-                                        textValue = ""
-                                    },
-                                    contentPadding = PaddingValues(horizontal = 6.dp),
-                                ) { Text("新增") }
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
+                            OutlinedTextField(value = textValue, onValueChange = { textValue = it }, modifier = Modifier.weight(1f), placeholder = { Text("文字") }, singleLine = true)
+                            Button(onClick = {
+                                val ok = if (selectedText != null) viewRef?.updateSelectedTextContent(textValue) == true else viewRef?.addText(textValue) == true
+                                if (!ok && textValue.isBlank()) message = "请输入文字"
+                            }, contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp)) { Text(if (selectedText != null) "更新" else "添加") }
+                            if (selectedText != null) TextButton(onClick = { viewRef?.clearTextSelection(); selectedText = null; textValue = "" }, contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp)) { Text("新增") }
+                        }
+                        selectedText?.let { item ->
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(2.dp), verticalAlignment = Alignment.CenterVertically) {
+                                TextButton(onClick = { viewRef?.scaleSelectedTextBy(0.86f) }, contentPadding = PaddingValues(horizontal = 5.dp, vertical = 1.dp)) { Text("－") }
+                                Text("字号 ${item.sizePx.toInt()}", style = MaterialTheme.typography.bodySmall)
+                                TextButton(onClick = { viewRef?.scaleSelectedTextBy(1.16f) }, contentPadding = PaddingValues(horizontal = 5.dp, vertical = 1.dp)) { Text("＋") }
+                                listOf("白" to AndroidColor.WHITE, "黑" to AndroidColor.BLACK, "红" to AndroidColor.RED, "黄" to AndroidColor.YELLOW, "蓝" to AndroidColor.BLUE, "绿" to AndroidColor.rgb(0, 160, 80)).forEach { (label, value) ->
+                                    TextButton(onClick = { viewRef?.updateSelectedTextColor(value) }, modifier = Modifier.weight(1f), contentPadding = PaddingValues(horizontal = 1.dp, vertical = 1.dp)) { Text(if (item.color == value) "✓$label" else label, color = Color(value), maxLines = 1) }
+                                }
+                            }
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                                listOf(NoteImageTextStyle.NORMAL to "常规", NoteImageTextStyle.BOLD to "粗体", NoteImageTextStyle.ITALIC to "斜体", NoteImageTextStyle.OUTLINE to "描边").forEach { (style, label) ->
+                                    TextButton(onClick = { viewRef?.updateSelectedTextStyle(style) }, modifier = Modifier.weight(1f), contentPadding = PaddingValues(horizontal = 2.dp, vertical = 1.dp)) { Text(if (item.style == style) "✓$label" else label, maxLines = 1) }
+                                }
                             }
                         }
-
-                        selectedText?.let { item ->
-                            Text(
-                                "拖动文字移动位置 · 双指缩放；也可用－/＋微调字号",
-                                style = MaterialTheme.typography.bodySmall,
-                            )
-
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(4.dp),
-                            ) {
-                                OutlinedButton(
-                                    onClick = { viewRef?.scaleSelectedTextBy(0.86f) },
-                                    modifier = Modifier.weight(1f),
-                                    contentPadding = PaddingValues(horizontal = 4.dp),
-                                ) { Text("－") }
-                                Text(
-                                    "字号 " + item.sizePx.toInt(),
-                                    modifier = Modifier.weight(2f).padding(top = 12.dp),
-                                    style = MaterialTheme.typography.bodySmall,
-                                )
-                                OutlinedButton(
-                                    onClick = { viewRef?.scaleSelectedTextBy(1.16f) },
-                                    modifier = Modifier.weight(1f),
-                                    contentPadding = PaddingValues(horizontal = 4.dp),
-                                ) { Text("＋") }
-                            }
-
-                            val colors = listOf(
-                                "白" to AndroidColor.WHITE,
-                                "黑" to AndroidColor.BLACK,
-                                "红" to AndroidColor.RED,
-                                "黄" to AndroidColor.YELLOW,
-                                "蓝" to AndroidColor.BLUE,
-                                "绿" to AndroidColor.rgb(0, 160, 80),
-                            )
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(2.dp),
-                            ) {
-                                colors.forEach { (label, value) ->
-                                    TextButton(
-                                        onClick = { viewRef?.updateSelectedTextColor(value) },
-                                        modifier = Modifier.weight(1f),
-                                        contentPadding = PaddingValues(horizontal = 2.dp, vertical = 2.dp),
-                                    ) {
-                                        Text(
-                                            if (item.color == value) "✓$label" else label,
-                                            color = Color(value),
-                                            maxLines = 1,
-                                        )
-                                    }
-                                }
-                            }
-
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(4.dp),
-                            ) {
-                                listOf(
-                                    NoteImageTextStyle.NORMAL to "常规",
-                                    NoteImageTextStyle.BOLD to "粗体",
-                                    NoteImageTextStyle.ITALIC to "斜体",
-                                    NoteImageTextStyle.OUTLINE to "描边",
-                                ).forEach { (style, label) ->
-                                    FilterChip(
-                                        modifier = Modifier.weight(1f),
-                                        selected = item.style == style,
-                                        onClick = { viewRef?.updateSelectedTextStyle(style) },
-                                        label = { Text(label, maxLines = 1) },
-                                    )
-                                }
-                            }
-                        } ?: Text(
-                            "添加文字后可直接拖动；选中文字后可缩放、换颜色和改样式。",
-                            style = MaterialTheme.typography.bodySmall,
-                        )
                     }
 
                     message?.let {
