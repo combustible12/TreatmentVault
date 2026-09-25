@@ -37,7 +37,7 @@ fun QuestionScreen(back: () -> Unit, initialEditId: Long = 0L) {
 
     Page("医生问诊", back) {
         Text("问题当标题，下面直接记医生回答、照片和补充内容。医院、医生、状态等放到更多信息。", style = MaterialTheme.typography.bodySmall)
-        LazyColumn(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        FastScrollLazyColumn(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             items(list, key = { it.id }) { value ->
                 Card(Modifier.fillMaxWidth().clickable { editing = value; editorOpen = true }) {
                     Column(Modifier.padding(12.dp)) {
@@ -97,7 +97,7 @@ fun QuestionScreen(back: () -> Unit, initialEditId: Long = 0L) {
                 }
             },
         ) {
-            LazyColumn(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp), contentPadding = PaddingValues(bottom = 24.dp)) {
+            FastScrollLazyColumn(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp), contentPadding = PaddingValues(bottom = 24.dp)) {
                 item { Field(question, { question = it }, "问题/标题") }
                 item {
                     RichNoteBodyEditor(
