@@ -159,7 +159,7 @@ fun HomeScreen(go: (String) -> Unit) {
                         Text("分类", style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(top = 12.dp))
                         IconButton(onClick = { showAddCategory = true }) { Icon(Icons.Default.Add, contentDescription = "新建类目") }
                     }
-                    LazyColumn(modifier = Modifier.weight(1f)) {
+                    FastScrollLazyColumn(modifier = Modifier.weight(1f)) {
                         items(visibleCategories, key = { it.first.key }) { (category, depth) ->
                             NavigationDrawerItem(
                                 icon = { Icon(categoryIcon(category.iconKey), contentDescription = null) },
@@ -226,7 +226,7 @@ fun HomeScreen(go: (String) -> Unit) {
                 }
             },
         ) { padding ->
-            LazyColumn(
+            FastScrollLazyColumn(
                 state = listState,
                 modifier = Modifier.fillMaxSize().padding(padding),
                 contentPadding = PaddingValues(start = 14.dp, end = 14.dp, bottom = 96.dp),
