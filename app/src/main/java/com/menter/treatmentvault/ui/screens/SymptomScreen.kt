@@ -40,7 +40,7 @@ fun SymptomScreen(back: () -> Unit, initialEditId: Long = 0L) {
 
     Page("症状记录", back) {
         Text("先像记笔记一样写发生了什么，需要时再展开体温、疼痛、排便等细项。", style = MaterialTheme.typography.bodySmall)
-        FastScrollLazyColumn(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        FastScrollFastScrollLazyColumn(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             items(list, key = { it.id }) { value ->
                 Card(Modifier.fillMaxWidth().clickable { editing = value; editorOpen = true }) {
                     Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
@@ -117,7 +117,7 @@ fun SymptomScreen(back: () -> Unit, initialEditId: Long = 0L) {
                 }
             },
         ) {
-            FastScrollLazyColumn(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp), contentPadding = PaddingValues(bottom = 24.dp)) {
+            FastScrollFastScrollLazyColumn(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp), contentPadding = PaddingValues(bottom = 24.dp)) {
                 item {
                     RichNoteBodyEditor(
                         dao = dao,
