@@ -368,7 +368,7 @@ private fun GridFullScreenImageViewer(files: List<File>, initialIndex: Int, onDi
                 modifier = Modifier.fillMaxSize(),
                 containerColor = Color.Black,
                 contentWindowInsets = WindowInsets.safeDrawing,
-                bottomBar = {
+                topBar = {
                     if (controlsVisible) {
                         Surface(Modifier.fillMaxWidth(), color = Color(0xFF222222), contentColor = Color.White) {
                             Row(Modifier.fillMaxWidth().padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
