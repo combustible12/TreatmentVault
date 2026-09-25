@@ -6,7 +6,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -48,7 +48,7 @@ fun AllRecordsScreen(
     val recordFolders by dao.recordFolders().collectAsState(emptyList())
     val scope = rememberCoroutineScope()
 
-    val listState = rememberSaveable(saver = LazyListState.Saver) { LazyListState() }
+    val listState = rememberLazyListState()
 
     var query by rememberSaveable { mutableStateOf("") }
     var shelfName by rememberSaveable { mutableStateOf(RecordShelf.ALL.name) }
@@ -57,6 +57,7 @@ fun AllRecordsScreen(
     var batchMenuOpen by remember { mutableStateOf(false) }
     var moveKeys by remember { mutableStateOf<Set<String>>(emptySet()) }
     var ownershipItem by remember { mutableStateOf<UnifiedRecordItem?>(null) }
+    var overlayRoute by remember { mutableStateOf<String?>(null) }
     val shelf = runCatching { RecordShelf.valueOf(shelfName) }.getOrDefault(RecordShelf.ALL)
     val stateMap = remember(states) { states.associateBy { "${it.ownerType}:${it.ownerId}" } }
     val allItems = remember(categories, supplies, exams, plans, records, symptoms, temperatures, questions, expenses, timeline, notes, recordFolders) {
@@ -84,7 +85,9 @@ fun AllRecordsScreen(
     }
 
     fun openItem(item: UnifiedRecordItem) {
-        go(item.route)
+        // Keep this list composed and stationary. Details opened from All Records are
+        // rendered as an overlay instead of replacing this destination.
+        overlayRoute = item.route
     }
 
     fun toggle(item: UnifiedRecordItem) {
@@ -366,5 +369,46 @@ private fun UnifiedRecordRow(
             confirmButton = { TextButton(onClick = { confirmDelete = false; onDeleteForever() }) { Text("永久删除") } },
             dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text("取消") } },
         )
+    }
+    overlayRoute?.let { route ->
+        AllRecordsDetailOverlay(
+            route = route,
+            onClose = { overlayRoute = null },
+            go = go,
+        )
+    }
+
+}
+
+
+@Composable
+private fun AllRecordsDetailOverlay(
+    route: String,
+    onClose: () -> Unit,
+    go: (String) -> Unit,
+) {
+    // The list screen remains composed underneath this full-screen surface. Closing
+    // the editor only removes this overlay, so LazyListState is never reconstructed.
+    Surface(
+        modifier = Modifier.fillMaxSize(),
+        color = MaterialTheme.colorScheme.background,
+        tonalElevation = 0.dp,
+    ) {
+        when {
+            route.startsWith("note/") -> {
+                val id = route.substringAfter("note/").toLongOrNull()
+                if (id != null) NoteEditorScreen(noteId = id, initialCategoryId = null, back = onClose) else onClose()
+            }
+            route.startsWith("supplies/") -> SupplyScreen(back = onClose, initialEditId = route.substringAfterLast("/").toLongOrNull() ?: 0L)
+            route.startsWith("exams/") -> ExamScreen(back = onClose, initialEditId = route.substringAfterLast("/").toLongOrNull() ?: 0L)
+            route.startsWith("treatment/plan/") -> TreatmentScreen(back = onClose, initialPlanId = route.substringAfterLast("/").toLongOrNull() ?: 0L)
+            route.startsWith("treatment/record/") -> TreatmentScreen(back = onClose, initialRecordId = route.substringAfterLast("/").toLongOrNull() ?: 0L)
+            route.startsWith("symptoms/") -> SymptomScreen(back = onClose, initialEditId = route.substringAfterLast("/").toLongOrNull() ?: 0L)
+            route.startsWith("temperature/") -> TemperatureScreen(back = onClose, initialEditId = route.substringAfterLast("/").toLongOrNull() ?: 0L)
+            route.startsWith("questions/") -> QuestionScreen(back = onClose, initialEditId = route.substringAfterLast("/").toLongOrNull() ?: 0L)
+            route.startsWith("expenses/") -> ExpenseScreen(back = onClose, initialEditId = route.substringAfterLast("/").toLongOrNull() ?: 0L)
+            route.startsWith("timeline/") -> TimelineScreen(back = onClose, go = go, initialEditId = route.substringAfterLast("/").toLongOrNull() ?: 0L)
+            else -> LaunchedEffect(route) { onClose() }
+        }
     }
 }
