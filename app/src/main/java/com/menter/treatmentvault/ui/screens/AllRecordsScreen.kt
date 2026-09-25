@@ -6,7 +6,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -30,8 +30,6 @@ fun AllRecordsScreen(
     back: () -> Unit,
     go: (String) -> Unit,
     startInManagementMode: Boolean = false,
-    scrollMemory: AllRecordsScrollMemory = AllRecordsScrollMemory(),
-    onScrollMemoryChange: (AllRecordsScrollMemory) -> Unit = {},
 ) {
     val app = androidx.compose.ui.platform.LocalContext.current.applicationContext as TreatmentVaultApplication
     val dao = app.database.dao()
@@ -50,7 +48,7 @@ fun AllRecordsScreen(
     val recordFolders by dao.recordFolders().collectAsState(emptyList())
     val scope = rememberCoroutineScope()
 
-    val listState = rememberLazyListState()
+    val listState = rememberSaveable(saver = LazyListState.Saver) { LazyListState() }
 
     var query by rememberSaveable { mutableStateOf("") }
     var shelfName by rememberSaveable { mutableStateOf(RecordShelf.ALL.name) }
@@ -85,30 +83,7 @@ fun AllRecordsScreen(
         )
     }
 
-    val orderedRecordKeys = remember(filtered) { filtered.map { it.key } }
-
-    // 当前 LazyColumn 中，记录列表之前的 header 数量。
-    // 真实 header：搜索框(1) + 筛选栏(1) + 可选数量提示(0 或 1)。
-    val headerCount = if (selectedKeys.isEmpty() && filtered.isNotEmpty()) 3 else 2
-
-    // 等待数据稳定后再消费恢复逻辑，避免空数据发射时提前消耗 restorePending。
-    LaunchedEffect(scrollMemory.restorePending, orderedRecordKeys, headerCount) {
-        if (!scrollMemory.restorePending) return@LaunchedEffect
-        if (orderedRecordKeys.isEmpty()) return@LaunchedEffect
-        resolveAllRecordsRestoreTarget(scrollMemory, orderedRecordKeys, headerCount)?.let { target ->
-            listState.scrollToItem(target.index, target.offset)
-            onScrollMemoryChange(scrollMemory.copy(restorePending = false))
-        }
-    }
-
     fun openItem(item: UnifiedRecordItem) {
-        onScrollMemoryChange(
-            scrollMemory.capture(
-                anchorKey = visibleRecordAnchorKey(listState.firstVisibleItemIndex, orderedRecordKeys, headerCount),
-                lazyColumnIndex = listState.firstVisibleItemIndex,
-                offset = listState.firstVisibleItemScrollOffset,
-            )
-        )
         go(item.route)
     }
 
