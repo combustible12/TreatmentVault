@@ -400,9 +400,10 @@ private fun GridFullScreenImageViewer(files: List<File>, initialIndex: Int, onDi
                                 } else pan += drag
                             }
                         }
-                        .pointerInput(file.absolutePath) {
-                            detectTapGestures(onTap = { controlsVisible = !controlsVisible }, onDoubleTap = { resetView() })
-                        },
+                        .combinedClickable(
+                            onClick = { controlsVisible = !controlsVisible },
+                            onDoubleClick = { resetView() },
+                        ),
                     contentAlignment = Alignment.Center,
                 ) {
                     key(file.absolutePath, editRevision) {
