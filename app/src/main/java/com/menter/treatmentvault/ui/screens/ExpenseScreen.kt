@@ -38,7 +38,7 @@ fun ExpenseScreen(back: () -> Unit, initialEditId: Long = 0L) {
     Page("费用记录", back) {
         Text("合计 ¥${"%.2f".format(list.sumOf { it.amount })}", style = MaterialTheme.typography.headlineSmall)
         Text("票据、说明可以直接按笔记方式放文字和图片；报销细项需要时再展开。", style = MaterialTheme.typography.bodySmall)
-        FastScrollFastScrollLazyColumn(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        FastScrollLazyColumn(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             items(list, key = { it.id }) { value ->
                 Card(Modifier.fillMaxWidth().clickable { editing = value; editorOpen = true }) {
                     Row(modifier = Modifier.padding(12.dp).fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -103,7 +103,7 @@ fun ExpenseScreen(back: () -> Unit, initialEditId: Long = 0L) {
                 }
             },
         ) {
-            FastScrollFastScrollLazyColumn(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp), contentPadding = PaddingValues(bottom = 24.dp)) {
+            FastScrollLazyColumn(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp), contentPadding = PaddingValues(bottom = 24.dp)) {
                 item { Field(amount, { amount = it }, "金额") }
                 item {
                     RichNoteBodyEditor(
