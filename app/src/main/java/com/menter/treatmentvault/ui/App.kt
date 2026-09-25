@@ -3,6 +3,10 @@ package com.menter.treatmentvault.ui
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.Color
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -41,9 +45,17 @@ private val SoftWarmWhiteScheme = lightColorScheme(
 fun TreatmentVaultApp() {
     MaterialTheme(colorScheme = SoftWarmWhiteScheme) {
         val nav = rememberNavController()
+        var allRecordsScrollMemory by remember { mutableStateOf(AllRecordsScrollMemory()) }
         NavHost(nav, "home") {
             composable("home") { HomeScreen { nav.navigate(it) } }
-            composable("notes") { AllRecordsScreen(back = { nav.popBackStack() }, go = { nav.navigate(it) }) }
+            composable("notes") {
+                AllRecordsScreen(
+                    back = { nav.popBackStack() },
+                    go = { nav.navigate(it) },
+                    scrollMemory = allRecordsScrollMemory,
+                    onScrollMemoryChange = { allRecordsScrollMemory = it },
+                )
+            }
             composable("notes/manage") { AllRecordsScreen(back = { nav.popBackStack() }, go = { nav.navigate(it) }, startInManagementMode = true) }
             composable("todos") { TodoCenterScreen(back = { nav.popBackStack() }, go = { nav.navigate(it) }) }
             composable("note/new/{categoryId}") { entry ->
