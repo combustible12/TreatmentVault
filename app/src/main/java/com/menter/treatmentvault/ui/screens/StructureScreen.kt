@@ -96,7 +96,7 @@ fun StructureScreen(back: () -> Unit, go: (String) -> Unit) {
             }
         }
 
-        LazyColumn(
+        FastScrollLazyColumn(
             modifier = Modifier.fillMaxWidth().heightIn(max = 700.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
