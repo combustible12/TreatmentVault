@@ -47,7 +47,14 @@ fun AllRecordsScreen(
     val states by dao.recordStates().collectAsState(emptyList())
     val recordFolders by dao.recordFolders().collectAsState(emptyList())
     val scope = rememberCoroutineScope()
-    val listState = rememberLazyListState()
+
+    var savedScrollIndex by rememberSaveable { mutableIntStateOf(0) }
+    var savedScrollOffset by rememberSaveable { mutableIntStateOf(0) }
+    var restoreScrollPending by rememberSaveable { mutableStateOf(false) }
+    val listState = rememberLazyListState(
+        initialFirstVisibleItemIndex = savedScrollIndex,
+        initialFirstVisibleItemScrollOffset = savedScrollOffset,
+    )
 
     var query by rememberSaveable { mutableStateOf("") }
     var shelfName by rememberSaveable { mutableStateOf(RecordShelf.ALL.name) }
@@ -78,6 +85,29 @@ fun AllRecordsScreen(
                 .thenByDescending { isTodo(recordStateFor(it, stateMap)) && !recordStateFor(it, stateMap).completed }
                 .thenByDescending { it.updatedAt }
         )
+    }
+
+    LaunchedEffect(listState) {
+        snapshotFlow { listState.firstVisibleItemIndex to listState.firstVisibleItemScrollOffset }
+            .collect { (index, offset) ->
+                savedScrollIndex = index
+                savedScrollOffset = offset
+            }
+    }
+
+    LaunchedEffect(restoreScrollPending, filtered.size) {
+        if (restoreScrollPending && filtered.isNotEmpty()) {
+            val maxIndex = filtered.size + 2
+            listState.scrollToItem(savedScrollIndex.coerceIn(0, maxIndex), savedScrollOffset)
+            restoreScrollPending = false
+        }
+    }
+
+    fun openItem(item: UnifiedRecordItem) {
+        savedScrollIndex = listState.firstVisibleItemIndex
+        savedScrollOffset = listState.firstVisibleItemScrollOffset
+        restoreScrollPending = true
+        go(item.route)
     }
 
     fun toggle(item: UnifiedRecordItem) {
@@ -198,7 +228,7 @@ fun AllRecordsScreen(
                         shelf = shelf,
                         selectionMode = managementMode,
                         selected = item.key in selectedKeys,
-                        onOpen = { if (managementMode) toggle(item) else go(item.route) },
+                        onOpen = { if (managementMode) toggle(item) else openItem(item) },
                         onLongPress = {
                             if (managementMode) toggle(item)
                             else ownershipItem = item
