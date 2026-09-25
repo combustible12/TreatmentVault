@@ -49,7 +49,7 @@ fun TreatmentScreen(back: () -> Unit, initialPlanId: Long = 0L, initialRecordId:
             Tab(selected = tab == 1, onClick = { tab = 1 }, text = { Text("治疗记录") })
         }
         Text("正文和图片按笔记方式记录；药物、剂量、医生等细节需要时再展开填。", style = MaterialTheme.typography.bodySmall)
-        LazyColumn(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        FastScrollLazyColumn(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             if (tab == 0) {
                 items(plans, key = { it.id }) { value ->
                     Card(Modifier.fillMaxWidth().clickable { editingPlan = value; planEditorOpen = true }) {
@@ -119,7 +119,7 @@ fun TreatmentScreen(back: () -> Unit, initialPlanId: Long = 0L, initialRecordId:
                 }
             },
         ) {
-            LazyColumn(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp), contentPadding = PaddingValues(bottom = 24.dp)) {
+            FastScrollLazyColumn(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp), contentPadding = PaddingValues(bottom = 24.dp)) {
                 item { Field(name, { name = it }, "标题") }
                 item {
                     RichNoteBodyEditor(
@@ -181,7 +181,7 @@ fun TreatmentScreen(back: () -> Unit, initialPlanId: Long = 0L, initialRecordId:
                 }
             },
         ) {
-            LazyColumn(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp), contentPadding = PaddingValues(bottom = 24.dp)) {
+            FastScrollLazyColumn(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp), contentPadding = PaddingValues(bottom = 24.dp)) {
                 item {
                     RichNoteBodyEditor(
                         dao = dao, ownerType = "record", ownerId = initial?.id ?: 0L,
