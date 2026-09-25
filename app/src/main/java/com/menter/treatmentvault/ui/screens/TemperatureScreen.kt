@@ -49,7 +49,7 @@ fun TemperatureScreen(back: () -> Unit, initialEditId: Long = 0L) {
             }
         }
         Text("体温是结构化数据，但备注仍然可以像笔记一样插文字和图片。", style = MaterialTheme.typography.bodySmall)
-        LazyColumn(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        FastScrollLazyColumn(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             items(list, key = { it.id }) { value ->
                 Card(Modifier.fillMaxWidth().clickable { editing = value; editorOpen = true }) {
                     Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
@@ -105,7 +105,7 @@ fun TemperatureScreen(back: () -> Unit, initialEditId: Long = 0L) {
                 }
             },
         ) {
-            LazyColumn(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp), contentPadding = PaddingValues(bottom = 24.dp)) {
+            FastScrollLazyColumn(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp), contentPadding = PaddingValues(bottom = 24.dp)) {
                 item { Field(temp, { temp = it }, "体温 ℃") }
                 item {
                     RichNoteBodyEditor(
