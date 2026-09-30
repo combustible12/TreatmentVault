@@ -89,7 +89,7 @@ jobs:
               "versionName": os.environ["VERSION_NAME"],
               "apkUrl": "https://raw.githubusercontent.com/combustible12/TreatmentVault-Updates/main/TreatmentVault-latest.apk",
               "sha256": os.environ["SHA"],
-              "notes": "增强图片文字编辑：文字作为可再次编辑的独立对象，不再写入后立即固定。支持点选文字后拖动位置、双指缩放、－/＋字号微调、修改文字内容、白/黑/红/黄/蓝/绿六种颜色，以及常规/粗体/斜体/描边四种样式；文字移动、缩放、颜色和样式修改均纳入撤销/重做，同时保留裁剪、画笔和马赛克。"
+              "notes": "简化记录页添加图片流程：点击添加图片后直接打开系统图片选择器，去掉多余的“图库”二级菜单。"
           }
           with open("update-repo/update.json", "w", encoding="utf-8") as f:
               json.dump(data, f, ensure_ascii=False, indent=2)
