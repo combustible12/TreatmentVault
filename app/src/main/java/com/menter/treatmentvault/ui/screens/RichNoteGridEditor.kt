@@ -86,7 +86,6 @@ fun RichNoteBodyGridEditor(
     var recorderSession by remember(ownerType, sessionKey) { mutableStateOf<AudioRecorderSession?>(null) }
     var audioMessage by remember(ownerType, sessionKey) { mutableStateOf<String?>(null) }
     var expandedLinkKeys by remember(ownerType, sessionKey) { mutableStateOf<Set<String>>(emptySet()) }
-    var imageMenuExpanded by remember(ownerType, sessionKey) { mutableStateOf(false) }
     var audioMenuExpanded by remember(ownerType, sessionKey) { mutableStateOf(false) }
     val textSelections = remember(ownerType, sessionKey) { mutableStateMapOf<String, TextRange>() }
     val textFocusRequesters = remember(ownerType, sessionKey) { mutableMapOf<String, FocusRequester>() }
@@ -213,11 +212,8 @@ fun RichNoteBodyGridEditor(
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Text(label, style = MaterialTheme.typography.titleSmall)
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Box {
-                IconButton(onClick = { imageMenuExpanded = true }) { Icon(Icons.Default.AddPhotoAlternate, "添加图片") }
-                DropdownMenu(expanded = imageMenuExpanded, onDismissRequest = { imageMenuExpanded = false }) {
-                    DropdownMenuItem(text = { Text("图库") }, leadingIcon = { Icon(Icons.Default.PhotoLibrary, null) }, onClick = { imageMenuExpanded = false; insertIndex = blocks.size; picker.launch(arrayOf("image/*")) })
-                }
+            IconButton(onClick = { insertIndex = blocks.size; picker.launch(arrayOf("image/*")) }) {
+                Icon(Icons.Default.AddPhotoAlternate, "添加图片")
             }
             Box {
                 IconButton(onClick = { audioMenuExpanded = true }) { Icon(Icons.Default.Mic, "录音") }
