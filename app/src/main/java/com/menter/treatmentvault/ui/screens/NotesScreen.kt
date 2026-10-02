@@ -87,7 +87,7 @@ fun NoteEditorScreen(noteId: Long, initialCategoryId: String?, back: () -> Unit)
         val safeCategory = categoryId.ifBlank { folderCategories.firstOrNull { it.key == "inbox" }?.key ?: folderCategories.firstOrNull()?.key ?: "inbox" }
         if (safeCategory.isBlank()) return@withLock persistedId
         val targetRevision = revision; val pendingSnapshot = pendingFiles.distinct(); val removedSnapshot = removedFiles.toSet()
-        val value = CustomEntryEntity(id = persistedId, categoryId = safeCategory, date = date.trim(), title = title.trim(), content = content, tags = tags.trim(), createdAt = createdAtMs, updatedAt = System.currentTimeMillis())
+        val value = CustomEntryEntity(id = persistedId, categoryId = safeCategory, date = date.trim(), title = title.trim(), content = content, tags = tags.trim(), createdAt = createdAtMs, updatedAt = existing?.updatedAt ?: createdAtMs)
         saving = true
         try {
             val savedId = if (value.id == 0L) dao.saveCustomEntry(value) else { dao.updateCustomEntry(value); value.id }
