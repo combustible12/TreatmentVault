@@ -19,6 +19,9 @@ import com.menter.treatmentvault.TreatmentVaultApplication
 import com.menter.treatmentvault.data.CategoryEntity
 import com.menter.treatmentvault.data.RecordStateEntity
 import kotlinx.coroutines.launch
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 private fun flattenHomeCategories(categories: List<CategoryEntity>): List<Pair<CategoryEntity, Int>> {
     val visible = categories.filterNot { it.hidden }
@@ -450,7 +453,27 @@ private fun RecordListItem(
                     Checkbox(checked = state.completed, onCheckedChange = { onStateChange(state.copy(completed = it)) })
                 }
                 if (state.pinned) Icon(Icons.Default.PushPin, null, modifier = Modifier.size(16.dp), tint = pinnedRecordAccentColor())
-                Text(recordDisplayTitle(item, state), maxLines = 1, overflow = TextOverflow.Ellipsis, color = contentColor)
+                Text(
+                    recordDisplayTitle(item, state),
+                    modifier = Modifier.weight(1f),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    color = contentColor,
+                )
+                if (item.createdAt > 0L) {
+                    val createdDate = remember(item.createdAt) {
+                        val nowYear = SimpleDateFormat("yyyy", Locale.getDefault()).format(Date())
+                        val itemYear = SimpleDateFormat("yyyy", Locale.getDefault()).format(Date(item.createdAt))
+                        SimpleDateFormat(if (itemYear == nowYear) "MM-dd" else "yyyy-MM-dd", Locale.getDefault())
+                            .format(Date(item.createdAt))
+                    }
+                    Text(
+                        createdDate,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                    )
+                }
             }
         },
         supportingContent = {
