@@ -11,6 +11,8 @@
         android:name=".TreatmentVaultApplication"
         android:allowBackup="true"
         android:label="治疗资料库"
+        android:icon="@drawable/ic_launcher"
+        android:roundIcon="@drawable/ic_launcher"
         android:theme="@style/Theme.TreatmentVault">
         <provider
             android:name="androidx.core.content.FileProvider"
