@@ -52,6 +52,10 @@ fun FloatingAudioScreen(back: () -> Unit) {
     var message by remember { mutableStateOf("") }
     var expandedRecordingId by remember { mutableStateOf<Long?>(null) }
     var gridMode by remember { mutableStateOf(prefs.getBoolean(PREF_AUDIO_GRID_MODE, false)) }
+    var pendingRenameId by remember { mutableStateOf<Long?>(null) }
+    var renameText by remember { mutableStateOf("") }
+    var renaming by remember { mutableStateOf(false) }
+    var renameError by remember { mutableStateOf("") }
     var pendingDelete by remember { mutableStateOf<CustomEntryEntity?>(null) }
 
     fun setGridMode(value: Boolean) {
@@ -185,6 +189,11 @@ fun FloatingAudioScreen(back: () -> Unit) {
                             onToggleExpanded = {
                                 expandedRecordingId = if (expandedRecordingId == entry.id) null else entry.id
                             },
+                            onRename = {
+                                renameText = entry.title
+                                renameError = ""
+                                pendingRenameId = entry.id
+                            },
                             onDelete = { pendingDelete = entry },
                             onMarkersChange = { updateMarkers(entry, it) },
                         )
@@ -227,6 +236,11 @@ fun FloatingAudioScreen(back: () -> Unit) {
                             onToggleExpanded = {
                                 expandedRecordingId = if (expandedRecordingId == entry.id) null else entry.id
                             },
+                            onRename = {
+                                renameText = entry.title
+                                renameError = ""
+                                pendingRenameId = entry.id
+                            },
                             onDelete = { pendingDelete = entry },
                             onMarkersChange = { updateMarkers(entry, it) },
                         )
@@ -234,6 +248,45 @@ fun FloatingAudioScreen(back: () -> Unit) {
                 }
             }
         }
+    }
+
+    pendingRenameId?.let { id ->
+        AlertDialog(
+            onDismissRequest = { if (!renaming) pendingRenameId = null },
+            title = { Text("重命名录音") },
+            text = {
+                Column {
+                    OutlinedTextField(
+                        value = renameText,
+                        onValueChange = { renameText = it; renameError = "" },
+                        label = { Text("录音名称") },
+                        singleLine = true,
+                        enabled = !renaming,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    if (renameError.isNotBlank()) Text(renameError, color = MaterialTheme.colorScheme.error)
+                }
+            },
+            confirmButton = {
+                TextButton(enabled = renameText.isNotBlank() && !renaming, onClick = {
+                    val title = renameText.trim()
+                    renaming = true
+                    scope.launch {
+                        try {
+                            dao.renameCustomEntry(id, title)
+                            pendingRenameId = null
+                        } catch (_: Exception) {
+                            renameError = "保存失败，请重试"
+                        } finally {
+                            renaming = false
+                        }
+                    }
+                }) { Text("保存") }
+            },
+            dismissButton = {
+                TextButton(enabled = !renaming, onClick = { pendingRenameId = null }) { Text("取消") }
+            },
+        )
     }
 
     pendingDelete?.let { entry ->
@@ -338,6 +391,7 @@ private fun RecordingCard(
     compact: Boolean,
     expanded: Boolean,
     onToggleExpanded: () -> Unit,
+    onRename: () -> Unit,
     onDelete: () -> Unit,
     onMarkersChange: (List<AudioTimeMarker>) -> Unit,
 ) {
@@ -381,6 +435,8 @@ private fun RecordingCard(
                     Text(if (expanded) "收起" else "播放 / 标记")
                 }
             }
+
+            TextButton(onClick = onRename) { Text("重命名") }
 
             if (expanded && fileName != null) {
                 val file = attachmentFile(context, fileName)

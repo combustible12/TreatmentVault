@@ -84,6 +84,9 @@ interface AppDao {
     @Query("SELECT * FROM CustomEntryEntity WHERE id=:id LIMIT 1") suspend fun customEntryById(id:Long):CustomEntryEntity?
     @Query("SELECT * FROM CustomEntryEntity") suspend fun allCustomEntries():List<CustomEntryEntity>
     @Insert suspend fun saveCustomEntry(v:CustomEntryEntity):Long
+    @Query("UPDATE CustomEntryEntity SET title=:title WHERE id=:id")
+    suspend fun renameCustomEntry(id: Long, title: String)
+
     @Update suspend fun updateCustomEntry(v:CustomEntryEntity)
     @Delete suspend fun deleteCustomEntry(v:CustomEntryEntity)
     @Query("DELETE FROM CustomEntryEntity WHERE id=:id") suspend fun deleteCustomEntryById(id:Long)

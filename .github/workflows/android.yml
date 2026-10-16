@@ -89,7 +89,7 @@ jobs:
               "versionName": os.environ["VERSION_NAME"],
               "apkUrl": "https://raw.githubusercontent.com/combustible12/TreatmentVault-Updates/main/TreatmentVault-latest.apk",
               "sha256": os.environ["SHA"],
-              "notes": "修复录音悬浮球卡在顶部：限制拖动边界，自动纠正越界位置，并新增重置悬浮球位置按钮。"
+              "notes": "新增录音重命名：列表与宫格均可修改名称，保留原音频、时间标记和录音日期。"
           }
           with open("update-repo/update.json", "w", encoding="utf-8") as f:
               json.dump(data, f, ensure_ascii=False, indent=2)
