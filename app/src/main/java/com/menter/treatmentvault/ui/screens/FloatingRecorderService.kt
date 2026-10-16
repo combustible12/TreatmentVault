@@ -5,6 +5,7 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
+import android.content.res.Configuration
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
@@ -20,6 +21,7 @@ import android.view.HapticFeedbackConstants
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewConfiguration
+import android.view.WindowInsets
 import android.view.WindowManager
 import android.widget.Toast
 import androidx.core.app.NotificationCompat
@@ -74,7 +76,54 @@ class FloatingRecorderService : Service() {
         showBubble()
     }
 
-    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int = START_NOT_STICKY
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        restoreBubbleToSafeArea()
+        return START_NOT_STICKY
+    }
+
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        bubbleView?.post { restoreBubbleToSafeArea() }
+    }
+
+    private fun constrainBubble(params: WindowManager.LayoutParams) {
+        val margin = dp(8)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            val metrics = windowManager.currentWindowMetrics
+            val insets = metrics.windowInsets.getInsetsIgnoringVisibility(
+                WindowInsets.Type.systemBars() or WindowInsets.Type.displayCutout()
+            )
+            // Keep a conservative inset on every side, including when bars are hidden.
+            val minX = insets.left + margin
+            val minY = insets.top + margin
+            params.x = params.x.coerceIn(minX, (metrics.bounds.width() - insets.right - params.width - margin).coerceAtLeast(minX))
+            params.y = params.y.coerceIn(minY, (metrics.bounds.height() - insets.bottom - params.height - margin).coerceAtLeast(minY))
+        } else {
+            val frame = android.graphics.Rect()
+            @Suppress("DEPRECATION")
+            val display = windowManager.defaultDisplay
+            val size = android.graphics.Point()
+            @Suppress("DEPRECATION")
+            display.getSize(size)
+            bubbleView?.getWindowVisibleDisplayFrame(frame)
+            val minY = maxOf(margin, frame.top + margin)
+            params.x = params.x.coerceIn(margin, (size.x - params.width - margin).coerceAtLeast(margin))
+            params.y = params.y.coerceIn(minY, (size.y - params.height - margin).coerceAtLeast(minY))
+        }
+    }
+
+    private fun saveBubblePosition(params: WindowManager.LayoutParams) {
+        getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()
+            .putInt(PREF_X, params.x).putInt(PREF_Y, params.y).apply()
+    }
+
+    private fun restoreBubbleToSafeArea() {
+        val view = bubbleView ?: return
+        val params = bubbleParams ?: return
+        constrainBubble(params)
+        runCatching { windowManager.updateViewLayout(view, params) }
+        saveBubblePosition(params)
+    }
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -100,14 +149,16 @@ class FloatingRecorderService : Service() {
             size,
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
-                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+                WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
             PixelFormat.TRANSLUCENT,
         ).apply {
             gravity = Gravity.TOP or Gravity.START
             x = prefs.getInt(PREF_X, dp(12))
             y = prefs.getInt(PREF_Y, dp(220))
         }
+
+        constrainBubble(params)
+        saveBubblePosition(params)
 
         val touchSlop = ViewConfiguration.get(this).scaledTouchSlop
         var downRawX = 0f
@@ -129,6 +180,7 @@ class FloatingRecorderService : Service() {
                 MotionEvent.ACTION_MOVE -> {
                     params.x = startX + (event.rawX - downRawX).toInt()
                     params.y = startY + (event.rawY - downRawY).toInt()
+                    constrainBubble(params)
                     runCatching { windowManager.updateViewLayout(v, params) }
                     true
                 }
@@ -145,8 +197,14 @@ class FloatingRecorderService : Service() {
                             toggleRecording()
                         }
                     } else {
-                        prefs.edit().putInt(PREF_X, params.x).putInt(PREF_Y, params.y).apply()
+                        saveBubblePosition(params)
                     }
+                    true
+                }
+                MotionEvent.ACTION_CANCEL -> {
+                    constrainBubble(params)
+                    runCatching { windowManager.updateViewLayout(v, params) }
+                    saveBubblePosition(params)
                     true
                 }
                 else -> false
