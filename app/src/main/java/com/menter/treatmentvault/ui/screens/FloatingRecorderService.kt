@@ -43,6 +43,7 @@ import kotlin.math.abs
 class FloatingRecorderService : Service() {
     companion object {
         const val ACTION_ENABLE = "com.menter.treatmentvault.action.ENABLE_FLOATING_RECORDER"
+        const val ACTION_RESET_POSITION = "com.menter.treatmentvault.action.RESET_RECORDER_POSITION"
         const val PREFS_NAME = "floating_recorder"
         const val PREF_ENABLED = "enabled"
         private const val PREF_X = "bubble_x"
@@ -77,6 +78,12 @@ class FloatingRecorderService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        if (intent?.action == ACTION_RESET_POSITION) {
+            bubbleParams?.let { params ->
+                params.x = dp(12)
+                params.y = dp(220)
+            }
+        }
         restoreBubbleToSafeArea()
         return START_NOT_STICKY
     }

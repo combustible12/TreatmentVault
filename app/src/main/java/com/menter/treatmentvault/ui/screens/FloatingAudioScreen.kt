@@ -153,6 +153,10 @@ fun FloatingAudioScreen(back: () -> Unit) {
                     FloatingRecorderSettingsCard(
                         enabled = enabled,
                         message = message,
+                        onResetPosition = {
+                            ContextCompat.startForegroundService(context, Intent(context, FloatingRecorderService::class.java).setAction(FloatingRecorderService.ACTION_RESET_POSITION))
+                            message = "悬浮球已移回屏幕内。"
+                        },
                         onEnabledChange = { checked -> if (checked) enableRecorder() else disableRecorder() },
                     )
                 }
@@ -197,6 +201,10 @@ fun FloatingAudioScreen(back: () -> Unit) {
                     FloatingRecorderSettingsCard(
                         enabled = enabled,
                         message = message,
+                        onResetPosition = {
+                            ContextCompat.startForegroundService(context, Intent(context, FloatingRecorderService::class.java).setAction(FloatingRecorderService.ACTION_RESET_POSITION))
+                            message = "悬浮球已移回屏幕内。"
+                        },
                         onEnabledChange = { checked -> if (checked) enableRecorder() else disableRecorder() },
                     )
                 }
@@ -249,6 +257,7 @@ fun FloatingAudioScreen(back: () -> Unit) {
 private fun FloatingRecorderSettingsCard(
     enabled: Boolean,
     message: String,
+    onResetPosition: () -> Unit,
     onEnabledChange: (Boolean) -> Unit,
 ) {
     Card(Modifier.fillMaxWidth()) {
@@ -275,6 +284,7 @@ private fun FloatingRecorderSettingsCard(
                 "手机重启后需要回到这里重新开启一次。Android 会保留系统自己的麦克风/前台服务提示。",
                 style = MaterialTheme.typography.bodySmall,
             )
+            TextButton(onClick = onResetPosition, enabled = enabled) { Text("重置悬浮球位置") }
             if (message.isNotBlank()) Text(message, style = MaterialTheme.typography.bodySmall)
         }
     }
