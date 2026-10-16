@@ -400,10 +400,20 @@ private fun RecordingCard(
 
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(if (compact) 12.dp else 14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Surface(
+                color = if (markers.isNotEmpty()) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant,
+                contentColor = if (markers.isNotEmpty()) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
+                shape = MaterialTheme.shapes.small,
+            ) {
+                Text(
+                    text = if (markers.isNotEmpty()) "已标记 · ${markers.size}处" else "未标记",
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                    style = MaterialTheme.typography.labelMedium,
+                )
+            }
             if (compact) {
                 Text(entry.title.ifBlank { "录音" }, style = MaterialTheme.typography.titleSmall, maxLines = 2)
                 if (entry.date.isNotBlank()) Text(entry.date, style = MaterialTheme.typography.bodySmall, maxLines = 1)
-                if (markers.isNotEmpty()) Text("${markers.size} 个标记", style = MaterialTheme.typography.labelSmall)
                 Spacer(Modifier.height(2.dp))
                 OutlinedButton(onClick = onToggleExpanded, modifier = Modifier.fillMaxWidth()) {
                     Icon(Icons.Default.ExpandMore, contentDescription = null)
@@ -420,7 +430,6 @@ private fun RecordingCard(
                     Column(Modifier.weight(1f)) {
                         Text(entry.title.ifBlank { "录音" }, style = MaterialTheme.typography.titleSmall)
                         if (entry.date.isNotBlank()) Text(entry.date, style = MaterialTheme.typography.bodySmall)
-                        if (markers.isNotEmpty()) Text("${markers.size} 个时间标记", style = MaterialTheme.typography.labelSmall)
                     }
                     IconButton(onClick = onDelete) {
                         Icon(Icons.Default.DeleteOutline, contentDescription = "删除录音")
