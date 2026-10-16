@@ -89,7 +89,7 @@ jobs:
               "versionName": os.environ["VERSION_NAME"],
               "apkUrl": "https://raw.githubusercontent.com/combustible12/TreatmentVault-Updates/main/TreatmentVault-latest.apk",
               "sha256": os.environ["SHA"],
-              "notes": "简化记录页添加图片流程：点击添加图片后直接打开系统图片选择器，去掉多余的“图库”二级菜单。"
+              "notes": "修复录音悬浮球卡在顶部：限制拖动边界，自动纠正越界位置，并新增重置悬浮球位置按钮。"
           }
           with open("update-repo/update.json", "w", encoding="utf-8") as f:
               json.dump(data, f, ensure_ascii=False, indent=2)
