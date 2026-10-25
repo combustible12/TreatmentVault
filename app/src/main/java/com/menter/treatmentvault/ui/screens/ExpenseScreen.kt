@@ -72,13 +72,15 @@ fun ExpenseScreen(back: () -> Unit, initialEditId: Long = 0L) {
 
         FullScreenEditorDialog(
             title = if (initial == null) "新增费用" else "编辑费用",
-            onDismiss = { editorOpen = false },
+            onDismiss = { closeEditorOrReturnToSource(initialEditId > 0L, { editorOpen = false }, back) },
             canSave = amount.toDoubleOrNull() != null,
             hasPersistedRecord = initial != null,
             onSave = {
                 val number = amount.toDoubleOrNull()
                 if (number == null) {
-                    if (initial == null && !richBodyHasContent(notes) && pendingFiles.isEmpty()) editorOpen = false
+                    if (initial == null && !richBodyHasContent(notes) && pendingFiles.isEmpty()) {
+                        closeEditorOrReturnToSource(initialEditId > 0L, { editorOpen = false }, back)
+                    }
                     return@FullScreenEditorDialog
                 }
                 scope.launch {
@@ -99,7 +101,7 @@ fun ExpenseScreen(back: () -> Unit, initialEditId: Long = 0L) {
                     reconcileRichAttachments(context, dao, "expense", id, notes, removedFiles)
                     pendingFiles = emptyList()
                     removedFiles = emptySet()
-                    editorOpen = false
+                    closeEditorOrReturnToSource(initialEditId > 0L, { editorOpen = false }, back)
                 }
             },
         ) {

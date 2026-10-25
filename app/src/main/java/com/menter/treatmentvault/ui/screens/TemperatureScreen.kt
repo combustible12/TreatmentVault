@@ -78,13 +78,15 @@ fun TemperatureScreen(back: () -> Unit, initialEditId: Long = 0L) {
 
         FullScreenEditorDialog(
             title = if (initial == null) "记录体温" else "编辑体温",
-            onDismiss = { editorOpen = false },
+            onDismiss = { closeEditorOrReturnToSource(initialEditId > 0L, { editorOpen = false }, back) },
             canSave = temp.toDoubleOrNull() != null,
             hasPersistedRecord = initial != null,
             onSave = {
                 val number = temp.toDoubleOrNull()
                 if (number == null) {
-                    if (initial == null && !richBodyHasContent(notes) && pendingFiles.isEmpty()) editorOpen = false
+                    if (initial == null && !richBodyHasContent(notes) && pendingFiles.isEmpty()) {
+                        closeEditorOrReturnToSource(initialEditId > 0L, { editorOpen = false }, back)
+                    }
                     return@FullScreenEditorDialog
                 }
                 scope.launch {
@@ -101,7 +103,7 @@ fun TemperatureScreen(back: () -> Unit, initialEditId: Long = 0L) {
                     reconcileRichAttachments(context, dao, "temperature", id, notes, removedFiles)
                     pendingFiles = emptyList()
                     removedFiles = emptySet()
-                    editorOpen = false
+                    closeEditorOrReturnToSource(initialEditId > 0L, { editorOpen = false }, back)
                 }
             },
         ) {

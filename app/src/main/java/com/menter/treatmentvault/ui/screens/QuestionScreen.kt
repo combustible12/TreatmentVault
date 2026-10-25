@@ -68,12 +68,12 @@ fun QuestionScreen(back: () -> Unit, initialEditId: Long = 0L) {
 
         FullScreenEditorDialog(
             title = if (initial == null) "新增问题" else "编辑问诊",
-            onDismiss = { editorOpen = false },
+            onDismiss = { closeEditorOrReturnToSource(initialEditId > 0L, { editorOpen = false }, back) },
             canSave = question.isNotBlank() || richBodyHasContent(answer) || pendingFiles.isNotEmpty(),
             hasPersistedRecord = initial != null,
             onSave = {
                 if (initial == null && question.isBlank() && !richBodyHasContent(answer) && pendingFiles.isEmpty()) {
-                    editorOpen = false
+                    closeEditorOrReturnToSource(initialEditId > 0L, { editorOpen = false }, back)
                     return@FullScreenEditorDialog
                 }
                 scope.launch {
@@ -93,7 +93,7 @@ fun QuestionScreen(back: () -> Unit, initialEditId: Long = 0L) {
                     reconcileRichAttachments(context, dao, "question", id, answer, removedFiles)
                     pendingFiles = emptyList()
                     removedFiles = emptySet()
-                    editorOpen = false
+                    closeEditorOrReturnToSource(initialEditId > 0L, { editorOpen = false }, back)
                 }
             },
         ) {

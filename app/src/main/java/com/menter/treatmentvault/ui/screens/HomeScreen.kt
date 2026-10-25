@@ -1,5 +1,6 @@
 package com.menter.treatmentvault.ui.screens
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
@@ -70,6 +71,17 @@ fun HomeScreen(go: (String) -> Unit) {
     var renameCategory by remember { mutableStateOf<CategoryEntity?>(null) }
     var addMenuOpen by remember { mutableStateOf(false) }
     var overlayRoute by remember { mutableStateOf<String?>(null) }
+    var updateRequestToken by remember { mutableIntStateOf(0) }
+
+    fun exitSearch() {
+        query = ""
+        scope.launch { listState.scrollToItem(0) }
+    }
+
+    BackHandler(enabled = drawerState.isOpen || query.isNotBlank()) {
+        if (drawerState.isOpen) scope.launch { drawerState.close() }
+        else exitSearch()
+    }
 
     LaunchedEffect(categories) {
         if (categories.none { it.key == "inbox" }) {
@@ -190,7 +202,17 @@ fun HomeScreen(go: (String) -> Unit) {
                     HorizontalDivider()
                     NavigationDrawerItem(icon = { Icon(Icons.Default.Settings, null) }, label = { Text("类目管理") }, selected = false, onClick = { open("categories") })
                     NavigationDrawerItem(icon = { Icon(Icons.Default.Backup, null) }, label = { Text("备份与恢复") }, selected = false, onClick = { open("settings") })
-                    NavigationDrawerItem(icon = { Icon(Icons.Default.SystemUpdateAlt, null) }, label = { Text("检查更新") }, selected = false, onClick = { open("update") })
+                    NavigationDrawerItem(
+                        icon = { Icon(Icons.Default.SystemUpdateAlt, null) },
+                        label = { Text("检查更新") },
+                        selected = false,
+                        onClick = {
+                            scope.launch {
+                                drawerState.close()
+                                updateRequestToken++
+                            }
+                        },
+                    )
                     Spacer(Modifier.height(12.dp))
                 }
             }
@@ -244,7 +266,7 @@ fun HomeScreen(go: (String) -> Unit) {
                         singleLine = true,
                         placeholder = { Text("搜索所有记录") },
                         leadingIcon = { Icon(Icons.Default.Search, null) },
-                        trailingIcon = { if (query.isNotBlank()) IconButton(onClick = { query = "" }) { Icon(Icons.Default.Close, contentDescription = "清空") } },
+                        trailingIcon = { if (query.isNotBlank()) IconButton(onClick = ::exitSearch) { Icon(Icons.Default.Close, contentDescription = "退出搜索") } },
                         shape = MaterialTheme.shapes.extraLarge,
                     )
                 }
@@ -351,6 +373,8 @@ fun HomeScreen(go: (String) -> Unit) {
     overlayRoute?.let { route ->
         RecordDetailDialog(route = route, onClose = { overlayRoute = null }, go = go)
     }
+
+    DirectUpdateFlow(requestToken = updateRequestToken)
 
     ownershipItem?.let { item ->
         RecordFolderOwnershipDialog(

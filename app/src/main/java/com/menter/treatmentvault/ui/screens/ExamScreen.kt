@@ -77,15 +77,12 @@ fun ExamScreen(back: () -> Unit, initialEditId: Long = 0L) {
 
         FullScreenEditorDialog(
             title = if (initial == null) "新增检查笔记" else "编辑检查笔记",
-            onDismiss = {
-                editorOpen = false
-                if (initialEditId > 0L) back()
-            },
+            onDismiss = { closeEditorOrReturnToSource(initialEditId > 0L, { editorOpen = false }, back) },
             canSave = name.isNotBlank() || richBodyHasContent(body) || pendingFiles.isNotEmpty(),
             hasPersistedRecord = initial != null,
             onSave = {
                 if (initial == null && name.isBlank() && !richBodyHasContent(body) && pendingFiles.isEmpty()) {
-                    editorOpen = false
+                    closeEditorOrReturnToSource(initialEditId > 0L, { editorOpen = false }, back)
                     return@FullScreenEditorDialog
                 }
                 scope.launch {
@@ -106,8 +103,7 @@ fun ExamScreen(back: () -> Unit, initialEditId: Long = 0L) {
                     reconcileRichAttachments(context, dao, "exam", id, body, removedFiles)
                     pendingFiles = emptyList()
                     removedFiles = emptySet()
-                    editorOpen = false
-                    if (initialEditId > 0L) back()
+                    closeEditorOrReturnToSource(initialEditId > 0L, { editorOpen = false }, back)
                 }
             },
         ) {

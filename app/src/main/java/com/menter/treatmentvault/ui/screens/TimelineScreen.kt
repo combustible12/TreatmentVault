@@ -149,12 +149,12 @@ fun TimelineScreen(back: () -> Unit, go: (String) -> Unit, initialEditId: Long =
 
         FullScreenEditorDialog(
             title = if (initial == null) "新增时间线记录" else "编辑时间线记录",
-            onDismiss = { editorOpen = false },
+            onDismiss = { closeEditorOrReturnToSource(initialEditId > 0L, { editorOpen = false }, back) },
             canSave = title.isNotBlank() || richBodyHasContent(body) || pendingFiles.isNotEmpty(),
             hasPersistedRecord = initial != null,
             onSave = {
                 if (initial == null && title.isBlank() && !richBodyHasContent(body) && pendingFiles.isEmpty()) {
-                    editorOpen = false
+                    closeEditorOrReturnToSource(initialEditId > 0L, { editorOpen = false }, back)
                     return@FullScreenEditorDialog
                 }
                 scope.launch {
@@ -173,7 +173,7 @@ fun TimelineScreen(back: () -> Unit, go: (String) -> Unit, initialEditId: Long =
                     reconcileRichAttachments(context, dao, "timeline", id, body, removedFiles)
                     pendingFiles = emptyList()
                     removedFiles = emptySet()
-                    editorOpen = false
+                    closeEditorOrReturnToSource(initialEditId > 0L, { editorOpen = false }, back)
                 }
             },
         ) {

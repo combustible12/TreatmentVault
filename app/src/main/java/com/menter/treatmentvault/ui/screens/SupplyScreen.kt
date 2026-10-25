@@ -77,12 +77,12 @@ fun SupplyScreen(back: () -> Unit, initialEditId: Long = 0L) {
 
         FullScreenEditorDialog(
             title = if (initial == null) "新增药品/用品" else "编辑药品/用品",
-            onDismiss = { editorOpen = false },
+            onDismiss = { closeEditorOrReturnToSource(initialEditId > 0L, { editorOpen = false }, back) },
             canSave = name.isNotBlank() || richBodyHasContent(notes) || pendingFiles.isNotEmpty(),
             hasPersistedRecord = initial != null,
             onSave = {
                 if (initial == null && name.isBlank() && !richBodyHasContent(notes) && pendingFiles.isEmpty()) {
-                    editorOpen = false
+                    closeEditorOrReturnToSource(initialEditId > 0L, { editorOpen = false }, back)
                     return@FullScreenEditorDialog
                 }
                 scope.launch {
@@ -107,7 +107,7 @@ fun SupplyScreen(back: () -> Unit, initialEditId: Long = 0L) {
                     reconcileRichAttachments(context, dao, "supply", id, notes, removedFiles)
                     pendingFiles = emptyList()
                     removedFiles = emptySet()
-                    editorOpen = false
+                    closeEditorOrReturnToSource(initialEditId > 0L, { editorOpen = false }, back)
                 }
             },
         ) {

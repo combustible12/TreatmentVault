@@ -80,12 +80,12 @@ fun SymptomScreen(back: () -> Unit, initialEditId: Long = 0L) {
 
         FullScreenEditorDialog(
             title = if (initial == null) "记录症状" else "编辑症状",
-            onDismiss = { editorOpen = false },
+            onDismiss = { closeEditorOrReturnToSource(initialEditId > 0L, { editorOpen = false }, back) },
             canSave = richBodyHasContent(notes) || pendingFiles.isNotEmpty() || date.isNotBlank(),
             hasPersistedRecord = initial != null,
             onSave = {
                 if (initial == null && !richBodyHasContent(notes) && pendingFiles.isEmpty() && date.isBlank()) {
-                    editorOpen = false
+                    closeEditorOrReturnToSource(initialEditId > 0L, { editorOpen = false }, back)
                     return@FullScreenEditorDialog
                 }
                 scope.launch {
@@ -113,7 +113,7 @@ fun SymptomScreen(back: () -> Unit, initialEditId: Long = 0L) {
                     reconcileRichAttachments(context, dao, "symptom", id, notes, removedFiles)
                     pendingFiles = emptyList()
                     removedFiles = emptySet()
-                    editorOpen = false
+                    closeEditorOrReturnToSource(initialEditId > 0L, { editorOpen = false }, back)
                 }
             },
         ) {

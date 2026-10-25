@@ -145,6 +145,15 @@ fun FullScreenEditorDialog(
     }
 }
 
+internal fun closeEditorOrReturnToSource(
+    openedAsDirectDetail: Boolean,
+    closeEditor: () -> Unit,
+    returnToSource: () -> Unit,
+) {
+    closeEditor()
+    if (openedAsDirectDetail) returnToSource()
+}
+
 private fun attachmentDir(context: Context): File = File(context.filesDir, "attachments").apply { mkdirs() }
 fun attachmentFile(context: Context, fileName: String): File = File(attachmentDir(context), fileName)
 

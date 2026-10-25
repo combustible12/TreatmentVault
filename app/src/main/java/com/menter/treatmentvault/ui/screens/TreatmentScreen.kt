@@ -98,11 +98,14 @@ fun TreatmentScreen(back: () -> Unit, initialPlanId: Long = 0L, initialRecordId:
 
         FullScreenEditorDialog(
             title = if (initial == null) "新增治疗方案" else "编辑治疗方案",
-            onDismiss = { planEditorOpen = false },
+            onDismiss = { closeEditorOrReturnToSource(initialPlanId > 0L, { planEditorOpen = false }, back) },
             canSave = name.isNotBlank() || richBodyHasContent(explanation) || pendingFiles.isNotEmpty(),
             hasPersistedRecord = initial != null,
             onSave = {
-                if (initial == null && name.isBlank() && !richBodyHasContent(explanation) && pendingFiles.isEmpty()) { planEditorOpen = false; return@FullScreenEditorDialog }
+                if (initial == null && name.isBlank() && !richBodyHasContent(explanation) && pendingFiles.isEmpty()) {
+                    closeEditorOrReturnToSource(initialPlanId > 0L, { planEditorOpen = false }, back)
+                    return@FullScreenEditorDialog
+                }
                 scope.launch {
                     val value = TreatmentPlanEntity(
                         id = initial?.id ?: 0,
@@ -115,7 +118,8 @@ fun TreatmentScreen(back: () -> Unit, initialPlanId: Long = 0L, initialRecordId:
                     )
                     val id = if (initial == null) dao.savePlan(value) else { dao.updatePlan(value); value.id }
                     reconcileRichAttachments(context, dao, "plan", id, explanation, removedFiles)
-                    pendingFiles = emptyList(); removedFiles = emptySet(); planEditorOpen = false
+                    pendingFiles = emptyList(); removedFiles = emptySet()
+                    closeEditorOrReturnToSource(initialPlanId > 0L, { planEditorOpen = false }, back)
                 }
             },
         ) {
@@ -164,11 +168,14 @@ fun TreatmentScreen(back: () -> Unit, initialPlanId: Long = 0L, initialRecordId:
 
         FullScreenEditorDialog(
             title = if (initial == null) "新增治疗记录" else "编辑治疗记录",
-            onDismiss = { recordEditorOpen = false },
+            onDismiss = { closeEditorOrReturnToSource(initialRecordId > 0L, { recordEditorOpen = false }, back) },
             canSave = richBodyHasContent(content) || pendingFiles.isNotEmpty() || date.isNotBlank() || type.isNotBlank(),
             hasPersistedRecord = initial != null,
             onSave = {
-                if (initial == null && !richBodyHasContent(content) && pendingFiles.isEmpty() && date.isBlank() && type.isBlank()) { recordEditorOpen = false; return@FullScreenEditorDialog }
+                if (initial == null && !richBodyHasContent(content) && pendingFiles.isEmpty() && date.isBlank() && type.isBlank()) {
+                    closeEditorOrReturnToSource(initialRecordId > 0L, { recordEditorOpen = false }, back)
+                    return@FullScreenEditorDialog
+                }
                 scope.launch {
                     val value = TreatmentRecordEntity(
                         id = initial?.id ?: 0, date = date.trim(), type = type.trim().ifBlank { "治疗记录" },
@@ -177,7 +184,8 @@ fun TreatmentScreen(back: () -> Unit, initialPlanId: Long = 0L, initialRecordId:
                     )
                     val id = if (initial == null) dao.saveRecord(value) else { dao.updateRecord(value); value.id }
                     reconcileRichAttachments(context, dao, "record", id, content, removedFiles)
-                    pendingFiles = emptyList(); removedFiles = emptySet(); recordEditorOpen = false
+                    pendingFiles = emptyList(); removedFiles = emptySet()
+                    closeEditorOrReturnToSource(initialRecordId > 0L, { recordEditorOpen = false }, back)
                 }
             },
         ) {
