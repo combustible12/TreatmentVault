@@ -241,7 +241,7 @@ fun FolderScreen(categoryId: String, back: () -> Unit, go: (String) -> Unit) {
 
 
     overlayRoute?.let { route ->
-        FolderDetailOverlayForLists(
+        RecordDetailDialog(
             route = route,
             onClose = { overlayRoute = null },
             go = go,

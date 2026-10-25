@@ -62,6 +62,7 @@ fun TimelineScreen(back: () -> Unit, go: (String) -> Unit, initialEditId: Long =
     var editorOpen by remember { mutableStateOf(false) }
     var editing by remember { mutableStateOf<TimelineEntity?>(null) }
     var openedInitial by remember(initialEditId) { mutableStateOf(false) }
+    var overlayRoute by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(initialEditId, timeline) {
         if (!openedInitial && initialEditId > 0L) {
@@ -114,7 +115,7 @@ fun TimelineScreen(back: () -> Unit, go: (String) -> Unit, initialEditId: Long =
                         Card(
                             modifier = Modifier.weight(1f).clickable {
                                 if (value.source != null) { editing = value.source; editorOpen = true }
-                                else if (!value.route.isNullOrBlank()) go(value.route)
+                                else if (!value.route.isNullOrBlank()) overlayRoute = value.route
                             }
                         ) {
                             Row(Modifier.fillMaxWidth().padding(12.dp)) {
@@ -131,6 +132,10 @@ fun TimelineScreen(back: () -> Unit, go: (String) -> Unit, initialEditId: Long =
                 }
             }
         }
+    }
+
+    overlayRoute?.let { route ->
+        RecordDetailDialog(route = route, onClose = { overlayRoute = null }, go = go)
     }
 
     if (editorOpen) {

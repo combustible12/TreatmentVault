@@ -24,7 +24,6 @@ import kotlinx.coroutines.launch
 private enum class TodoShelf(val label: String) {
     PENDING("未完成"), ALL("全部"), DONE("已完成")
 }
-
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun TodoCenterScreen(back: () -> Unit, go: (String) -> Unit) {
@@ -217,7 +216,7 @@ fun TodoCenterScreen(back: () -> Unit, go: (String) -> Unit) {
     }
 
     overlayRoute?.let { route ->
-        FolderDetailOverlayForLists(route = route, onClose = { overlayRoute = null }, go = go)
+        RecordDetailDialog(route = route, onClose = { overlayRoute = null }, go = go)
     }
 
     ownershipItem?.let { item ->
@@ -294,26 +293,4 @@ private fun TodoCenterRow(
             }
         },
     )
-}
-
-
-@Composable
-internal fun FolderDetailOverlayForLists(route: String, onClose: () -> Unit, go: (String) -> Unit) {
-    Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-        when {
-            route.startsWith("note/") -> route.substringAfter("note/").substringBefore("/").toLongOrNull()?.let {
-                NoteEditorScreen(noteId = it, initialCategoryId = null, back = onClose)
-            } ?: onClose()
-            route.startsWith("supplies/") -> SupplyScreen(back = onClose, initialEditId = route.substringAfterLast("/").toLongOrNull() ?: 0L)
-            route.startsWith("exams/") -> ExamScreen(back = onClose, initialEditId = route.substringAfterLast("/").toLongOrNull() ?: 0L)
-            route.startsWith("treatment/plan/") -> TreatmentScreen(back = onClose, initialPlanId = route.substringAfterLast("/").toLongOrNull() ?: 0L)
-            route.startsWith("treatment/record/") -> TreatmentScreen(back = onClose, initialRecordId = route.substringAfterLast("/").toLongOrNull() ?: 0L)
-            route.startsWith("symptoms/") -> SymptomScreen(back = onClose, initialEditId = route.substringAfterLast("/").toLongOrNull() ?: 0L)
-            route.startsWith("temperature/") -> TemperatureScreen(back = onClose, initialEditId = route.substringAfterLast("/").toLongOrNull() ?: 0L)
-            route.startsWith("questions/") -> QuestionScreen(back = onClose, initialEditId = route.substringAfterLast("/").toLongOrNull() ?: 0L)
-            route.startsWith("expenses/") -> ExpenseScreen(back = onClose, initialEditId = route.substringAfterLast("/").toLongOrNull() ?: 0L)
-            route.startsWith("timeline/") -> TimelineScreen(back = onClose, go = go, initialEditId = route.substringAfterLast("/").toLongOrNull() ?: 0L)
-            else -> LaunchedEffect(route) { onClose(); go(route) }
-        }
-    }
 }

@@ -69,6 +69,7 @@ fun HomeScreen(go: (String) -> Unit) {
     var ownershipItem by remember { mutableStateOf<UnifiedRecordItem?>(null) }
     var renameCategory by remember { mutableStateOf<CategoryEntity?>(null) }
     var addMenuOpen by remember { mutableStateOf(false) }
+    var overlayRoute by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(categories) {
         if (categories.none { it.key == "inbox" }) {
@@ -269,7 +270,7 @@ fun HomeScreen(go: (String) -> Unit) {
                         RecordListItem(
                             item = item,
                             state = state,
-                            onClick = { go(item.route) },
+                            onClick = { overlayRoute = item.route },
                             onLongClick = { ownershipItem = item },
                             onStateChange = ::saveState,
                         )
@@ -310,7 +311,7 @@ fun HomeScreen(go: (String) -> Unit) {
                             }
                         }
                         items(pinnedRecords, key = { "pinned:${it.key}" }) { item ->
-                            RecordListItem(item, recordStateFor(item, stateMap), { go(item.route) }, { ownershipItem = item }, ::saveState)
+                            RecordListItem(item, recordStateFor(item, stateMap), { overlayRoute = item.route }, { ownershipItem = item }, ::saveState)
                         }
                     }
                     item {
@@ -323,7 +324,7 @@ fun HomeScreen(go: (String) -> Unit) {
                         item { Card(Modifier.fillMaxWidth()) { Column(Modifier.padding(16.dp)) { Text("还没有记录", style = MaterialTheme.typography.titleSmall); Text("先随手记下来，不用先决定放哪里。", style = MaterialTheme.typography.bodySmall) } } }
                     } else {
                         items(recentRecords, key = { "recent:${it.key}" }) { item ->
-                            RecordListItem(item, recordStateFor(item, stateMap), { go(item.route) }, { ownershipItem = item }, ::saveState)
+                            RecordListItem(item, recordStateFor(item, stateMap), { overlayRoute = item.route }, { ownershipItem = item }, ::saveState)
                         }
                     }
                     item {
@@ -345,6 +346,10 @@ fun HomeScreen(go: (String) -> Unit) {
                 }
             }
         }
+    }
+
+    overlayRoute?.let { route ->
+        RecordDetailDialog(route = route, onClose = { overlayRoute = null }, go = go)
     }
 
     ownershipItem?.let { item ->

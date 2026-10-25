@@ -29,7 +29,6 @@ import kotlinx.coroutines.launch
 private enum class RecordShelf(val label: String) {
     ALL("全部"), PINNED("置顶"), FAVORITE("收藏"), ARCHIVED("归档"), TRASH("回收站")
 }
-
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun AllRecordsScreen(
@@ -262,7 +261,7 @@ fun AllRecordsScreen(
 
 
     overlayRoute?.let { route ->
-        AllRecordsDetailOverlay(
+        RecordDetailDialog(
             route = route,
             onClose = { overlayRoute = null },
             go = go,
@@ -383,38 +382,5 @@ private fun UnifiedRecordRow(
             confirmButton = { TextButton(onClick = { confirmDelete = false; onDeleteForever() }) { Text("永久删除") } },
             dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text("取消") } },
         )
-    }
-}
-
-
-@Composable
-private fun AllRecordsDetailOverlay(
-    route: String,
-    onClose: () -> Unit,
-    go: (String) -> Unit,
-) {
-    // The list screen remains composed underneath this full-screen surface. Closing
-    // the editor only removes this overlay, so LazyListState is never reconstructed.
-    Surface(
-        modifier = Modifier.fillMaxSize(),
-        color = MaterialTheme.colorScheme.background,
-        tonalElevation = 0.dp,
-    ) {
-        when {
-            route.startsWith("note/") -> {
-                val id = route.substringAfter("note/").toLongOrNull()
-                if (id != null) NoteEditorScreen(noteId = id, initialCategoryId = null, back = onClose) else onClose()
-            }
-            route.startsWith("supplies/") -> SupplyScreen(back = onClose, initialEditId = route.substringAfterLast("/").toLongOrNull() ?: 0L)
-            route.startsWith("exams/") -> ExamScreen(back = onClose, initialEditId = route.substringAfterLast("/").toLongOrNull() ?: 0L)
-            route.startsWith("treatment/plan/") -> TreatmentScreen(back = onClose, initialPlanId = route.substringAfterLast("/").toLongOrNull() ?: 0L)
-            route.startsWith("treatment/record/") -> TreatmentScreen(back = onClose, initialRecordId = route.substringAfterLast("/").toLongOrNull() ?: 0L)
-            route.startsWith("symptoms/") -> SymptomScreen(back = onClose, initialEditId = route.substringAfterLast("/").toLongOrNull() ?: 0L)
-            route.startsWith("temperature/") -> TemperatureScreen(back = onClose, initialEditId = route.substringAfterLast("/").toLongOrNull() ?: 0L)
-            route.startsWith("questions/") -> QuestionScreen(back = onClose, initialEditId = route.substringAfterLast("/").toLongOrNull() ?: 0L)
-            route.startsWith("expenses/") -> ExpenseScreen(back = onClose, initialEditId = route.substringAfterLast("/").toLongOrNull() ?: 0L)
-            route.startsWith("timeline/") -> TimelineScreen(back = onClose, go = go, initialEditId = route.substringAfterLast("/").toLongOrNull() ?: 0L)
-            else -> LaunchedEffect(route) { onClose() }
-        }
     }
 }
