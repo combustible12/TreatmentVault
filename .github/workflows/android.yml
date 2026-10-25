@@ -89,7 +89,7 @@ jobs:
               "versionName": os.environ["VERSION_NAME"],
               "apkUrl": "https://raw.githubusercontent.com/combustible12/TreatmentVault-Updates/main/TreatmentVault-latest.apk",
               "sha256": os.environ["SHA"],
-              "notes": "新增录音重命名：列表与宫格均可修改名称，保留原音频、时间标记和录音日期。"
+              "notes": "统一记录详情为全屏弹窗：关闭后保留搜索、筛选和原列表滚动位置，不再跳回顶部。"
           }
           with open("update-repo/update.json", "w", encoding="utf-8") as f:
               json.dump(data, f, ensure_ascii=False, indent=2)
