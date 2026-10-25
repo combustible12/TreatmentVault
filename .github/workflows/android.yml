@@ -89,7 +89,7 @@ jobs:
               "versionName": os.environ["VERSION_NAME"],
               "apkUrl": "https://raw.githubusercontent.com/combustible12/TreatmentVault-Updates/main/TreatmentVault-latest.apk",
               "sha256": os.environ["SHA"],
-              "notes": "统一记录详情为全屏弹窗：关闭后保留搜索、筛选和原列表滚动位置，不再跳回顶部。"
+              "notes": "精简操作流程：检查更新改为一次点击完成；具体记录关闭后直接返回来源；首页搜索支持边缘返回退出搜索。"
           }
           with open("update-repo/update.json", "w", encoding="utf-8") as f:
               json.dump(data, f, ensure_ascii=False, indent=2)
