@@ -145,7 +145,7 @@ fun FolderScreen(categoryId: String, back: () -> Unit, go: (String) -> Unit) {
                         Text("新建笔记")
                     }
                     if (categoryId != "inbox") {
-                        OutlinedButton(onClick = { showCollect = true }, modifier = Modifier.weight(1f)) {
+                        FlatButton(onClick = { showCollect = true }, modifier = Modifier.weight(1f)) {
                             Icon(Icons.Default.FolderOpen, contentDescription = null)
                             Spacer(Modifier.width(6.dp))
                             Text("收纳已有")
@@ -155,7 +155,7 @@ fun FolderScreen(categoryId: String, back: () -> Unit, go: (String) -> Unit) {
             }
 
             item {
-                OutlinedButton(onClick = { showNewFolder = true }, modifier = Modifier.fillMaxWidth()) {
+                FlatButton(onClick = { showNewFolder = true }, modifier = Modifier.fillMaxWidth()) {
                     Icon(Icons.Default.CreateNewFolder, contentDescription = null)
                     Spacer(Modifier.width(6.dp))
                     Text("新建子文件夹")
@@ -163,7 +163,7 @@ fun FolderScreen(categoryId: String, back: () -> Unit, go: (String) -> Unit) {
             }
 
             item {
-                OutlinedTextField(
+                FlatTextField(
                     value = query,
                     onValueChange = { query = it },
                     modifier = Modifier.fillMaxWidth(),
@@ -312,7 +312,7 @@ fun FolderScreen(categoryId: String, back: () -> Unit, go: (String) -> Unit) {
             onDismissRequest = { showNewFolder = false; newFolderName = "" },
             title = { Text("在“${folder.name}”中新建文件夹") },
             text = {
-                OutlinedTextField(
+                FlatTextField(
                     value = newFolderName,
                     onValueChange = { newFolderName = it },
                     modifier = Modifier.fillMaxWidth(),

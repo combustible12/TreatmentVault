@@ -10,9 +10,11 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.grid.items as gridItems
 import androidx.compose.foundation.lazy.items as listItems
 import androidx.compose.material.icons.Icons
@@ -21,9 +23,13 @@ import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.GridView
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ViewList
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -37,16 +43,51 @@ import kotlinx.coroutines.withContext
 
 private const val PREF_AUDIO_GRID_MODE = "audio_grid_mode"
 
+internal enum class RecordingMarkerFilter(val label: String) {
+    ALL("全部"), MARKED("标记"), UNMARKED("未标记")
+}
+
+internal fun filterAudioRecordings(
+    entries: List<CustomEntryEntity>,
+    query: String,
+    markerFilter: RecordingMarkerFilter,
+): List<CustomEntryEntity> {
+    val cleanQuery = query.trim()
+    return entries
+        .asSequence()
+        .filter { it.categoryId == "floating_audio" }
+        .filter { entry ->
+            val markers = audioMarkersFromContent(entry.content)
+            when (markerFilter) {
+                RecordingMarkerFilter.ALL -> true
+                RecordingMarkerFilter.MARKED -> markers.isNotEmpty()
+                RecordingMarkerFilter.UNMARKED -> markers.isEmpty()
+            }
+        }
+        .filter { entry ->
+            if (cleanQuery.isBlank()) true
+            else {
+                val markerLabels = audioMarkersFromContent(entry.content).joinToString(" ") { it.label }
+                listOf(entry.title, entry.date, markerLabels).any { it.contains(cleanQuery, ignoreCase = true) }
+            }
+        }
+        // Renaming and editing markers must never move a recording to the top.
+        .sortedWith(
+            compareByDescending<CustomEntryEntity> { it.createdAt.takeIf { value -> value > 0L } ?: it.id }
+                .thenByDescending { it.id }
+        )
+        .toList()
+}
+
 @Composable
 fun FloatingAudioScreen(back: () -> Unit) {
     val context = LocalContext.current
     val app = context.applicationContext as TreatmentVaultApplication
     val dao = app.database.dao()
     val entries by dao.allCustomEntriesFlow().collectAsState(emptyList())
-    val recordings = remember(entries) {
-        entries.filter { it.categoryId == "floating_audio" }.sortedByDescending { it.updatedAt }
-    }
     val scope = rememberCoroutineScope()
+    val listState = rememberLazyListState()
+    val gridState = rememberLazyGridState()
     val prefs = remember { context.getSharedPreferences(FloatingRecorderService.PREFS_NAME, Context.MODE_PRIVATE) }
     var enabled by remember { mutableStateOf(prefs.getBoolean(FloatingRecorderService.PREF_ENABLED, false)) }
     var message by remember { mutableStateOf("") }
@@ -57,6 +98,12 @@ fun FloatingAudioScreen(back: () -> Unit) {
     var renaming by remember { mutableStateOf(false) }
     var renameError by remember { mutableStateOf("") }
     var pendingDelete by remember { mutableStateOf<CustomEntryEntity?>(null) }
+    var query by rememberSaveable { mutableStateOf("") }
+    var markerFilterName by rememberSaveable { mutableStateOf(RecordingMarkerFilter.ALL.name) }
+    var showFloatingHelp by remember { mutableStateOf(false) }
+    val markerFilter = runCatching { RecordingMarkerFilter.valueOf(markerFilterName) }.getOrDefault(RecordingMarkerFilter.ALL)
+    val allRecordings = remember(entries) { filterAudioRecordings(entries, "", RecordingMarkerFilter.ALL) }
+    val recordings = remember(entries, query, markerFilter) { filterAudioRecordings(entries, query, markerFilter) }
 
     fun setGridMode(value: Boolean) {
         gridMode = value
@@ -148,6 +195,7 @@ fun FloatingAudioScreen(back: () -> Unit) {
         if (gridMode) {
             LazyVerticalGrid(
                 columns = GridCells.Fixed(2),
+                state = gridState,
                 modifier = Modifier.fillMaxSize(),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -157,6 +205,7 @@ fun FloatingAudioScreen(back: () -> Unit) {
                     FloatingRecorderSettingsCard(
                         enabled = enabled,
                         message = message,
+                        onShowHelp = { showFloatingHelp = true },
                         onResetPosition = {
                             ContextCompat.startForegroundService(context, Intent(context, FloatingRecorderService::class.java).setAction(FloatingRecorderService.ACTION_RESET_POSITION))
                             message = "悬浮球已移回屏幕内。"
@@ -165,8 +214,17 @@ fun FloatingAudioScreen(back: () -> Unit) {
                     )
                 }
                 item(span = { GridItemSpan(maxLineSpan) }) {
+                    RecordingSearchAndFilters(
+                        query = query,
+                        onQueryChange = { query = it },
+                        selected = markerFilter,
+                        onSelected = { markerFilterName = it.name },
+                    )
+                }
+                item(span = { GridItemSpan(maxLineSpan) }) {
                     RecordingLayoutHeader(
                         count = recordings.size,
+                        totalCount = allRecordings.size,
                         gridMode = true,
                         onGridModeChange = ::setGridMode,
                     )
@@ -203,6 +261,7 @@ fun FloatingAudioScreen(back: () -> Unit) {
         } else {
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
+                state = listState,
                 verticalArrangement = Arrangement.spacedBy(10.dp),
                 contentPadding = PaddingValues(bottom = 24.dp),
             ) {
@@ -210,6 +269,7 @@ fun FloatingAudioScreen(back: () -> Unit) {
                     FloatingRecorderSettingsCard(
                         enabled = enabled,
                         message = message,
+                        onShowHelp = { showFloatingHelp = true },
                         onResetPosition = {
                             ContextCompat.startForegroundService(context, Intent(context, FloatingRecorderService::class.java).setAction(FloatingRecorderService.ACTION_RESET_POSITION))
                             message = "悬浮球已移回屏幕内。"
@@ -218,8 +278,17 @@ fun FloatingAudioScreen(back: () -> Unit) {
                     )
                 }
                 item {
+                    RecordingSearchAndFilters(
+                        query = query,
+                        onQueryChange = { query = it },
+                        selected = markerFilter,
+                        onSelected = { markerFilterName = it.name },
+                    )
+                }
+                item {
                     RecordingLayoutHeader(
                         count = recordings.size,
+                        totalCount = allRecordings.size,
                         gridMode = false,
                         onGridModeChange = ::setGridMode,
                     )
@@ -250,13 +319,24 @@ fun FloatingAudioScreen(back: () -> Unit) {
         }
     }
 
+    if (showFloatingHelp) {
+        AlertDialog(
+            onDismissRequest = { showFloatingHelp = false },
+            title = { Text("常驻悬浮球说明") },
+            text = {
+                Text("开启后可在桌面或其他 App 直接点球录音。待机时是半透明圆点，录音时变成圆角方块并可拖动；长按可添加时间标记。手机重启后需重新开启一次，Android 的麦克风和前台服务提示会保留。")
+            },
+            confirmButton = { TextButton(onClick = { showFloatingHelp = false }) { Text("知道了") } },
+        )
+    }
+
     pendingRenameId?.let { id ->
         AlertDialog(
             onDismissRequest = { if (!renaming) pendingRenameId = null },
             title = { Text("重命名录音") },
             text = {
                 Column {
-                    OutlinedTextField(
+                    FlatTextField(
                         value = renameText,
                         onValueChange = { renameText = it; renameError = "" },
                         label = { Text("录音名称") },
@@ -310,35 +390,59 @@ fun FloatingAudioScreen(back: () -> Unit) {
 private fun FloatingRecorderSettingsCard(
     enabled: Boolean,
     message: String,
+    onShowHelp: () -> Unit,
     onResetPosition: () -> Unit,
     onEnabledChange: (Boolean) -> Unit,
 ) {
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Column(Modifier.weight(1f)) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
                     Text("常驻悬浮球", style = MaterialTheme.typography.titleMedium)
-                    Text(
-                        "开启一次后，你在桌面或其他 App 里都可以直接点球录音，不会跳出录音页面。",
-                        style = MaterialTheme.typography.bodySmall,
-                    )
+                    IconButton(onClick = onShowHelp, modifier = Modifier.size(36.dp)) {
+                        Icon(Icons.Default.Info, contentDescription = "查看常驻悬浮球说明", modifier = Modifier.size(19.dp))
+                    }
                 }
                 Switch(checked = enabled, onCheckedChange = onEnabledChange)
             }
-            Text(
-                "待机是半透明圆点；开始录音后会直接变成圆角方块。可拖动位置。",
-                style = MaterialTheme.typography.bodySmall,
-            )
-            Text(
-                "录音保存后可拖动进度、倍速播放、添加时间标记、从标记列表跳转，也可以删除录音；“跳过静音”只影响播放。",
-                style = MaterialTheme.typography.bodySmall,
-            )
-            Text(
-                "手机重启后需要回到这里重新开启一次。Android 会保留系统自己的麦克风/前台服务提示。",
-                style = MaterialTheme.typography.bodySmall,
-            )
-            TextButton(onClick = onResetPosition, enabled = enabled) { Text("重置悬浮球位置") }
+            FlatButton(onClick = onResetPosition, enabled = enabled, modifier = Modifier.fillMaxWidth()) { Text("重置悬浮球位置") }
             if (message.isNotBlank()) Text(message, style = MaterialTheme.typography.bodySmall)
+        }
+    }
+}
+
+@Composable
+private fun RecordingSearchAndFilters(
+    query: String,
+    onQueryChange: (String) -> Unit,
+    selected: RecordingMarkerFilter,
+    onSelected: (RecordingMarkerFilter) -> Unit,
+) {
+    Card(Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                RecordingMarkerFilter.entries.forEach { option ->
+                    FlatFilterChip(
+                        selected = selected == option,
+                        onClick = { onSelected(option) },
+                        label = { Text(option.label) },
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+            }
+            FlatTextField(
+                value = query,
+                onValueChange = onQueryChange,
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                placeholder = { Text("搜索录音名称或标记") },
+                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                trailingIcon = {
+                    if (query.isNotBlank()) IconButton(onClick = { onQueryChange("") }) {
+                        Icon(Icons.Default.Close, contentDescription = "清空搜索")
+                    }
+                },
+            )
         }
     }
 }
@@ -346,6 +450,7 @@ private fun FloatingRecorderSettingsCard(
 @Composable
 private fun RecordingLayoutHeader(
     count: Int,
+    totalCount: Int,
     gridMode: Boolean,
     onGridModeChange: (Boolean) -> Unit,
 ) {
@@ -354,7 +459,10 @@ private fun RecordingLayoutHeader(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween,
     ) {
-        Text("悬浮录音记录 · $count", style = MaterialTheme.typography.titleMedium)
+        Text(
+            if (count == totalCount) "悬浮录音记录 · $count" else "悬浮录音记录 · $count/$totalCount",
+            style = MaterialTheme.typography.titleMedium,
+        )
         Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
             IconButton(onClick = { onGridModeChange(false) }) {
                 Icon(
@@ -415,7 +523,7 @@ private fun RecordingCard(
                 Text(entry.title.ifBlank { "录音" }, style = MaterialTheme.typography.titleSmall, maxLines = 2)
                 if (entry.date.isNotBlank()) Text(entry.date, style = MaterialTheme.typography.bodySmall, maxLines = 1)
                 Spacer(Modifier.height(2.dp))
-                OutlinedButton(onClick = onToggleExpanded, modifier = Modifier.fillMaxWidth()) {
+                FlatButton(onClick = onToggleExpanded, modifier = Modifier.fillMaxWidth()) {
                     Icon(Icons.Default.ExpandMore, contentDescription = null)
                     Spacer(Modifier.width(4.dp))
                     Text("播放 / 标记")
@@ -435,7 +543,7 @@ private fun RecordingCard(
                         Icon(Icons.Default.DeleteOutline, contentDescription = "删除录音")
                     }
                 }
-                OutlinedButton(onClick = onToggleExpanded, modifier = Modifier.fillMaxWidth()) {
+                FlatButton(onClick = onToggleExpanded, modifier = Modifier.fillMaxWidth()) {
                     Icon(
                         if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
                         contentDescription = null,

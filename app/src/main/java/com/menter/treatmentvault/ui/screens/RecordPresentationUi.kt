@@ -27,11 +27,11 @@ internal fun pinnedRecordContentColor(): Color = MaterialTheme.colorScheme.onSec
 internal fun pinnedRecordAccentColor(): Color = MaterialTheme.colorScheme.primary
 
 @Composable
-internal fun recordBackgroundColor(state: RecordStateEntity, normal: Color = Color.Transparent): Color = when {
+internal fun recordBackgroundColor(state: RecordStateEntity, normal: Color = Color.Unspecified): Color = when {
     isTodo(state) && state.completed -> MaterialTheme.colorScheme.surfaceVariant
     isTodo(state) -> MaterialTheme.colorScheme.tertiaryContainer
     state.pinned -> pinnedRecordContainerColor()
-    else -> normal
+    else -> if (normal == Color.Unspecified) MaterialTheme.colorScheme.surfaceContainerHigh else normal
 }
 
 @Composable

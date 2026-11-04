@@ -2,7 +2,6 @@ package com.menter.treatmentvault.ui.screens
 
 import android.media.MediaPlayer
 import android.media.audiofx.Visualizer
-import android.net.Uri
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
@@ -19,6 +18,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
 import java.io.File
+import java.net.URLDecoder
+import java.net.URLEncoder
+import java.nio.charset.StandardCharsets
 import java.util.concurrent.atomic.AtomicLong
 import kotlin.math.sqrt
 
@@ -27,13 +29,19 @@ internal data class AudioTimeMarker(
     val label: String,
 )
 
+private fun decodeAudioMarkerLabel(value: String): String =
+    runCatching { URLDecoder.decode(value, StandardCharsets.UTF_8.name()) }.getOrDefault(value)
+
+private fun encodeAudioMarkerLabel(value: String): String =
+    URLEncoder.encode(value, StandardCharsets.UTF_8.name()).replace("+", "%20")
+
 private val audioTimeMarkerRegex = Regex("\\[\\[audiomark:(\\d+):([^]]*)]]")
 
 internal fun audioMarkersFromContent(content: String): List<AudioTimeMarker> =
     audioTimeMarkerRegex.findAll(content).mapNotNull { match ->
         val position = match.groupValues.getOrNull(1)?.toLongOrNull() ?: return@mapNotNull null
         val rawLabel = match.groupValues.getOrNull(2).orEmpty()
-        AudioTimeMarker(position, Uri.decode(rawLabel).ifBlank { "标记" })
+        AudioTimeMarker(position, decodeAudioMarkerLabel(rawLabel).ifBlank { "标记" })
     }.sortedBy { it.positionMs }.toList()
 
 internal fun contentWithAudioMarkers(content: String, markers: List<AudioTimeMarker>): String {
@@ -46,7 +54,7 @@ internal fun contentWithAudioMarkers(content: String, markers: List<AudioTimeMar
     val encodedMarkers = markers
         .sortedBy { it.positionMs }
         .joinToString("\n") { marker ->
-            "[[audiomark:${marker.positionMs}:${Uri.encode(marker.label.trim().ifBlank { "标记" })}]]"
+            "[[audiomark:${marker.positionMs}:${encodeAudioMarkerLabel(marker.label.trim().ifBlank { "标记" })}]]"
         }
     return listOf(clean, encodedMarkers).filter { it.isNotBlank() }.joinToString("\n")
 }
@@ -272,7 +280,7 @@ internal fun AdvancedAudioPlayer(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 Box {
-                    OutlinedButton(onClick = { speedMenuOpen = true }, enabled = player != null) {
+                    FlatButton(onClick = { speedMenuOpen = true }, enabled = player != null) {
                         Icon(Icons.Default.Speed, contentDescription = null)
                         Spacer(Modifier.width(5.dp))
                         Text("${playbackSpeed}×")
@@ -377,7 +385,7 @@ internal fun AdvancedAudioPlayer(
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text("时间点：${formatAudioTime(pendingMarkerMs)}")
-                    OutlinedTextField(
+                    FlatTextField(
                         value = markerLabel,
                         onValueChange = { markerLabel = it },
                         label = { Text("标签内容") },
@@ -405,7 +413,7 @@ internal fun AdvancedAudioPlayer(
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text("时间点：${formatAudioTime(target.positionMs)}")
-                    OutlinedTextField(
+                    FlatTextField(
                         value = editingLabel,
                         onValueChange = { editingLabel = it },
                         label = { Text("标签内容") },

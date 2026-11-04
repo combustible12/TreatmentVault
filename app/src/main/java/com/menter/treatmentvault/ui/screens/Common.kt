@@ -106,13 +106,13 @@ fun Page(title: String, onBack: () -> Unit, content: @Composable ColumnScope.() 
 
 @Composable
 fun Field(value: String, on: (String) -> Unit, label: String) {
-    OutlinedTextField(value = value, onValueChange = on, label = { Text(label) }, modifier = Modifier.fillMaxWidth())
+    FlatTextField(value = value, onValueChange = on, label = { Text(label) }, modifier = Modifier.fillMaxWidth())
 }
 
 @Composable
 fun NoteBodyField(value: String, on: (String) -> Unit, label: String = "正文") {
     Column {
-        OutlinedTextField(value = value, onValueChange = on, label = { Text(label) }, modifier = Modifier.fillMaxWidth(), minLines = 7)
+        FlatTextField(value = value, onValueChange = on, label = { Text(label) }, modifier = Modifier.fillMaxWidth(), minLines = 7)
         DetectedLinkActions(value)
     }
 }
@@ -377,7 +377,7 @@ fun RichNoteBodyEditor(
                     Spacer(Modifier.width(6.dp))
                     Text("开始录音")
                 }
-                OutlinedButton(
+                FlatButton(
                     modifier = Modifier.weight(1f),
                     onClick = { audioPicker.launch(arrayOf("audio/*")) },
                 ) {
@@ -430,7 +430,7 @@ fun RichNoteBodyEditor(
                             }
                         } else {
                             Column {
-                                OutlinedTextField(
+                                FlatTextField(
                                     value = block.text,
                                     onValueChange = { next -> blocks[index] = block.copy(text = next); sync() },
                                     modifier = Modifier.fillMaxWidth(),

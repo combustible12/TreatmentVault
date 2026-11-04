@@ -7,8 +7,11 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -63,6 +66,7 @@ fun TimelineScreen(back: () -> Unit, go: (String) -> Unit, initialEditId: Long =
     var editing by remember { mutableStateOf<TimelineEntity?>(null) }
     var openedInitial by remember(initialEditId) { mutableStateOf(false) }
     var overlayRoute by remember { mutableStateOf<String?>(null) }
+    var query by rememberSaveable { mutableStateOf("") }
 
     LaunchedEffect(initialEditId, timeline) {
         if (!openedInitial && initialEditId > 0L) {
@@ -90,6 +94,14 @@ fun TimelineScreen(back: () -> Unit, go: (String) -> Unit, initialEditId: Long =
             notes.forEach { value -> add(TimelineDisplayItem("note-${value.id}", dateForTimeline(value.date, value.updatedAt), "笔记", value.title.ifBlank { "未命名笔记" }, value.content, value.updatedAt, "note/${value.id}")) }
         }.sortedWith(compareByDescending<TimelineDisplayItem> { timelineSortTime(it.date, it.updatedAt) }.thenByDescending { it.updatedAt })
     }
+    val filteredItems = remember(items, query) {
+        val clean = query.trim()
+        if (clean.isBlank()) items
+        else items.filter { value ->
+            listOf(value.date, value.type, value.title, richBodyPlainText(value.content))
+                .any { it.contains(clean, ignoreCase = true) }
+        }
+    }
 
     Page("总时间轴", back) {
         Text("其他资料会自动汇总到这里；也可以直接按笔记方式记录一件事。", style = MaterialTheme.typography.bodySmall)
@@ -99,17 +111,31 @@ fun TimelineScreen(back: () -> Unit, go: (String) -> Unit, initialEditId: Long =
             Text("记录一件事")
         }
 
-        if (items.isEmpty()) {
+        FlatTextField(
+            value = query,
+            onValueChange = { query = it },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            placeholder = { Text("搜索时间线") },
+            leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+            trailingIcon = {
+                if (query.isNotBlank()) IconButton(onClick = { query = "" }) {
+                    Icon(Icons.Default.Close, contentDescription = "清空搜索")
+                }
+            },
+        )
+
+        if (filteredItems.isEmpty()) {
             Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text("时间线还没有内容", style = MaterialTheme.typography.titleMedium)
-                    Text("点上面的“记录一件事”就能开始。", style = MaterialTheme.typography.bodyMedium)
+                    Text(if (items.isEmpty()) "时间线还没有内容" else "没有匹配的时间线记录", style = MaterialTheme.typography.titleMedium)
+                    Text(if (items.isEmpty()) "点上面的“记录一件事”就能开始。" else "换一个名称、类型、日期或正文关键词试试。", style = MaterialTheme.typography.bodyMedium)
                 }
             }
             Spacer(Modifier.weight(1f))
         } else {
             FastScrollLazyColumn(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp), contentPadding = PaddingValues(top = 4.dp, bottom = 24.dp)) {
-                items(items, key = { it.key }) { value ->
+                items(filteredItems, key = { it.key }) { value ->
                     Row(modifier = Modifier.fillMaxWidth()) {
                         Text(value.date, modifier = Modifier.width(94.dp), style = MaterialTheme.typography.bodySmall)
                         Card(

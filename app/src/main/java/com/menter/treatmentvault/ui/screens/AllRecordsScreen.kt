@@ -170,7 +170,7 @@ fun AllRecordsScreen(
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             item {
-                OutlinedTextField(
+                FlatTextField(
                     value = query,
                     onValueChange = { query = it },
                     modifier = Modifier.fillMaxWidth(),
@@ -184,7 +184,7 @@ fun AllRecordsScreen(
             item {
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     items(RecordShelf.entries, key = { it.name }) { item ->
-                        FilterChip(
+                        FlatFilterChip(
                             selected = shelf == item,
                             onClick = { shelfName = item.name; selectedKeys = emptySet() },
                             label = { Text(item.label) },

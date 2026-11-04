@@ -80,7 +80,7 @@ internal fun RecordFolderOwnershipDialog(
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 if (renaming) {
-                    OutlinedTextField(
+                    FlatTextField(
                         value = renameText,
                         onValueChange = { renameText = it },
                         modifier = Modifier.fillMaxWidth(),
@@ -227,7 +227,7 @@ internal fun RenameCategoryDialog(
         title = { Text("重命名") },
         text = {
             Column(Modifier.fillMaxWidth().padding(top = 4.dp)) {
-                OutlinedTextField(
+                FlatTextField(
                     value = name,
                     onValueChange = { name = it },
                     modifier = Modifier.fillMaxWidth(),

@@ -10,37 +10,37 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.menter.treatmentvault.ui.screens.*
 
-private val SoftWarmWhiteScheme = lightColorScheme(
+private val CleanWhiteScheme = lightColorScheme(
     primary = Color(0xFF292623),
     onPrimary = Color(0xFFFFFFFF),
-    primaryContainer = Color(0xFFF5F2EE),
+    primaryContainer = Color(0xFFF0F0F0),
     onPrimaryContainer = Color(0xFF292623),
     secondary = Color(0xFF6D6862),
     onSecondary = Color(0xFFFFFFFF),
-    secondaryContainer = Color(0xFFF6F3EF),
+    secondaryContainer = Color(0xFFF2F2F2),
     onSecondaryContainer = Color(0xFF37332F),
     tertiary = Color(0xFF9A7462),
     onTertiary = Color(0xFFFFFFFF),
-    tertiaryContainer = Color(0xFFF7EEE9),
+    tertiaryContainer = Color(0xFFF2F2F2),
     onTertiaryContainer = Color(0xFF49372E),
-    background = Color(0xFFFEFDFC),
+    background = Color(0xFFFFFFFF),
     onBackground = Color(0xFF242220),
-    surface = Color(0xFFFEFDFC),
+    surface = Color(0xFFFFFFFF),
     onSurface = Color(0xFF242220),
-    surfaceVariant = Color(0xFFF7F4F0),
+    surfaceVariant = Color(0xFFF2F2F2),
     onSurfaceVariant = Color(0xFF68625D),
     surfaceContainerLowest = Color(0xFFFFFFFF),
-    surfaceContainerLow = Color(0xFFFBF9F6),
-    surfaceContainer = Color(0xFFF8F5F1),
-    surfaceContainerHigh = Color(0xFFF4F1ED),
-    surfaceContainerHighest = Color(0xFFF0ECE7),
-    outline = Color(0xFFC8C1BA),
-    outlineVariant = Color(0xFFE9E4DE),
+    surfaceContainerLow = Color(0xFFF7F7F7),
+    surfaceContainer = Color(0xFFF4F4F4),
+    surfaceContainerHigh = Color(0xFFF2F2F2),
+    surfaceContainerHighest = Color(0xFFEFEFEF),
+    outline = Color.Transparent,
+    outlineVariant = Color.Transparent,
 )
 
 @Composable
 fun TreatmentVaultApp() {
-    MaterialTheme(colorScheme = SoftWarmWhiteScheme) {
+    MaterialTheme(colorScheme = CleanWhiteScheme) {
         val nav = rememberNavController()
         NavHost(nav, "home") {
             composable("home") { HomeScreen { nav.navigate(it) } }

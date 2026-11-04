@@ -259,7 +259,7 @@ fun HomeScreen(go: (String) -> Unit) {
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 item {
-                    OutlinedTextField(
+                    FlatTextField(
                         value = query,
                         onValueChange = { query = it },
                         modifier = Modifier.fillMaxWidth(),
@@ -406,9 +406,9 @@ fun HomeScreen(go: (String) -> Unit) {
             title = { Text("新建类目") },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    OutlinedTextField(value = newCategoryName, onValueChange = { newCategoryName = it }, label = { Text("类目名称") }, singleLine = true, modifier = Modifier.fillMaxWidth(), isError = duplicate)
+                    FlatTextField(value = newCategoryName, onValueChange = { newCategoryName = it }, label = { Text("类目名称") }, singleLine = true, modifier = Modifier.fillMaxWidth(), isError = duplicate)
                     Box(Modifier.fillMaxWidth()) {
-                        OutlinedButton(onClick = { parentMenuOpen = true }, modifier = Modifier.fillMaxWidth()) {
+                        FlatButton(onClick = { parentMenuOpen = true }, modifier = Modifier.fillMaxWidth()) {
                             Text(if (parentName == null) "顶级类目" else "上级：$parentName"); Spacer(Modifier.weight(1f)); Icon(Icons.Default.ArrowDropDown, null)
                         }
                         DropdownMenu(expanded = parentMenuOpen, onDismissRequest = { parentMenuOpen = false }) {

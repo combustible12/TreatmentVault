@@ -185,12 +185,12 @@ fun CollectExistingContentDialog(
                     style = MaterialTheme.typography.bodySmall,
                 )
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    FilterChip(
+                    FlatFilterChip(
                         selected = section == "records",
                         onClick = { section = "records" },
                         label = { Text("记录 ${records.size}") },
                     )
-                    FilterChip(
+                    FlatFilterChip(
                         selected = section == "folders",
                         onClick = { section = "folders" },
                         label = { Text("文件夹 ${folders.size}") },

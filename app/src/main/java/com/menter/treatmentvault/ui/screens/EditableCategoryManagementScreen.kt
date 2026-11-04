@@ -9,6 +9,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
@@ -107,16 +108,42 @@ fun EditableCategoryManagementScreen(back: () -> Unit) {
     var deleting by remember { mutableStateOf<CategoryEntity?>(null) }
     var menuFor by remember { mutableStateOf<String?>(null) }
     var confirmRestore by remember { mutableStateOf(false) }
+    var query by rememberSaveable { mutableStateOf("") }
 
     LaunchedEffect(categories, draggingKey) {
         if (draggingKey == null) localOrder = categories
     }
     val latestOrder by rememberUpdatedState(localOrder)
+    val visibleOrder = remember(localOrder, query) {
+        val clean = query.trim()
+        if (clean.isBlank()) localOrder
+        else localOrder.filter { category ->
+            val status = buildString {
+                append(if (category.isSystem) "默认类目" else "自建类目")
+                if (category.hidden) append(" 已隐藏")
+            }
+            listOf(category.name, category.smartKeywords, status).any { it.contains(clean, ignoreCase = true) }
+        }
+    }
 
     Page("类目管理", back) {
         Text(
             "所有类目都可以编辑、排序、隐藏或删除。删除类目只删除分类入口，不会删除里面的记录。",
             style = MaterialTheme.typography.bodySmall,
+        )
+
+        FlatTextField(
+            value = query,
+            onValueChange = { query = it },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            placeholder = { Text("搜索类目或智能关键词") },
+            leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+            trailingIcon = {
+                if (query.isNotBlank()) IconButton(onClick = { query = "" }) {
+                    Icon(Icons.Default.Close, contentDescription = "清空搜索")
+                }
+            },
         )
 
         Button(onClick = { adding = true }, modifier = Modifier.fillMaxWidth()) {
@@ -126,7 +153,7 @@ fun EditableCategoryManagementScreen(back: () -> Unit) {
         }
 
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedButton(
+            FlatButton(
                 onClick = {
                     scope.launch {
                         categories.filter { it.hidden }.forEach {
@@ -141,7 +168,7 @@ fun EditableCategoryManagementScreen(back: () -> Unit) {
                 Spacer(Modifier.width(4.dp))
                 Text("显示全部")
             }
-            OutlinedButton(onClick = { confirmRestore = true }, modifier = Modifier.weight(1f)) {
+            FlatButton(onClick = { confirmRestore = true }, modifier = Modifier.weight(1f)) {
                 Icon(Icons.Default.RestartAlt, contentDescription = null)
                 Spacer(Modifier.width(4.dp))
                 Text("恢复默认")
@@ -153,7 +180,14 @@ fun EditableCategoryManagementScreen(back: () -> Unit) {
             verticalArrangement = Arrangement.spacedBy(8.dp),
             contentPadding = PaddingValues(bottom = 24.dp),
         ) {
-            items(localOrder, key = { it.key }) { category ->
+            if (visibleOrder.isEmpty()) {
+                item {
+                    Card(Modifier.fillMaxWidth()) {
+                        Text("没有匹配的类目", modifier = Modifier.padding(18.dp))
+                    }
+                }
+            }
+            items(visibleOrder, key = { it.key }) { category ->
                 Card(modifier = Modifier.fillMaxWidth().clickable { editing = category }) {
                     Row(
                         modifier = Modifier.fillMaxWidth().padding(12.dp),
@@ -362,11 +396,11 @@ private fun EditableCategoryDialog(
         title = { Text(title) },
         text = {
             FastScrollLazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                item { OutlinedTextField(name, { name = it }, label = { Text("类目名称") }, modifier = Modifier.fillMaxWidth()) }
-                item { OutlinedTextField(keywords, { keywords = it }, label = { Text("智能分类关键词（逗号分隔）") }, modifier = Modifier.fillMaxWidth()) }
+                item { FlatTextField(name, { name = it }, label = { Text("类目名称") }, modifier = Modifier.fillMaxWidth()) }
+                item { FlatTextField(keywords, { keywords = it }, label = { Text("智能分类关键词（逗号分隔）") }, modifier = Modifier.fillMaxWidth()) }
                 item {
                     Box(Modifier.fillMaxWidth()) {
-                        OutlinedButton(onClick = { parentMenu = true }, modifier = Modifier.fillMaxWidth()) {
+                        FlatButton(onClick = { parentMenu = true }, modifier = Modifier.fillMaxWidth()) {
                             Icon(Icons.Default.AccountTree, contentDescription = null)
                             Spacer(Modifier.width(6.dp))
                             Text(parentName?.let { "上级：$it" } ?: "顶级类目", maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -390,7 +424,7 @@ private fun EditableCategoryDialog(
                     item {
                         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                             row.forEach { (key, label) ->
-                                FilterChip(
+                                FlatFilterChip(
                                     selected = icon == key,
                                     onClick = { icon = key },
                                     label = { Text(label) },

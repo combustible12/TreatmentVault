@@ -135,7 +135,7 @@ fun TodoCenterScreen(back: () -> Unit, go: (String) -> Unit) {
                 }
             }
             item {
-                OutlinedTextField(
+                FlatTextField(
                     value = query,
                     onValueChange = { query = it },
                     modifier = Modifier.fillMaxWidth(),
@@ -154,7 +154,7 @@ fun TodoCenterScreen(back: () -> Unit, go: (String) -> Unit) {
                             TodoShelf.ALL -> todos.size
                             TodoShelf.DONE -> doneCount
                         }
-                        FilterChip(
+                        FlatFilterChip(
                             selected = shelf == option,
                             onClick = { shelfName = option.name },
                             label = { Text("${option.label} $count") },
@@ -167,14 +167,14 @@ fun TodoCenterScreen(back: () -> Unit, go: (String) -> Unit) {
                 item {
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         item {
-                            FilterChip(
+                            FlatFilterChip(
                                 selected = selectedCategory == null,
                                 onClick = { selectedCategory = null },
                                 label = { Text("全部类目") },
                             )
                         }
                         items(categoryCounts, key = { it.first.key }) { (category, count) ->
-                            FilterChip(
+                            FlatFilterChip(
                                 selected = selectedCategory == category.key,
                                 onClick = { selectedCategory = if (selectedCategory == category.key) null else category.key },
                                 label = { Text("${category.name} $count") },

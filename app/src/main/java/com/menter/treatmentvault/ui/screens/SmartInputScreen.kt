@@ -52,7 +52,7 @@ fun SmartInputScreen(back: () -> Unit) {
 
     Page("智能录入", back) {
         Text("可以直接粘贴、输入，或多次点语音继续追加。自定义类目也会按你设置的关键词参与分类。", style = MaterialTheme.typography.bodyMedium)
-        OutlinedTextField(value = raw, onValueChange = { raw = it; parsed = emptyList(); message = "" }, label = { Text("把大段内容放这里") }, modifier = Modifier.fillMaxWidth().heightIn(min = 190.dp), minLines = 8)
+        FlatTextField(value = raw, onValueChange = { raw = it; parsed = emptyList(); message = "" }, label = { Text("把大段内容放这里") }, modifier = Modifier.fillMaxWidth().heightIn(min = 190.dp), minLines = 8)
         Button(onClick = {
             voiceError = ""
             val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {

@@ -794,28 +794,28 @@ internal fun NoteImageEditorContent(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(4.dp),
                     ) {
-                        FilterChip(
+                        FlatFilterChip(
                             modifier = Modifier.weight(1f),
                             selected = mode == NoteImageEditMode.CROP,
                             onClick = { mode = NoteImageEditMode.CROP; message = null },
                             label = { Text("裁剪", maxLines = 1, overflow = TextOverflow.Clip) },
                             leadingIcon = { Icon(Icons.Default.Crop, null, modifier = Modifier.size(18.dp)) },
                         )
-                        FilterChip(
+                        FlatFilterChip(
                             modifier = Modifier.weight(1f),
                             selected = mode == NoteImageEditMode.DRAW,
                             onClick = { mode = NoteImageEditMode.DRAW; message = null },
                             label = { Text("画笔", maxLines = 1, overflow = TextOverflow.Clip) },
                             leadingIcon = { Icon(Icons.Default.Brush, null, modifier = Modifier.size(18.dp)) },
                         )
-                        FilterChip(
+                        FlatFilterChip(
                             modifier = Modifier.weight(1f),
                             selected = mode == NoteImageEditMode.MOSAIC,
                             onClick = { mode = NoteImageEditMode.MOSAIC; message = null },
                             label = { Text("马赛克", maxLines = 1, overflow = TextOverflow.Clip) },
                             leadingIcon = { Icon(Icons.Default.GridOn, null, modifier = Modifier.size(18.dp)) },
                         )
-                        FilterChip(
+                        FlatFilterChip(
                             modifier = Modifier.weight(1f),
                             selected = mode == NoteImageEditMode.TEXT,
                             onClick = { mode = NoteImageEditMode.TEXT; message = null },
@@ -836,7 +836,7 @@ internal fun NoteImageEditorContent(
 
                     if (mode == NoteImageEditMode.TEXT) {
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
-                            OutlinedTextField(value = textValue, onValueChange = { textValue = it }, modifier = Modifier.weight(1f), placeholder = { Text("文字") }, singleLine = true)
+                            FlatTextField(value = textValue, onValueChange = { textValue = it }, modifier = Modifier.weight(1f), placeholder = { Text("文字") }, singleLine = true)
                             Button(onClick = {
                                 val ok = if (selectedText != null) viewRef?.updateSelectedTextContent(textValue) == true else viewRef?.addText(textValue) == true
                                 if (!ok && textValue.isBlank()) message = "请输入文字"

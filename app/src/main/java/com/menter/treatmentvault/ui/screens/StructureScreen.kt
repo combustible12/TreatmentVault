@@ -7,9 +7,12 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountTree
 import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -65,9 +68,28 @@ fun StructureScreen(back: () -> Unit, go: (String) -> Unit) {
         }
     }
     var expanded by remember { mutableStateOf<Set<String>>(emptySet()) }
+    var query by rememberSaveable { mutableStateOf("") }
+    val cleanQuery = query.trim()
+
+    fun itemMatches(item: UnifiedRecordItem): Boolean = cleanQuery.isBlank() ||
+        listOf(item.title, item.preview, item.searchText, item.section, item.date)
+            .any { it.contains(cleanQuery, ignoreCase = true) }
+
+    val visibleCategoryKeys = remember(flattened, activeItems, cleanQuery) {
+        if (cleanQuery.isBlank()) flattened.map { it.first.key }.toSet()
+        else flattened.mapNotNull { (category, _) ->
+            val categoryMatches = listOf(category.name, category.smartKeywords).any { it.contains(cleanQuery, ignoreCase = true) }
+            val recordMatches = activeItems.any { category.key in it.folderKeys && itemMatches(it) }
+            category.key.takeIf { categoryMatches || recordMatches }
+        }.toSet()
+    }
+    val visibleTree = remember(flattened, visibleCategoryKeys) { flattened.filter { it.first.key in visibleCategoryKeys } }
 
     fun children(category: CategoryEntity): List<String> = activeItems
-        .filter { it.categoryKey == category.key }
+        .filter {
+            if (cleanQuery.isBlank()) it.categoryKey == category.key
+            else category.key in it.folderKeys && itemMatches(it)
+        }
         .sortedByDescending { it.updatedAt }
         .map { item ->
             val title = recordDisplayTitle(item, recordStateFor(item, stateMap))
@@ -81,9 +103,23 @@ fun StructureScreen(back: () -> Unit, go: (String) -> Unit) {
         }
         Text("这里按真实文件夹层级显示。结构化记录移动到子文件夹后，资料树也会同步位置。", style = MaterialTheme.typography.bodySmall)
 
+        FlatTextField(
+            value = query,
+            onValueChange = { query = it },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            placeholder = { Text("搜索文件夹或记录") },
+            leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+            trailingIcon = {
+                if (query.isNotBlank()) IconButton(onClick = { query = "" }) {
+                    Icon(Icons.Default.Close, contentDescription = "清空搜索")
+                }
+            },
+        )
+
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedButton(onClick = { expanded = dataCategories.map { it.key }.toSet() }) { Text("全部展开") }
-            OutlinedButton(onClick = { expanded = emptySet() }) { Text("全部收起") }
+            FlatButton(onClick = { expanded = dataCategories.map { it.key }.toSet() }) { Text("全部展开") }
+            FlatButton(onClick = { expanded = emptySet() }) { Text("全部收起") }
         }
 
         Card(modifier = Modifier.fillMaxWidth()) {
@@ -100,10 +136,17 @@ fun StructureScreen(back: () -> Unit, go: (String) -> Unit) {
             modifier = Modifier.fillMaxWidth().heightIn(max = 700.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
-            items(flattened, key = { it.first.key }) { (category, depth) ->
+            if (visibleTree.isEmpty()) {
+                item {
+                    Card(Modifier.fillMaxWidth()) {
+                        Text("没有匹配的文件夹或记录", modifier = Modifier.padding(18.dp))
+                    }
+                }
+            }
+            items(visibleTree, key = { it.first.key }) { (category, depth) ->
                 val childItems = children(category)
                 val childFolderCount = dataCategories.count { it.parentId == category.key }
-                val isExpanded = category.key in expanded
+                val isExpanded = cleanQuery.isNotBlank() || category.key in expanded
                 Card(modifier = Modifier.fillMaxWidth().padding(start = (depth * 18).dp)) {
                     Column {
                         Row(
