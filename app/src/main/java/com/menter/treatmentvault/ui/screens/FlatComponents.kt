@@ -22,7 +22,8 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 
-private val ModuleGray = Color(0xFFF2F2F2)
+private val ModuleGray = Color(0xFFF5F5F5)
+private val SelectedGray = Color(0xFFE3E3E3)
 
 @Composable
 fun FlatTextField(
@@ -47,6 +48,7 @@ fun FlatTextField(
     maxLines: Int = if (singleLine) 1 else Int.MAX_VALUE,
     minLines: Int = 1,
     shape: Shape = RoundedCornerShape(16.dp),
+    containerColor: Color = ModuleGray,
 ) {
     TextField(
         value = value,
@@ -71,10 +73,10 @@ fun FlatTextField(
         minLines = minLines,
         shape = shape,
         colors = TextFieldDefaults.colors(
-            focusedContainerColor = ModuleGray,
-            unfocusedContainerColor = ModuleGray,
-            disabledContainerColor = ModuleGray,
-            errorContainerColor = ModuleGray,
+            focusedContainerColor = containerColor,
+            unfocusedContainerColor = containerColor,
+            disabledContainerColor = containerColor,
+            errorContainerColor = containerColor,
             focusedIndicatorColor = Color.Transparent,
             unfocusedIndicatorColor = Color.Transparent,
             disabledIndicatorColor = Color.Transparent,
@@ -123,8 +125,8 @@ fun FlatFilterChip(
         enabled = enabled,
         shape = RoundedCornerShape(12.dp),
         colors = ButtonDefaults.buttonColors(
-            containerColor = if (selected) MaterialTheme.colorScheme.primary else Color.White,
-            contentColor = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface,
+            containerColor = if (selected) SelectedGray else Color.White,
+            contentColor = MaterialTheme.colorScheme.onSurface,
         ),
         elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp, pressedElevation = 0.dp),
         contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),

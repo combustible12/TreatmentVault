@@ -32,6 +32,7 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
@@ -403,7 +404,18 @@ private fun FloatingRecorderSettingsCard(
                         Icon(Icons.Default.Info, contentDescription = "查看常驻悬浮球说明", modifier = Modifier.size(19.dp))
                     }
                 }
-                Switch(checked = enabled, onCheckedChange = onEnabledChange)
+                Switch(
+                    checked = enabled,
+                    onCheckedChange = onEnabledChange,
+                    colors = SwitchDefaults.colors(
+                        checkedThumbColor = Color.White,
+                        checkedTrackColor = Color(0xFF8A8A8A),
+                        checkedBorderColor = Color.Transparent,
+                        uncheckedThumbColor = Color.White,
+                        uncheckedTrackColor = Color(0xFFDADADA),
+                        uncheckedBorderColor = Color.Transparent,
+                    ),
+                )
             }
             FlatButton(onClick = onResetPosition, enabled = enabled, modifier = Modifier.fillMaxWidth()) { Text("重置悬浮球位置") }
             if (message.isNotBlank()) Text(message, style = MaterialTheme.typography.bodySmall)
@@ -442,6 +454,7 @@ private fun RecordingSearchAndFilters(
                         Icon(Icons.Default.Close, contentDescription = "清空搜索")
                     }
                 },
+                containerColor = Color.White,
             )
         }
     }
