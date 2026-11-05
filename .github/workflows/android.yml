@@ -89,7 +89,7 @@ jobs:
               "versionName": os.environ["VERSION_NAME"],
               "apkUrl": "https://raw.githubusercontent.com/combustible12/TreatmentVault-Updates/main/TreatmentVault-latest.apk",
               "sha256": os.environ["SHA"],
-              "notes": "新增全局搜索与录音名称/标记搜索；增加录音标记筛选并保持编辑后列表位置；统一白底、浅灰模块和无描边纯色 UI。"
+              "notes": "统一页面为白底、模块和卡片为 #F5F5F5；选中筛选改为 #E3E3E3 深灰字；移除近黑按钮，悬浮球开关改为中灰开启态。"
           }
           with open("update-repo/update.json", "w", encoding="utf-8") as f:
               json.dump(data, f, ensure_ascii=False, indent=2)
