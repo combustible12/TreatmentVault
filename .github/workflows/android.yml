@@ -1,5 +1,5 @@
 name: Android APK
-# Builds with one explicit repository keystore and publishes only after tests and signature verification.
+# Builds with one explicit repository keystore and publishes 0.35.1 only after tests and signature verification.
 on:
   push:
   workflow_dispatch:
