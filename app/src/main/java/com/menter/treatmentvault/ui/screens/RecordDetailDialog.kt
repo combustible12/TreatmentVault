@@ -23,6 +23,12 @@ internal fun RecordDetailDialog(
     onClose: () -> Unit,
     go: (String) -> Unit,
 ) {
+    if (route.startsWith("note/")) {
+        val id = route.substringAfter("note/").substringBefore("/").toLongOrNull()
+        if (id != null) NoteEditorScreen(noteId = id, initialCategoryId = null, back = onClose, inDialog = true)
+        else LaunchedEffect(route) { onClose() }
+        return
+    }
     Dialog(
         onDismissRequest = onClose,
         properties = DialogProperties(usePlatformDefaultWidth = false),
@@ -33,11 +39,6 @@ internal fun RecordDetailDialog(
             tonalElevation = 0.dp,
         ) {
             when {
-                route.startsWith("note/") -> {
-                    val id = route.substringAfter("note/").substringBefore("/").toLongOrNull()
-                    if (id != null) NoteEditorScreen(noteId = id, initialCategoryId = null, back = onClose)
-                    else LaunchedEffect(route) { onClose() }
-                }
                 route.startsWith("supplies/") -> SupplyScreen(back = onClose, initialEditId = route.substringAfterLast("/").toLongOrNull() ?: 0L)
                 route.startsWith("exams/") -> ExamScreen(back = onClose, initialEditId = route.substringAfterLast("/").toLongOrNull() ?: 0L)
                 route.startsWith("treatment/plan/") -> TreatmentScreen(back = onClose, initialPlanId = route.substringAfterLast("/").toLongOrNull() ?: 0L)

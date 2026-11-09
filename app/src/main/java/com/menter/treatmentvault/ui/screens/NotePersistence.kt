@@ -12,4 +12,5 @@ internal fun shouldPersistNote(
     title: String,
     content: String,
     pendingFiles: List<String>,
-): Boolean = persistedId > 0L || noteDraftHasContent(title, content, pendingFiles)
+    tags: String = "",
+): Boolean = persistedId > 0L || tags.isNotBlank() || noteDraftHasContent(title, content, pendingFiles)

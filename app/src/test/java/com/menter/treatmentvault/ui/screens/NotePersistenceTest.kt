@@ -21,6 +21,12 @@ class NotePersistenceTest {
     }
 
     @Test
+    fun tagsAloneAreSavedButWhitespaceDoesNotCreateANote() {
+        assertTrue(shouldPersistNote(0L, "", "", emptyList(), "复查"))
+        assertFalse(shouldPersistNote(0L, "", "", emptyList(), "  "))
+    }
+
+    @Test
     fun completelyBlankNewNoteDoesNotCreateJunkRecord() {
         assertFalse(shouldPersistNote(0L, "", "", emptyList()))
     }
