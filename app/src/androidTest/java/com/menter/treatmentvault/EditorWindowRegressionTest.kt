@@ -1,9 +1,7 @@
 package com.menter.treatmentvault
 
-import android.accessibilityservice.AccessibilityServiceInfo
 import android.graphics.Rect
 import android.util.Log
-import android.view.accessibility.AccessibilityWindowInfo
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -105,10 +103,16 @@ class EditorWindowRegressionTest {
         Thread.sleep(200)
         val node = rule.onNode(listMatcher).fetchSemanticsNode()
         val range = node.config[SemanticsProperties.VerticalScrollAxisRange]
-        val footer = rule.onNodeWithText("添加标签").fetchSemanticsNode()
-        val ui = InstrumentationRegistry.getInstrumentation().uiAutomation
-        ui.serviceInfo = ui.serviceInfo.apply { flags = flags or AccessibilityServiceInfo.FLAG_RETRIEVE_INTERACTIVE_WINDOWS }
-        val ime = ui.windows.firstOrNull { it.type == AccessibilityWindowInfo.TYPE_INPUT_METHOD }?.let { Rect().also(it::getBoundsInScreen) }
+        val footer = rule.onNodeWithText("添加标签", useUnmergedTree = true).fetchSemanticsNode()
+        // WindowManager reports the physical IME source frame, independent of the
+        // editor's own (potentially incorrect) insets and Compose visibility checks.
+        val windowDump = device.executeShellCommand("dumpsys window")
+        val imePattern = Regex("""(?:mType|type)=(?:ime|ITYPE_IME)\b[^\n]*?(?:mFrame|frame)=\[(\d+),\s*(\d+)\]\[(\d+),\s*(\d+)\][^\n]*?(?:mVisible|visible)=true""")
+        val ime = imePattern.findAll(windowDump).map { match ->
+            val v = match.groupValues.drop(1).map(String::toInt)
+            Rect(v[0], v[1], v[2], v[3])
+        }.filter { it.height() > 100 && it.top > 0 }.minByOrNull { it.top }
+        if (keyboard && ime == null) Log.i("KeyboardDiag", "IME_DUMP " + windowDump.lines().filter { it.contains("ime", true) || it.contains("InputMethod") }.joinToString("\n"))
         val actual = requireNotNull(device.findObject(By.text("添加标签"))) { "Missing footer: $name" }.visibleBounds
         Log.i("KeyboardDiag", "$name scroll=${range.value()}/${range.maxValue()} compose=${footer.boundsInWindow} actual=$actual ime=$ime screen=${device.displayHeight}")
         device.executeShellCommand("mkdir -p /sdcard/Download/keyboard-diagnosis")
