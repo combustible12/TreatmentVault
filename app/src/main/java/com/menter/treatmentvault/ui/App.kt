@@ -1,9 +1,11 @@
 package com.menter.treatmentvault.ui
 
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -42,7 +44,8 @@ private val CleanWhiteScheme = lightColorScheme(
 fun TreatmentVaultApp() {
     MaterialTheme(colorScheme = CleanWhiteScheme) {
         val nav = rememberNavController()
-        NavHost(nav, "home") {
+        // All regular pages share the keyboard-safe viewport. Dialogs have their own window.
+        NavHost(nav, "home", modifier = Modifier.imePadding()) {
             composable("home") { HomeScreen { nav.navigate(it) } }
             composable("notes") {
                 AllRecordsScreen(
