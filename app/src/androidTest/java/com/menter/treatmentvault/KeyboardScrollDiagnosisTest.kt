@@ -28,13 +28,15 @@ import java.io.File
 class KeyboardScrollDiagnosisTest {
     @get:Rule val rule = createAndroidComposeRule<MainActivity>()
     private val device get() = UiDevice.getInstance(InstrumentationRegistry.getInstrumentation())
-    private val listMatcher = SemanticsMatcher.keyIsDefined(SemanticsActions.ScrollToIndex)
+    private var openedFromList = false
+    private val listMatcher get() = SemanticsMatcher.keyIsDefined(SemanticsActions.ScrollToIndex).let { if (openedFromList) it and hasAnyAncestor(isDialog()) else it }
     private val bodyMatcher = hasSetTextAction() and hasText("DIAG-LINE", substring = true)
 
     @Test fun ordinaryEditor() = exercise(false)
     @Test fun dialogEditor() = exercise(true)
 
     @Test fun existingNoteFromList() {
+        openedFromList = true
         val app = rule.activity.application as TreatmentVaultApplication
         val body = (1..10).joinToString("\n\n") { "DIAG-LINE $it 检查已有笔记打开后的页面高度，以及页面底部的添加标签是否完整可见。" }
         runBlocking { app.database.dao().saveCustomEntry(CustomEntryEntity(categoryId = "inbox", date = "2026-11-12", title = "ENTRY-DIAG", content = body)) }
