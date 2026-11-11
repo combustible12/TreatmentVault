@@ -17,6 +17,7 @@ import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.uiautomator.UiDevice
 import com.menter.treatmentvault.data.CustomEntryEntity
 import com.menter.treatmentvault.ui.screens.NoteEditorScreen
+import com.menter.treatmentvault.ui.screens.AllRecordsScreen
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -32,6 +33,29 @@ class KeyboardScrollDiagnosisTest {
 
     @Test fun ordinaryEditor() = exercise(false)
     @Test fun dialogEditor() = exercise(true)
+
+    @Test fun existingNoteFromList() {
+        val app = rule.activity.application as TreatmentVaultApplication
+        val body = (1..10).joinToString("\n\n") { "DIAG-LINE $it 检查已有笔记打开后的页面高度，以及页面底部的添加标签是否完整可见。" }
+        runBlocking { app.database.dao().saveCustomEntry(CustomEntryEntity(categoryId = "inbox", date = "2026-11-12", title = "ENTRY-DIAG", content = body)) }
+        rule.runOnUiThread {
+            rule.activity.setContent { MaterialTheme { Box(Modifier.imePadding()) { AllRecordsScreen(back = {}, go = {}) } } }
+        }
+        rule.waitUntil(10_000) { rule.onAllNodes(hasText("ENTRY-DIAG")).fetchSemanticsNodes().isNotEmpty() }
+        rule.onNodeWithText("ENTRY-DIAG").performClick()
+        rule.waitUntil(10_000) { rule.onAllNodes(bodyMatcher).fetchSemanticsNodes().isNotEmpty() }
+        repeat(8) { rule.onNode(listMatcher).performTouchInput { swipeUp() } }
+        snapshot("entry_keyboard_closed_bottom")
+        rule.onNode(listMatcher).performScrollToIndex(1)
+        rule.onNode(bodyMatcher).performTouchInput { click(Offset(30f,30f)) }
+        Thread.sleep(1200)
+        repeat(8) { rule.onNode(listMatcher).performTouchInput { swipeUp() } }
+        snapshot("entry_keyboard_open_bottom")
+        device.pressBack()
+        Thread.sleep(500)
+        repeat(8) { rule.onNode(listMatcher).performTouchInput { swipeUp() } }
+        snapshot("entry_keyboard_closed_again_bottom")
+    }
 
     private fun exercise(dialog: Boolean) {
         val app = rule.activity.application as TreatmentVaultApplication
@@ -86,6 +110,13 @@ class KeyboardScrollDiagnosisTest {
 
     private fun snapshot(name: String) {
         logRange(name)
+        runCatching {
+            val node = rule.onNodeWithText("添加标签").fetchSemanticsNode()
+            Log.i("KeyboardDiag", "$name footerRoot=${node.boundsInRoot} footerWindow=${node.boundsInWindow} size=${node.size}")
+        }
+        device.executeShellCommand("mkdir -p /sdcard/Download/keyboard-diagnosis")
+        device.executeShellCommand("screencap -p /sdcard/Download/keyboard-diagnosis/$name.png")
+        device.executeShellCommand("sh -c 'dumpsys window windows > /sdcard/Download/keyboard-diagnosis/$name-window.txt'")
         val dir = File(rule.activity.getExternalFilesDir(null), "diagnosis").apply { mkdirs() }
         InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot()?.let { bitmap ->
             File(dir, "$name.png").outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
