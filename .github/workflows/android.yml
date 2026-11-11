@@ -89,7 +89,7 @@ jobs:
               "versionName": os.environ["VERSION_NAME"],
               "apkUrl": "https://raw.githubusercontent.com/combustible12/TreatmentVault-Updates/main/TreatmentVault-latest.apk",
               "sha256": os.environ["SHA"],
-              "notes": "修复笔记及各类记录编辑时长文本被键盘遮挡、底部无法滚动的问题；智能录入支持整页滚动，普通页面统一处理键盘占位。"
+              "notes": "修复已有笔记全屏编辑窗口高度计算错误，解决滑到底后添加标签仍被键盘遮挡的问题；同类记录编辑窗口统一修复。"
           }
           with open("update-repo/update.json", "w", encoding="utf-8") as f:
               json.dump(data, f, ensure_ascii=False, indent=2)

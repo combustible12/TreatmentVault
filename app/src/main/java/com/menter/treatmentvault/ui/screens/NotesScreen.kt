@@ -14,8 +14,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -237,7 +235,7 @@ fun NoteEditorScreen(noteId: Long, initialCategoryId: String?, inDialog: Boolean
     }
 
     if (inDialog) {
-        Dialog(onDismissRequest = { saveAndBack() }, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) { editor() }
+        EditorWindow(onDismissRequest = { saveAndBack() }) { editor() }
     } else {
         BackHandler { saveAndBack() }
         editor()
