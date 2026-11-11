@@ -2,6 +2,7 @@ package com.menter.treatmentvault
 
 import android.graphics.Rect
 import android.util.Log
+import android.graphics.Color
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -117,6 +118,19 @@ class EditorWindowRegressionTest {
         Log.i("KeyboardDiag", "$name scroll=${range.value()}/${range.maxValue()} compose=${footer.boundsInWindow} actual=$actual ime=$ime screen=${device.displayHeight}")
         device.executeShellCommand("mkdir -p /sdcard/Download/keyboard-diagnosis")
         device.executeShellCommand("screencap -p /sdcard/Download/keyboard-diagnosis/$name.png")
+        if (name.startsWith("existing")) {
+            rule.onNodeWithText("编辑记录").assertIsDisplayed()
+            val titleBounds = requireNotNull(device.findObject(By.text("编辑记录"))).visibleBounds
+            val bitmap = requireNotNull(InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot())
+            var inkPixels = 0
+            for (y in titleBounds.top until titleBounds.bottom) for (x in titleBounds.left until titleBounds.right) {
+                val pixel = bitmap.getPixel(x, y)
+                if (Color.red(pixel) < 120 && Color.green(pixel) < 120 && Color.blue(pixel) < 120) inkPixels++
+            }
+            bitmap.recycle()
+            Log.i("KeyboardDiag", "$name title=$titleBounds inkPixels=$inkPixels")
+            assertTrue("Toolbar title not drawn after reopening: $name", inkPixels > 100)
+        }
         assertTrue("Footer clipped: $name $actual expectedHeight=${footer.size.height}", actual.height() >= footer.size.height - 1)
         if (keyboard) {
             assertTrue("Keyboard did not open: $name ime=$ime", ime != null && ime.height() > 100)
