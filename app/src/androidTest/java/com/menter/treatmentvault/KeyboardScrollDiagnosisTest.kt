@@ -23,6 +23,7 @@ import org.junit.Rule
 import org.junit.Test
 import java.io.File
 
+@OptIn(ExperimentalTestApi::class)
 class KeyboardScrollDiagnosisTest {
     @get:Rule val rule = createAndroidComposeRule<MainActivity>()
     private val device get() = UiDevice.getInstance(InstrumentationRegistry.getInstrumentation())
@@ -41,7 +42,7 @@ class KeyboardScrollDiagnosisTest {
         }
         rule.waitUntil(10_000) { rule.onAllNodes(bodyMatcher).fetchSemanticsNodes().isNotEmpty() }
         val failures = mutableListOf<String>()
-        repeat(4) { cycle ->
+        repeat(6) { cycle ->
             rule.onNode(listMatcher).performScrollToIndex(1)
             rule.onNode(bodyMatcher).performTouchInput { click(Offset(30f, 30f)) }
             rule.onNode(bodyMatcher).performTextInputSelection(TextRange(if (cycle % 2 == 0) body.length / 2 else body.length))
@@ -54,7 +55,7 @@ class KeyboardScrollDiagnosisTest {
             repeat(12) { attempt ->
                 if (!footerVisible()) {
                     rule.onNode(listMatcher).performTouchInput {
-                        val x = if (cycle < 2) centerX else 6f
+                        val x = when { cycle < 2 -> centerX; cycle < 4 -> 6f; else -> width - 10f }
                         swipe(Offset(x, height * .85f), Offset(x, height * .15f), 350)
                     }
                     rule.waitForIdle()
@@ -71,7 +72,11 @@ class KeyboardScrollDiagnosisTest {
         assertTrue("Unable to reach footer: $failures", failures.isEmpty())
     }
 
-    private fun footerVisible(): Boolean = runCatching { rule.onNodeWithText("添加标签").isDisplayed() }.getOrDefault(false)
+    private fun footerVisible(): Boolean = runCatching {
+        val footer = rule.onNodeWithText("添加标签")
+        val node = footer.fetchSemanticsNode()
+        footer.isDisplayed() && node.boundsInRoot.height >= node.size.height - 1f
+    }.getOrDefault(false)
 
     private fun logRange(stage: String) {
         val node = rule.onNode(listMatcher).fetchSemanticsNode()
