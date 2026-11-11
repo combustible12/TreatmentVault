@@ -53,7 +53,13 @@ internal fun EditorWindow(onDismissRequest: () -> Unit, content: @Composable () 
     DisposableEffect(holder) {
         val (dialog, view) = holder
         dialog.show()
-        dialog.window?.setLayout(WindowManager.LayoutParams.MATCH_PARENT, WindowManager.LayoutParams.MATCH_PARENT)
+        dialog.window?.let { window ->
+            window.setLayout(WindowManager.LayoutParams.MATCH_PARENT, WindowManager.LayoutParams.MATCH_PARENT)
+            WindowCompat.getInsetsController(window, window.decorView).apply {
+                isAppearanceLightStatusBars = true
+                isAppearanceLightNavigationBars = true
+            }
+        }
         onDispose {
             dialog.dismiss()
             view.disposeComposition()
