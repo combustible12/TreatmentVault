@@ -1,0 +1,44 @@
+name: Keyboard scroll diagnosis
+on:
+  push:
+    branches: [diagnose/keyboard-scroll]
+jobs:
+  reproduce:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: '17' }
+      - uses: gradle/actions/setup-gradle@v4
+        with: { gradle-version: '8.10.2' }
+      - name: Prepare test device
+        run: |
+          base64 --decode .github/keystore/treatmentvault-debug.keystore.b64 > .github/keystore/treatmentvault-debug.keystore
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Compile diagnostic tests
+        run: gradle assembleDebug assembleDebugAndroidTest --stacktrace
+      - name: Reproduce on Android 16
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 36
+          target: google_apis
+          arch: x86_64
+          profile: pixel_2
+          disable-animations: false
+          script: |
+            adb shell wm size 702x1536
+            adb shell wm density 320
+            adb shell settings put secure show_ime_with_hard_keyboard 1
+            bash scripts/diagnose-keyboard.sh
+      - name: Collect results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: keyboard-diagnosis
+          path: |
+            app/build/reports/androidTests
+            app/build/outputs/androidTest-results
+            keyboard-diagnostics
