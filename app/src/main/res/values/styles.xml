@@ -1,1 +1,8 @@
-<resources><style name="Theme.TreatmentVault" parent="android:style/Theme.Material.Light.NoActionBar"><item name="android:fontFamily">sans</item><item name="android:windowLightStatusBar">true</item><item name="android:statusBarColor">#FFFFFF</item></style></resources>
+<resources><style name="Theme.TreatmentVault" parent="android:style/Theme.Material.Light.NoActionBar"><item name="android:fontFamily">sans</item><item name="android:windowLightStatusBar">true</item><item name="android:statusBarColor">#FFFFFF</item></style>
+    <style name="Theme.TreatmentVault.Editor" parent="Theme.TreatmentVault">
+        <item name="android:windowIsFloating">false</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:windowSoftInputMode">adjustResize</item>
+        <item name="android:windowBackground">#FFFFFF</item>
+    </style>
+</resources>

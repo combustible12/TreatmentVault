@@ -6,6 +6,10 @@ jobs:
   reproduce:
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        api: [30, 36]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -19,11 +23,11 @@ jobs:
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
       - name: Compile diagnostic tests
-        run: gradle assembleDebug assembleDebugAndroidTest --stacktrace
+        run: gradle testDebugUnitTest assembleDebug assembleDebugAndroidTest --stacktrace
       - name: Reproduce on Android 16
         uses: reactivecircus/android-emulator-runner@v2
         with:
-          api-level: 36
+          api-level: ${{ matrix.api }}
           target: google_apis
           arch: x86_64
           profile: pixel_2
@@ -37,7 +41,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: keyboard-diagnosis
+          name: keyboard-diagnosis-${{ matrix.api }}
           path: |
             app/build/reports/androidTests
             app/build/outputs/androidTest-results

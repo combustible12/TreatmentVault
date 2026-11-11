@@ -128,7 +128,7 @@ fun FullScreenEditorDialog(
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val requestClose = { if (canSave || hasPersistedRecord) onSave() else onDismiss() }
-    Dialog(onDismissRequest = requestClose, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
+    EditorWindow(onDismissRequest = requestClose) {
         Surface(modifier = Modifier.fillMaxSize().imePadding(), color = MaterialTheme.colorScheme.background) {
             Scaffold(
                 topBar = {
