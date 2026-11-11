@@ -5,6 +5,8 @@ import android.content.Intent
 import android.speech.RecognizerIntent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -51,64 +53,69 @@ fun SmartInputScreen(back: () -> Unit) {
     fun nowTime() = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date())
 
     Page("智能录入", back) {
-        Text("可以直接粘贴、输入，或多次点语音继续追加。自定义类目也会按你设置的关键词参与分类。", style = MaterialTheme.typography.bodyMedium)
-        FlatTextField(value = raw, onValueChange = { raw = it; parsed = emptyList(); message = "" }, label = { Text("把大段内容放这里") }, modifier = Modifier.fillMaxWidth().heightIn(min = 190.dp), minLines = 8)
-        Button(onClick = {
-            voiceError = ""
-            val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-                putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-                putExtra(RecognizerIntent.EXTRA_LANGUAGE, "zh-CN")
-                putExtra(RecognizerIntent.EXTRA_PROMPT, "继续说，识别结果会追加到原文")
-                putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
-            }
-            runCatching { voiceLauncher.launch(intent) }.onFailure { voiceError = "当前手机没有可用的系统语音识别服务，仍可直接粘贴或输入。" }
-        }, modifier = Modifier.fillMaxWidth()) { Icon(Icons.Default.Mic, null); Text("语音输入（可重复追加）") }
-        if (voiceError.isNotBlank()) Text(voiceError, style = MaterialTheme.typography.bodySmall)
-
-        Button(onClick = {
-            parsed = SmartInputParser.parse(raw, nowDate(), nowTime(), categories)
-            message = if (parsed.isEmpty()) "没有识别到可整理内容" else "已整理 ${parsed.size} 条，请先看预览"
-        }, enabled = raw.isNotBlank(), modifier = Modifier.fillMaxWidth()) { Text("自动整理并预览") }
-
-        if (parsed.isNotEmpty()) {
-            val counts = parsed.groupingBy { it.displayLabel }.eachCount()
-            Text(counts.entries.joinToString(" · ") { "${it.key} ${it.value}" }, style = MaterialTheme.typography.titleSmall)
-            FastScrollLazyColumn(modifier = Modifier.fillMaxWidth().heightIn(max = 330.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                items(parsed) { item ->
-                    Card(Modifier.fillMaxWidth()) {
-                        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Text(item.displayLabel, style = MaterialTheme.typography.labelLarge)
-                            Text(item.text)
-                            val extra = buildList { add(item.date); item.time?.let { add(it) }; item.temperature?.let { add("${it}℃") }; item.amount?.let { add("¥${"%.2f".format(it)}") } }
-                            Text(extra.joinToString(" · "), style = MaterialTheme.typography.bodySmall)
-                        }
-                    }
-                }
-            }
+        Column(
+            modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Text("可以直接粘贴、输入，或多次点语音继续追加。自定义类目也会按你设置的关键词参与分类。", style = MaterialTheme.typography.bodyMedium)
+            FlatTextField(value = raw, onValueChange = { raw = it; parsed = emptyList(); message = "" }, label = { Text("把大段内容放这里") }, modifier = Modifier.fillMaxWidth().heightIn(min = 190.dp), minLines = 8)
             Button(onClick = {
-                scope.launch {
-                    val saveTime = nowTime(); var saved = 0
-                    db.withTransaction {
-                        dao.saveTimeline(TimelineEntity(date = nowDate(), type = "智能录入原文", title = "智能录入 $saveTime", content = raw))
-                        for (item in parsed) {
-                            when (item.category) {
-                                SmartCategory.TEMPERATURE -> item.temperature?.let { dao.saveTemperature(TemperatureEntity(date=item.date,time=item.time?:saveTime,temperature=it,measurementSite=inferMeasurementSite(item.text),notes=item.text)); saved++ }
-                                SmartCategory.QUESTION -> { dao.saveQuestion(QuestionEntity(question=item.text.trim().trimEnd('？','?'),date=item.date,status="待问",notes="来自智能录入")); saved++ }
-                                SmartCategory.EXPENSE -> item.amount?.let { dao.saveExpense(ExpenseEntity(date=item.date,type=inferExpenseType(item.text),amount=it,selfPayAmount=it,notes=item.text)); saved++ }
-                                SmartCategory.EXAM -> { dao.saveExam(ExamEntity(name=inferExamName(item.text),date=item.date,type=inferExamType(item.text),summary=item.text,notes="来自智能录入")); saved++ }
-                                SmartCategory.TREATMENT -> { dao.saveRecord(TreatmentRecordEntity(date=item.date,type=inferTreatmentType(item.text),content=item.text,notes="来自智能录入")); saved++ }
-                                SmartCategory.SYMPTOM -> { dao.saveSymptom(SymptomEntity(date=item.date,temperature=item.temperature,urinaryFrequency=if(item.text.contains("尿频")||item.text.contains("尿急"))"有" else "",dysuria=if(item.text.contains("尿痛"))"有" else "",pain=if(item.text.contains("痛")||item.text.contains("疼")) item.text else "",fatigue=if(item.text.contains("乏力")||item.text.contains("疲劳"))"有" else "",bleeding=if(item.text.contains("出血"))"有" else "",notes=item.text)); saved++ }
-                                SmartCategory.CUSTOM -> item.customCategoryId?.let { id -> dao.saveCustomEntry(CustomEntryEntity(categoryId=id,date=item.date,title=item.customCategoryName.orEmpty(),content=item.text)); saved++ }
-                                SmartCategory.SUPPLY, SmartCategory.OTHER -> { dao.saveTimeline(TimelineEntity(date=item.date,type="待确认",title=item.displayLabel,content=item.text)); saved++ }
+                voiceError = ""
+                val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                    putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                    putExtra(RecognizerIntent.EXTRA_LANGUAGE, "zh-CN")
+                    putExtra(RecognizerIntent.EXTRA_PROMPT, "继续说，识别结果会追加到原文")
+                    putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
+                }
+                runCatching { voiceLauncher.launch(intent) }.onFailure { voiceError = "当前手机没有可用的系统语音识别服务，仍可直接粘贴或输入。" }
+            }, modifier = Modifier.fillMaxWidth()) { Icon(Icons.Default.Mic, null); Text("语音输入（可重复追加）") }
+            if (voiceError.isNotBlank()) Text(voiceError, style = MaterialTheme.typography.bodySmall)
+
+            Button(onClick = {
+                parsed = SmartInputParser.parse(raw, nowDate(), nowTime(), categories)
+                message = if (parsed.isEmpty()) "没有识别到可整理内容" else "已整理 ${parsed.size} 条，请先看预览"
+            }, enabled = raw.isNotBlank(), modifier = Modifier.fillMaxWidth()) { Text("自动整理并预览") }
+
+            if (parsed.isNotEmpty()) {
+                val counts = parsed.groupingBy { it.displayLabel }.eachCount()
+                Text(counts.entries.joinToString(" · ") { "${it.key} ${it.value}" }, style = MaterialTheme.typography.titleSmall)
+                FastScrollLazyColumn(modifier = Modifier.fillMaxWidth().heightIn(max = 330.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    items(parsed) { item ->
+                        Card(Modifier.fillMaxWidth()) {
+                            Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Text(item.displayLabel, style = MaterialTheme.typography.labelLarge)
+                                Text(item.text)
+                                val extra = buildList { add(item.date); item.time?.let { add(it) }; item.temperature?.let { add("${it}℃") }; item.amount?.let { add("¥${"%.2f".format(it)}") } }
+                                Text(extra.joinToString(" · "), style = MaterialTheme.typography.bodySmall)
                             }
                         }
                     }
-                    message = "已保存 $saved 条；原文也已完整保留。无法确定的内容进入待确认。"
                 }
-            }, modifier = Modifier.fillMaxWidth()) { Icon(Icons.Default.Save, null); Text("确认并全部保存") }
+                Button(onClick = {
+                    scope.launch {
+                        val saveTime = nowTime(); var saved = 0
+                        db.withTransaction {
+                            dao.saveTimeline(TimelineEntity(date = nowDate(), type = "智能录入原文", title = "智能录入 $saveTime", content = raw))
+                            for (item in parsed) {
+                                when (item.category) {
+                                    SmartCategory.TEMPERATURE -> item.temperature?.let { dao.saveTemperature(TemperatureEntity(date=item.date,time=item.time?:saveTime,temperature=it,measurementSite=inferMeasurementSite(item.text),notes=item.text)); saved++ }
+                                    SmartCategory.QUESTION -> { dao.saveQuestion(QuestionEntity(question=item.text.trim().trimEnd('？','?'),date=item.date,status="待问",notes="来自智能录入")); saved++ }
+                                    SmartCategory.EXPENSE -> item.amount?.let { dao.saveExpense(ExpenseEntity(date=item.date,type=inferExpenseType(item.text),amount=it,selfPayAmount=it,notes=item.text)); saved++ }
+                                    SmartCategory.EXAM -> { dao.saveExam(ExamEntity(name=inferExamName(item.text),date=item.date,type=inferExamType(item.text),summary=item.text,notes="来自智能录入")); saved++ }
+                                    SmartCategory.TREATMENT -> { dao.saveRecord(TreatmentRecordEntity(date=item.date,type=inferTreatmentType(item.text),content=item.text,notes="来自智能录入")); saved++ }
+                                    SmartCategory.SYMPTOM -> { dao.saveSymptom(SymptomEntity(date=item.date,temperature=item.temperature,urinaryFrequency=if(item.text.contains("尿频")||item.text.contains("尿急"))"有" else "",dysuria=if(item.text.contains("尿痛"))"有" else "",pain=if(item.text.contains("痛")||item.text.contains("疼")) item.text else "",fatigue=if(item.text.contains("乏力")||item.text.contains("疲劳"))"有" else "",bleeding=if(item.text.contains("出血"))"有" else "",notes=item.text)); saved++ }
+                                    SmartCategory.CUSTOM -> item.customCategoryId?.let { id -> dao.saveCustomEntry(CustomEntryEntity(categoryId=id,date=item.date,title=item.customCategoryName.orEmpty(),content=item.text)); saved++ }
+                                    SmartCategory.SUPPLY, SmartCategory.OTHER -> { dao.saveTimeline(TimelineEntity(date=item.date,type="待确认",title=item.displayLabel,content=item.text)); saved++ }
+                                }
+                            }
+                        }
+                        message = "已保存 $saved 条；原文也已完整保留。无法确定的内容进入待确认。"
+                    }
+                }, modifier = Modifier.fillMaxWidth()) { Icon(Icons.Default.Save, null); Text("确认并全部保存") }
+            }
+            if (message.isNotBlank()) Text(message)
+            if (raw.isNotBlank()) TextButton(onClick = { raw="";parsed=emptyList();message="" }) { Text("清空输入") }
         }
-        if (message.isNotBlank()) Text(message)
-        if (raw.isNotBlank()) TextButton(onClick = { raw="";parsed=emptyList();message="" }) { Text("清空输入") }
     }
 }
 

@@ -1,5 +1,5 @@
 name: Android APK
-# Builds with one explicit repository keystore and publishes 0.35.1 only after tests and signature verification.
+# Builds with one explicit repository keystore and publishes only after tests and signature verification.
 on:
   push:
   workflow_dispatch:
@@ -89,7 +89,7 @@ jobs:
               "versionName": os.environ["VERSION_NAME"],
               "apkUrl": "https://raw.githubusercontent.com/combustible12/TreatmentVault-Updates/main/TreatmentVault-latest.apk",
               "sha256": os.environ["SHA"],
-              "notes": "统一页面为白底、模块和卡片为 #F5F5F5；选中筛选改为 #E3E3E3 深灰字；移除近黑按钮，悬浮球开关改为中灰开启态。"
+              "notes": "修复笔记及各类记录编辑时长文本被键盘遮挡、底部无法滚动的问题；智能录入支持整页滚动，普通页面统一处理键盘占位。"
           }
           with open("update-repo/update.json", "w", encoding="utf-8") as f:
               json.dump(data, f, ensure_ascii=False, indent=2)

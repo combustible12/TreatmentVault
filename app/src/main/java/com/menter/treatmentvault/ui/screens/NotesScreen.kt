@@ -161,7 +161,8 @@ fun NoteEditorScreen(noteId: Long, initialCategoryId: String?, inDialog: Boolean
     }
 
     val editor: @Composable () -> Unit = {
-        Scaffold(topBar = {
+        // Keep the scrolling viewport above the keyboard, including long text blocks.
+        Scaffold(modifier = Modifier.fillMaxSize().imePadding(), topBar = {
             TopAppBar(
                 title = { Text(if (noteId > 0 || persistedId > 0) "编辑记录" else "新建记录") },
                 navigationIcon = { IconButton(onClick = { saveAndBack() }) { Icon(Icons.Default.ArrowBack, "返回并保存") } },
@@ -236,7 +237,7 @@ fun NoteEditorScreen(noteId: Long, initialCategoryId: String?, inDialog: Boolean
     }
 
     if (inDialog) {
-        Dialog(onDismissRequest = { saveAndBack() }, properties = DialogProperties(usePlatformDefaultWidth = false)) { editor() }
+        Dialog(onDismissRequest = { saveAndBack() }, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) { editor() }
     } else {
         BackHandler { saveAndBack() }
         editor()
