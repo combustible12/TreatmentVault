@@ -190,7 +190,7 @@ fun NoteEditorScreen(noteId: Long, initialCategoryId: String?, inDialog: Boolean
                 item {
                     Box(Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 8.dp)) {
                         if (title.isBlank()) Text("标题", style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        BasicTextField(value = title, onValueChange = { if (title != it) { title = it; markDirty() } }, modifier = Modifier.fillMaxWidth(), singleLine = true, textStyle = MaterialTheme.typography.headlineSmall.copy(color = MaterialTheme.colorScheme.onSurface))
+                        BasicTextField(value = title, onValueChange = { if (title != it) { title = it; markDirty() } }, modifier = Modifier.fillMaxWidth(), singleLine = false, textStyle = MaterialTheme.typography.headlineSmall.copy(color = MaterialTheme.colorScheme.onSurface))
                     }
                 }
                 item {
