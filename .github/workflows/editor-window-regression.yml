@@ -1,6 +1,8 @@
 name: Editor window regression
 on:
   workflow_dispatch:
+  push:
+    branches: [fix/editor-resume-cursor]
 jobs:
   test:
     runs-on: ubuntu-latest

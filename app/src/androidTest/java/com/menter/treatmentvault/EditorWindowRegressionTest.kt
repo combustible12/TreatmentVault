@@ -63,6 +63,55 @@ class EditorWindowRegressionTest {
         assertTrue("Edits lost after closing and reopening", saved?.content?.contains("追加-1-1") == true)
     }
 
+    @Test fun cursorRemainsVisibleAfterSwitchingAppsAndPasting() {
+        val app = rule.activity.application as TreatmentVaultApplication
+        val entryId = runBlocking { app.database.dao().saveCustomEntry(CustomEntryEntity(categoryId = "inbox", date = "2026-11-12", title = "CURSOR-RESUME", content = body)) }
+        rule.runOnUiThread { rule.activity.setContent { NoteEditorScreen(noteId = entryId, initialCategoryId = null, back = {}, inDialog = true) } }
+        waitForBody()
+        openKeyboard()
+        rule.onNode(bodyMatcher).performTextInputSelection(androidx.compose.ui.text.TextRange(body.length))
+        rule.onNode(bodyMatcher).performTextInput(" BEFORE-SWITCH")
+        Thread.sleep(800)
+        repeat(2) { cycle ->
+            val context = InstrumentationRegistry.getInstrumentation().targetContext
+            context.startActivity(android.content.Intent(android.provider.Settings.ACTION_SETTINGS).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK))
+            Thread.sleep(1000)
+            context.startActivity(android.content.Intent(context, MainActivity::class.java).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_REORDER_TO_FRONT))
+            Thread.sleep(1200)
+            rule.waitForIdle()
+            assertCursorInViewport("resume_$cycle")
+            rule.runOnUiThread {
+                val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                clipboard.setPrimaryClip(android.content.ClipData.newPlainText("paste", "\n粘贴内容 $cycle\n末尾光标 $cycle"))
+            }
+            rule.onNode(bodyMatcher).performSemanticsAction(SemanticsActions.PasteText) { it() }
+            Thread.sleep(900)
+            rule.waitForIdle()
+            rule.onNode(bodyMatcher).assertTextContains("末尾光标 $cycle", substring = true)
+            assertCursorInViewport("paste_$cycle")
+        }
+        // Editing in the middle must follow that insertion point, not jump to the document end.
+        rule.onNode(bodyMatcher).performTextInputSelection(androidx.compose.ui.text.TextRange(body.length / 2))
+        rule.onNode(bodyMatcher).performTextInput(" MIDDLE-INSERT ")
+        Thread.sleep(700)
+        assertCursorInViewport("middle_insert")
+    }
+
+    private fun assertCursorInViewport(name: String) {
+        val field = rule.onNode(bodyMatcher)
+        val layouts = mutableListOf<androidx.compose.ui.text.TextLayoutResult>()
+        field.performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(layouts) }
+        val node = field.fetchSemanticsNode()
+        val cursor = layouts.single().getCursorRect(node.config[SemanticsProperties.TextSelectionRange].end)
+        val cursorTop = node.positionInWindow.y + cursor.top
+        val cursorBottom = node.positionInWindow.y + cursor.bottom
+        val viewport = rule.onNode(listMatcher).fetchSemanticsNode().boundsInWindow
+        Log.i("KeyboardDiag", "$name cursor=$cursorTop..$cursorBottom viewport=$viewport")
+        device.executeShellCommand("mkdir -p /sdcard/Download/keyboard-diagnosis")
+        device.executeShellCommand("screencap -p /sdcard/Download/keyboard-diagnosis/$name.png")
+        assertTrue("Cursor hidden after $name: $cursorTop..$cursorBottom viewport=$viewport", cursorTop >= viewport.top - 1 && cursorBottom <= viewport.bottom + 1)
+    }
+
     @Test fun sharedStructuredEditor() {
         rule.runOnUiThread {
             rule.activity.setContent {
