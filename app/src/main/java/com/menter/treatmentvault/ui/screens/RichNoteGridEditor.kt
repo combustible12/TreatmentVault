@@ -9,7 +9,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -265,7 +264,7 @@ fun RichNoteBodyGridEditor(
                                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) { FilledTonalIconButton(onClick = { runCatching { uriHandler.openUri(compactUrl) } }) { Icon(Icons.Default.Link, "打开链接") } }
                             } else {
                                 Column {
-                                    BasicTextField(
+                                    CursorAwareNoteTextField(
                                         value = TextFieldValue(
                                             text = block.text,
                                             selection = (textSelections[block.key] ?: TextRange(block.text.length)).let {
