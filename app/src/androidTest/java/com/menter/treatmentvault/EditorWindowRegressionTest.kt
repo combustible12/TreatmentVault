@@ -75,9 +75,12 @@ class EditorWindowRegressionTest {
         repeat(2) { cycle ->
             val context = InstrumentationRegistry.getInstrumentation().targetContext
             context.startActivity(android.content.Intent(android.provider.Settings.ACTION_SETTINGS).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK))
-            Thread.sleep(1000)
+            assertTrue("Settings did not reach foreground", device.wait(androidx.test.uiautomator.Until.hasObject(By.pkg("com.android.settings").depth(0)), 15_000))
+            device.waitForIdle()
             context.startActivity(android.content.Intent(context, MainActivity::class.java).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_REORDER_TO_FRONT))
-            Thread.sleep(1200)
+            assertTrue("Editor did not return to foreground", device.wait(androidx.test.uiautomator.Until.hasObject(By.pkg(context.packageName).depth(0)), 15_000))
+            device.waitForIdle()
+            Thread.sleep(700)
             rule.waitForIdle()
             assertCursorInViewport("resume_$cycle")
             rule.runOnUiThread {

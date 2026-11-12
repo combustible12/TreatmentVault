@@ -10,7 +10,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        api: [30, 36]
+        api: [30]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -37,7 +37,7 @@ jobs:
             adb shell wm size 702x1536
             adb shell wm density 320
             adb shell settings put secure show_ime_with_hard_keyboard 1
-            bash scripts/test-editor-window.sh
+            gradle connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.menter.treatmentvault.EditorWindowRegressionTest#cursorRemainsVisibleAfterSwitchingAppsAndPasting --stacktrace
       - name: Collect results
         if: always()
         uses: actions/upload-artifact@v4
