@@ -22,8 +22,8 @@ android {
         applicationId = "com.menter.treatmentvault"
         minSdk = 26
         targetSdk = 35
-        versionCode = 83
-        versionName = "0.35.3"
+        versionCode = 84
+        versionName = "0.35.4"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
