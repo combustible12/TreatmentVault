@@ -9,6 +9,7 @@ import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -20,20 +21,26 @@ import androidx.compose.foundation.lazy.items as listItems
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.ExpandLess
-import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ViewList
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Pause
+import androidx.compose.material.icons.filled.Flag
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import com.menter.treatmentvault.TreatmentVaultApplication
@@ -41,12 +48,16 @@ import com.menter.treatmentvault.data.CustomEntryEntity
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlin.math.roundToInt
 
 private const val PREF_AUDIO_GRID_MODE = "audio_grid_mode"
 
 internal enum class RecordingMarkerFilter(val label: String) {
     ALL("全部"), MARKED("标记"), UNMARKED("未标记")
 }
+
+internal fun shouldRevealRecordingActions(offsetPx: Float, actionWidthPx: Float): Boolean =
+    actionWidthPx > 0f && offsetPx >= actionWidthPx / 2f
 
 internal fun filterAudioRecordings(
     entries: List<CustomEntryEntity>,
@@ -93,6 +104,9 @@ fun FloatingAudioScreen(back: () -> Unit) {
     var enabled by remember { mutableStateOf(prefs.getBoolean(FloatingRecorderService.PREF_ENABLED, false)) }
     var message by remember { mutableStateOf("") }
     var expandedRecordingId by remember { mutableStateOf<Long?>(null) }
+    var playbackRequestRecordingId by remember { mutableStateOf<Long?>(null) }
+    var playbackRequestSequence by remember { mutableIntStateOf(0) }
+    var playingRecordingId by remember { mutableStateOf<Long?>(null) }
     var gridMode by remember { mutableStateOf(prefs.getBoolean(PREF_AUDIO_GRID_MODE, false)) }
     var pendingRenameId by remember { mutableStateOf<Long?>(null) }
     var renameText by remember { mutableStateOf("") }
@@ -187,6 +201,7 @@ fun FloatingAudioScreen(back: () -> Unit) {
                 fileNames.forEach { fileName -> runCatching { attachmentFile(context, fileName).delete() } }
             }
             if (expandedRecordingId == entry.id) expandedRecordingId = null
+            if (playingRecordingId == entry.id) playingRecordingId = null
             pendingDelete = null
             message = "录音已删除。"
         }
@@ -198,8 +213,8 @@ fun FloatingAudioScreen(back: () -> Unit) {
                 columns = GridCells.Fixed(2),
                 state = gridState,
                 modifier = Modifier.fillMaxSize(),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
                 contentPadding = PaddingValues(bottom = 24.dp),
             ) {
                 item(span = { GridItemSpan(maxLineSpan) }) {
@@ -245,9 +260,15 @@ fun FloatingAudioScreen(back: () -> Unit) {
                             entry = entry,
                             compact = expandedRecordingId != entry.id,
                             expanded = expandedRecordingId == entry.id,
-                            onToggleExpanded = {
-                                expandedRecordingId = if (expandedRecordingId == entry.id) null else entry.id
+                            playing = playingRecordingId == entry.id,
+                            playRequest = if (playbackRequestRecordingId == entry.id) playbackRequestSequence else 0,
+                            onPlay = {
+                                expandedRecordingId = entry.id
+                                playbackRequestRecordingId = entry.id
+                                playbackRequestSequence++
                             },
+                            onCollapse = { expandedRecordingId = null; playbackRequestRecordingId = null },
+                            onViewMarkers = { playbackRequestRecordingId = null; expandedRecordingId = entry.id },
                             onRename = {
                                 renameText = entry.title
                                 renameError = ""
@@ -255,6 +276,7 @@ fun FloatingAudioScreen(back: () -> Unit) {
                             },
                             onDelete = { pendingDelete = entry },
                             onMarkersChange = { updateMarkers(entry, it) },
+                            onPlayingChange = { playing -> playingRecordingId = if (playing) entry.id else playingRecordingId.takeUnless { it == entry.id } },
                         )
                     }
                 }
@@ -263,7 +285,7 @@ fun FloatingAudioScreen(back: () -> Unit) {
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
                 state = listState,
-                verticalArrangement = Arrangement.spacedBy(10.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp),
                 contentPadding = PaddingValues(bottom = 24.dp),
             ) {
                 item {
@@ -303,9 +325,15 @@ fun FloatingAudioScreen(back: () -> Unit) {
                             entry = entry,
                             compact = false,
                             expanded = expandedRecordingId == entry.id,
-                            onToggleExpanded = {
-                                expandedRecordingId = if (expandedRecordingId == entry.id) null else entry.id
+                            playing = playingRecordingId == entry.id,
+                            playRequest = if (playbackRequestRecordingId == entry.id) playbackRequestSequence else 0,
+                            onPlay = {
+                                expandedRecordingId = entry.id
+                                playbackRequestRecordingId = entry.id
+                                playbackRequestSequence++
                             },
+                            onCollapse = { expandedRecordingId = null; playbackRequestRecordingId = null },
+                            onViewMarkers = { playbackRequestRecordingId = null; expandedRecordingId = entry.id },
                             onRename = {
                                 renameText = entry.title
                                 renameError = ""
@@ -313,6 +341,7 @@ fun FloatingAudioScreen(back: () -> Unit) {
                             },
                             onDelete = { pendingDelete = entry },
                             onMarkersChange = { updateMarkers(entry, it) },
+                            onPlayingChange = { playing -> playingRecordingId = if (playing) entry.id else playingRecordingId.takeUnless { it == entry.id } },
                         )
                     }
                 }
@@ -511,78 +540,106 @@ private fun RecordingCard(
     entry: CustomEntryEntity,
     compact: Boolean,
     expanded: Boolean,
-    onToggleExpanded: () -> Unit,
+    playing: Boolean,
+    playRequest: Int,
+    onPlay: () -> Unit,
+    onCollapse: () -> Unit,
+    onViewMarkers: () -> Unit,
     onRename: () -> Unit,
     onDelete: () -> Unit,
     onMarkersChange: (List<AudioTimeMarker>) -> Unit,
+    onPlayingChange: (Boolean) -> Unit,
 ) {
     val fileName = remember(entry.content) { richBodyAudioNames(entry.content).firstOrNull() }
     val markers = remember(entry.content) { audioMarkersFromContent(entry.content) }
+    val file = remember(fileName) { fileName?.let { attachmentFile(context, it) } }
+    val durationMs by produceState<Long?>(initialValue = null, file?.absolutePath, file?.lastModified()) {
+        value = withContext(Dispatchers.IO) { file?.let(::audioFileDurationMs)?.takeIf { it > 0L } }
+    }
+    val detailLine = buildList {
+        if (entry.date.isNotBlank()) add(entry.date)
+        add(durationMs?.let(::formatAudioTime) ?: "--:--")
+    }.joinToString("  ·  ")
+    val actionWidth = 174.dp
+    val actionWidthPx = with(LocalDensity.current) { actionWidth.toPx() }
+    var revealed by remember(entry.id) { mutableStateOf(false) }
+    var dragging by remember(entry.id) { mutableStateOf(false) }
+    var draggedOffset by remember(entry.id) { mutableFloatStateOf(0f) }
+    val targetOffset = if (dragging) draggedOffset else if (revealed) actionWidthPx else 0f
+    val shownOffset by androidx.compose.animation.core.animateFloatAsState(targetOffset, label = "录音卡片右划")
 
-    Card(Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(if (compact) 12.dp else 14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Surface(
-                color = if (markers.isNotEmpty()) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant,
-                contentColor = if (markers.isNotEmpty()) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
-                shape = MaterialTheme.shapes.small,
+    Box(Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier.align(Alignment.CenterStart).width(actionWidth).heightIn(min = 58.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            @Composable fun RowScope.Action(text: String, icon: androidx.compose.ui.graphics.vector.ImageVector, action: () -> Unit) {
+                TextButton(
+                    modifier = Modifier.weight(1f).heightIn(min = 54.dp),
+                    contentPadding = PaddingValues(horizontal = 1.dp, vertical = 2.dp),
+                    onClick = { revealed = false; action() },
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(1.dp)) {
+                        Icon(icon, null, Modifier.size(17.dp))
+                        Text(text, style = MaterialTheme.typography.labelSmall, maxLines = 1)
+                    }
+                }
+            }
+            Action("重命名", Icons.Default.Edit, onRename)
+            Action("删除", Icons.Default.DeleteOutline, onDelete)
+            Action("查看标记", Icons.Default.Flag, onViewMarkers)
+        }
+
+        Card(
+            Modifier.fillMaxWidth()
+                .offset { IntOffset(shownOffset.roundToInt(), 0) }
+                .pointerInput(entry.id, actionWidthPx) {
+                    detectHorizontalDragGestures(
+                        onDragStart = {
+                            dragging = true
+                            draggedOffset = if (revealed) actionWidthPx else 0f
+                        },
+                        onHorizontalDrag = { change, amount ->
+                            change.consume()
+                            draggedOffset = (draggedOffset + amount).coerceIn(0f, actionWidthPx)
+                        },
+                        onDragCancel = { dragging = false; revealed = shouldRevealRecordingActions(draggedOffset, actionWidthPx) },
+                        onDragEnd = { dragging = false; revealed = shouldRevealRecordingActions(draggedOffset, actionWidthPx) },
+                    )
+                },
+        ) {
+            Column(
+                Modifier.fillMaxWidth().padding(horizontal = if (compact) 9.dp else 11.dp, vertical = 7.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
             ) {
-                Text(
-                    text = if (markers.isNotEmpty()) "已标记 · ${markers.size}处" else "未标记",
-                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                    style = MaterialTheme.typography.labelMedium,
-                )
-            }
-            if (compact) {
-                Text(entry.title.ifBlank { "录音" }, style = MaterialTheme.typography.titleSmall, maxLines = 2)
-                if (entry.date.isNotBlank()) Text(entry.date, style = MaterialTheme.typography.bodySmall, maxLines = 1)
-                Spacer(Modifier.height(2.dp))
-                FlatButton(onClick = onToggleExpanded, modifier = Modifier.fillMaxWidth()) {
-                    Icon(Icons.Default.ExpandMore, contentDescription = null)
-                    Spacer(Modifier.width(4.dp))
-                    Text("播放 / 标记")
-                }
-                TextButton(onClick = onDelete, modifier = Modifier.fillMaxWidth()) {
-                    Icon(Icons.Default.DeleteOutline, contentDescription = null)
-                    Spacer(Modifier.width(4.dp))
-                    Text("删除")
-                }
-            } else {
-                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
-                    Column(Modifier.weight(1f)) {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
                         Text(entry.title.ifBlank { "录音" }, style = MaterialTheme.typography.titleSmall)
-                        if (entry.date.isNotBlank()) Text(entry.date, style = MaterialTheme.typography.bodySmall)
+                        Text(detailLine, style = MaterialTheme.typography.bodySmall, maxLines = 1)
                     }
-                    IconButton(onClick = onDelete) {
-                        Icon(Icons.Default.DeleteOutline, contentDescription = "删除录音")
+                    IconButton(onClick = onPlay, modifier = Modifier.size(38.dp), enabled = file?.isFile == true) {
+                        Icon(if (playing) Icons.Default.Pause else Icons.Default.PlayArrow, if (playing) "暂停" else "播放")
+                    }
+                    if (expanded) IconButton(onClick = onCollapse, modifier = Modifier.size(34.dp)) {
+                        Icon(Icons.Default.ExpandLess, "收起播放和标记")
                     }
                 }
-                FlatButton(onClick = onToggleExpanded, modifier = Modifier.fillMaxWidth()) {
-                    Icon(
-                        if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
-                        contentDescription = null,
-                    )
-                    Spacer(Modifier.width(4.dp))
-                    Text(if (expanded) "收起" else "播放 / 标记")
-                }
-            }
 
-            TextButton(onClick = onRename) { Text("重命名") }
-
-            if (expanded && fileName != null) {
-                val file = attachmentFile(context, fileName)
-                if (file.isFile) {
-                    AdvancedAudioPlayer(
-                        file = file,
-                        markers = markers,
-                        onMarkersChange = onMarkersChange,
-                    )
-                } else {
-                    Text("录音文件不存在", style = MaterialTheme.typography.bodySmall)
-                }
-            } else if (fileName == null) {
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Icon(Icons.Default.GraphicEq, contentDescription = null)
-                    Text("没有找到可播放的录音文件", style = MaterialTheme.typography.bodySmall)
+                if (expanded && file != null) {
+                    if (file.isFile) {
+                        AdvancedAudioPlayer(
+                            file = file,
+                            markers = markers,
+                            onMarkersChange = onMarkersChange,
+                            playRequest = playRequest,
+                            onPlayingChange = onPlayingChange,
+                        )
+                    } else Text("录音文件不存在", style = MaterialTheme.typography.bodySmall)
+                } else if (fileName == null) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Icon(Icons.Default.GraphicEq, contentDescription = null, modifier = Modifier.size(17.dp))
+                        Text("没有找到可播放的录音文件", style = MaterialTheme.typography.bodySmall)
+                    }
                 }
             }
         }

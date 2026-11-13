@@ -2,6 +2,8 @@ package com.menter.treatmentvault.ui.screens
 
 import com.menter.treatmentvault.data.CustomEntryEntity
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class FloatingAudioFilterTest {
@@ -49,5 +51,18 @@ class FloatingAudioFilterTest {
             listOf(2L, 1L),
             filterAudioRecordings(listOf(olderButRecentlyEdited, newer), "", RecordingMarkerFilter.ALL).map { it.id },
         )
+    }
+
+    @Test
+    fun recordingActionsOnlyOpenAfterARealRightSwipe() {
+        assertFalse(shouldRevealRecordingActions(-90f, 180f))
+        assertFalse(shouldRevealRecordingActions(89f, 180f))
+        assertTrue(shouldRevealRecordingActions(90f, 180f))
+    }
+
+    @Test
+    fun compactDurationUsesMinutesAndSeconds() {
+        assertEquals("00:00", formatAudioTime(0))
+        assertEquals("02:05", formatAudioTime(125_000))
     }
 }

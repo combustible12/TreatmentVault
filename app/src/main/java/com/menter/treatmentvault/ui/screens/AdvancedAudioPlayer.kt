@@ -1,6 +1,7 @@
 package com.menter.treatmentvault.ui.screens
 
 import android.media.MediaPlayer
+import android.media.MediaMetadataRetriever
 import android.media.audiofx.Visualizer
 import android.net.Uri
 import android.os.Handler
@@ -60,11 +61,24 @@ internal fun contentWithAudioMarkers(content: String, markers: List<AudioTimeMar
     return listOf(clean, encodedMarkers).filter { it.isNotBlank() }.joinToString("\n")
 }
 
-private fun formatAudioTime(milliseconds: Long): String {
+internal fun formatAudioTime(milliseconds: Long): String {
     val totalSeconds = milliseconds.coerceAtLeast(0L) / 1000L
     val minutes = totalSeconds / 60
     val seconds = totalSeconds % 60
     return "%02d:%02d".format(minutes, seconds)
+}
+
+internal fun audioFileDurationMs(file: File): Long {
+    if (!file.isFile) return 0L
+    val retriever = MediaMetadataRetriever()
+    return try {
+        retriever.setDataSource(file.absolutePath)
+        retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull() ?: 0L
+    } catch (_: Exception) {
+        0L
+    } finally {
+        runCatching { retriever.release() }
+    }
 }
 
 private class SilenceSkipController(
@@ -159,6 +173,8 @@ internal fun AdvancedAudioPlayer(
     file: File,
     markers: List<AudioTimeMarker>,
     onMarkersChange: (List<AudioTimeMarker>) -> Unit,
+    playRequest: Int = 0,
+    onPlayingChange: (Boolean) -> Unit = {},
 ) {
     val context = LocalContext.current
     val player = remember(file.absolutePath) {
@@ -187,19 +203,12 @@ internal fun AdvancedAudioPlayer(
         player?.setOnCompletionListener {
             isPlaying = false
             positionMs = durationMs
+            onPlayingChange(false)
         }
         onDispose {
+            onPlayingChange(false)
             silenceController?.release()
             runCatching { player?.release() }
-        }
-    }
-
-    LaunchedEffect(isPlaying, dragging, player) {
-        while (isPlaying && player != null) {
-            if (!dragging) {
-                positionMs = runCatching { player.currentPosition.toLong() }.getOrDefault(positionMs)
-            }
-            delay(180)
         }
     }
 
@@ -220,58 +229,60 @@ internal fun AdvancedAudioPlayer(
         }
     }
 
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(
-            modifier = Modifier.fillMaxWidth().padding(12.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                IconButton(
-                    enabled = player != null,
-                    onClick = {
-                        player ?: return@IconButton
-                        if (isPlaying) {
-                            runCatching { player.pause() }
-                            isPlaying = false
-                        } else {
-                            if (positionMs >= durationMs - 100L) seekTo(0L)
-                            runCatching {
-                                val params = player.playbackParams
-                                params.speed = playbackSpeed
-                                player.playbackParams = params
-                                player.start()
-                            }.onSuccess { isPlaying = true }
-                        }
-                    },
-                ) {
-                    Icon(
-                        if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
-                        contentDescription = if (isPlaying) "暂停" else "播放",
-                    )
-                }
+    fun togglePlayback() {
+        player ?: return
+        if (isPlaying) {
+            runCatching { player.pause() }
+            isPlaying = false
+            onPlayingChange(false)
+        } else {
+            if (positionMs >= durationMs - 100L) seekTo(0L)
+            runCatching {
+                val params = player.playbackParams
+                params.speed = playbackSpeed
+                player.playbackParams = params
+                player.start()
+            }.onSuccess {
+                isPlaying = true
+                onPlayingChange(true)
+            }
+        }
+    }
 
-                Column(Modifier.weight(1f)) {
-                    Slider(
-                        value = if (dragging) dragPositionMs else positionMs.toFloat(),
-                        onValueChange = {
-                            dragging = true
-                            dragPositionMs = it
-                        },
-                        onValueChangeFinished = {
-                            seekTo(dragPositionMs.toLong())
-                            dragging = false
-                        },
-                        valueRange = 0f..durationMs.coerceAtLeast(1L).toFloat(),
-                        enabled = player != null && durationMs > 0L,
-                    )
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text(formatAudioTime(if (dragging) dragPositionMs.toLong() else positionMs), style = MaterialTheme.typography.labelSmall)
-                        Text(formatAudioTime(durationMs), style = MaterialTheme.typography.labelSmall)
-                    }
+    LaunchedEffect(playRequest) {
+        if (playRequest > 0) togglePlayback()
+    }
+
+    LaunchedEffect(isPlaying, dragging, player) {
+        while (isPlaying && player != null) {
+            if (!dragging) {
+                positionMs = runCatching { player.currentPosition.toLong() }.getOrDefault(positionMs)
+            }
+            delay(180)
+        }
+    }
+
+    Column(
+        modifier = Modifier.fillMaxWidth().padding(top = 2.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+            Column(Modifier.fillMaxWidth()) {
+                Slider(
+                    value = if (dragging) dragPositionMs else positionMs.toFloat(),
+                    onValueChange = {
+                        dragging = true
+                        dragPositionMs = it
+                    },
+                    onValueChangeFinished = {
+                        seekTo(dragPositionMs.toLong())
+                        dragging = false
+                    },
+                    valueRange = 0f..durationMs.coerceAtLeast(1L).toFloat(),
+                    enabled = player != null && durationMs > 0L,
+                )
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text(formatAudioTime(if (dragging) dragPositionMs.toLong() else positionMs), style = MaterialTheme.typography.labelSmall)
+                    Text(formatAudioTime(durationMs), style = MaterialTheme.typography.labelSmall)
                 }
             }
 
@@ -350,17 +361,18 @@ internal fun AdvancedAudioPlayer(
             } else {
                 markers.sortedBy { it.positionMs }.forEach { marker ->
                     Row(
-                        modifier = Modifier.fillMaxWidth().clickable { seekTo(marker.positionMs) }.padding(vertical = 4.dp),
+                        modifier = Modifier.fillMaxWidth().clickable { seekTo(marker.positionMs) }.padding(vertical = 1.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(6.dp),
                     ) {
-                        AssistChip(
-                            onClick = { seekTo(marker.positionMs) },
-                            label = { Text(formatAudioTime(marker.positionMs)) },
-                            leadingIcon = { Icon(Icons.Default.Flag, contentDescription = null, modifier = Modifier.size(16.dp)) },
-                        )
+                        FlatButton(onClick = { seekTo(marker.positionMs) }, contentPadding = PaddingValues(horizontal = 7.dp, vertical = 2.dp)) {
+                            Icon(Icons.Default.Flag, contentDescription = null, modifier = Modifier.size(15.dp))
+                            Spacer(Modifier.width(3.dp))
+                            Text(formatAudioTime(marker.positionMs), style = MaterialTheme.typography.labelSmall)
+                        }
                         Text(marker.label, modifier = Modifier.weight(1f), maxLines = 2, overflow = TextOverflow.Ellipsis)
                         IconButton(
+                            modifier = Modifier.size(34.dp),
                             onClick = {
                                 editingMarker = marker
                                 editingLabel = marker.label
@@ -369,6 +381,7 @@ internal fun AdvancedAudioPlayer(
                             Icon(Icons.Default.Edit, contentDescription = "编辑标记")
                         }
                         IconButton(
+                            modifier = Modifier.size(34.dp),
                             onClick = { onMarkersChange(markers.filterNot { it === marker }) },
                         ) {
                             Icon(Icons.Default.DeleteOutline, contentDescription = "删除标记")
@@ -376,7 +389,6 @@ internal fun AdvancedAudioPlayer(
                     }
                 }
             }
-        }
     }
 
     if (markerDialogOpen) {
