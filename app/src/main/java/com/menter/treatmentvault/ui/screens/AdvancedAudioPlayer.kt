@@ -11,12 +11,12 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
 import java.io.File
@@ -292,7 +292,12 @@ internal fun AdvancedAudioPlayer(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 Box {
-                    FlatButton(onClick = { speedMenuOpen = true }, enabled = player != null) {
+                    TextButton(
+                        onClick = { speedMenuOpen = true },
+                        enabled = player != null,
+                        contentPadding = PaddingValues(horizontal = 0.dp, vertical = 0.dp),
+                        colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.onSurfaceVariant),
+                    ) {
                         Icon(Icons.Default.Speed, contentDescription = null)
                         Spacer(Modifier.width(5.dp))
                         Text("${playbackSpeed}×")
@@ -359,32 +364,36 @@ internal fun AdvancedAudioPlayer(
             if (markers.isEmpty()) {
                 Text("还没有标记。播放到需要记住的位置时，点“添加标记”。录音时也可以长按悬浮方块快速打标。", style = MaterialTheme.typography.bodySmall)
             } else {
-                markers.sortedBy { it.positionMs }.forEach { marker ->
-                    Row(
-                        modifier = Modifier.fillMaxWidth().clickable { seekTo(marker.positionMs) }.padding(vertical = 1.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    ) {
-                        FlatButton(onClick = { seekTo(marker.positionMs) }, contentPadding = PaddingValues(horizontal = 7.dp, vertical = 2.dp)) {
-                            Icon(Icons.Default.Flag, contentDescription = null, modifier = Modifier.size(15.dp))
-                            Spacer(Modifier.width(3.dp))
-                            Text(formatAudioTime(marker.positionMs), style = MaterialTheme.typography.labelSmall)
-                        }
-                        Text(marker.label, modifier = Modifier.weight(1f), maxLines = 2, overflow = TextOverflow.Ellipsis)
-                        IconButton(
-                            modifier = Modifier.size(34.dp),
-                            onClick = {
-                                editingMarker = marker
-                                editingLabel = marker.label
-                            },
+                markers.sortedBy { it.positionMs }.forEachIndexed { index, marker ->
+                    key(marker.positionMs, marker.label, index) {
+                        AudioSwipeActions(
+                            identity = marker,
+                            actions = listOf(AudioSwipeAction("删除标记", Icons.Outlined.Delete) {
+                                onMarkersChange(markers.filterNot { it === marker })
+                            }),
+                            background = MaterialTheme.colorScheme.surfaceContainerHighest,
                         ) {
-                            Icon(Icons.Default.Edit, contentDescription = "编辑标记")
-                        }
-                        IconButton(
-                            modifier = Modifier.size(34.dp),
-                            onClick = { onMarkersChange(markers.filterNot { it === marker }) },
-                        ) {
-                            Icon(Icons.Default.DeleteOutline, contentDescription = "删除标记")
+                            Row(
+                                modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).clickable { seekTo(marker.positionMs) },
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            ) {
+                                Text(
+                                    formatAudioTime(marker.positionMs),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                                Text(marker.label, modifier = Modifier.weight(1f))
+                                IconButton(
+                                    modifier = Modifier.size(34.dp),
+                                    onClick = {
+                                        editingMarker = marker
+                                        editingLabel = marker.label
+                                    },
+                                ) {
+                                    Icon(Icons.Default.Edit, contentDescription = "编辑标记")
+                                }
+                            }
                         }
                     }
                 }

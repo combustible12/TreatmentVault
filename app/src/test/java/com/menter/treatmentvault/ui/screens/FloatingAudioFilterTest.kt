@@ -54,10 +54,11 @@ class FloatingAudioFilterTest {
     }
 
     @Test
-    fun recordingActionsOnlyOpenAfterARealRightSwipe() {
-        assertFalse(shouldRevealRecordingActions(-90f, 180f))
-        assertFalse(shouldRevealRecordingActions(89f, 180f))
-        assertTrue(shouldRevealRecordingActions(90f, 180f))
+    fun shortLeftSwipeOpensActionsAndRightSwipeClosesThem() {
+        assertTrue(audioActionsOpenAfterDrag(false, -12f))
+        assertFalse(audioActionsOpenAfterDrag(true, 12f))
+        assertFalse(audioActionsOpenAfterDrag(false, 0f))
+        assertTrue(audioActionsOpenAfterDrag(true, 0f))
     }
 
     @Test

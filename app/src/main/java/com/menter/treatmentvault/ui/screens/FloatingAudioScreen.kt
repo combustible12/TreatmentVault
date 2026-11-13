@@ -9,7 +9,6 @@ import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -32,16 +31,16 @@ import androidx.compose.material.icons.filled.ViewList
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.Flag
+import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.material.icons.outlined.Edit
+import androidx.compose.material.icons.outlined.Flag
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import com.menter.treatmentvault.TreatmentVaultApplication
@@ -49,16 +48,12 @@ import com.menter.treatmentvault.data.CustomEntryEntity
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import kotlin.math.roundToInt
 
 private const val PREF_AUDIO_GRID_MODE = "audio_grid_mode"
 
 internal enum class RecordingMarkerFilter(val label: String) {
     ALL("全部"), MARKED("标记"), UNMARKED("未标记")
 }
-
-internal fun shouldRevealRecordingActions(offsetPx: Float, actionWidthPx: Float): Boolean =
-    actionWidthPx > 0f && offsetPx >= actionWidthPx / 2f
 
 internal fun filterAudioRecordings(
     entries: List<CustomEntryEntity>,
@@ -561,54 +556,17 @@ private fun RecordingCard(
         if (entry.date.isNotBlank()) add(entry.date)
         add(durationMs?.let(::formatAudioTime) ?: "--:--")
     }.joinToString("  ·  ")
-    val actionWidth = 174.dp
-    val actionWidthPx = with(LocalDensity.current) { actionWidth.toPx() }
-    var revealed by remember(entry.id) { mutableStateOf(false) }
-    var dragging by remember(entry.id) { mutableStateOf(false) }
-    var draggedOffset by remember(entry.id) { mutableFloatStateOf(0f) }
-    val targetOffset = if (dragging) draggedOffset else if (revealed) actionWidthPx else 0f
-    val shownOffset by androidx.compose.animation.core.animateFloatAsState(targetOffset, label = "录音卡片右划")
-
-    Box(Modifier.fillMaxWidth()) {
-        Row(
-            modifier = Modifier.align(Alignment.CenterStart).width(actionWidth).heightIn(min = 58.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            @Composable fun RowScope.Action(text: String, icon: androidx.compose.ui.graphics.vector.ImageVector, action: () -> Unit) {
-                TextButton(
-                    modifier = Modifier.weight(1f).heightIn(min = 54.dp),
-                    contentPadding = PaddingValues(horizontal = 1.dp, vertical = 2.dp),
-                    onClick = { revealed = false; action() },
-                ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(1.dp)) {
-                        Icon(icon, null, Modifier.size(17.dp))
-                        Text(text, style = MaterialTheme.typography.labelSmall, maxLines = 1)
-                    }
-                }
-            }
-            Action("重命名", Icons.Default.Edit, onRename)
-            Action("删除", Icons.Default.DeleteOutline, onDelete)
-            Action("查看标记", Icons.Default.Flag, onViewMarkers)
-        }
-
-        Card(
-            Modifier.fillMaxWidth()
-                .offset { IntOffset(shownOffset.roundToInt(), 0) }
-                .pointerInput(entry.id, actionWidthPx) {
-                    detectHorizontalDragGestures(
-                        onDragStart = {
-                            dragging = true
-                            draggedOffset = if (revealed) actionWidthPx else 0f
-                        },
-                        onHorizontalDrag = { change, amount ->
-                            change.consume()
-                            draggedOffset = (draggedOffset + amount).coerceIn(0f, actionWidthPx)
-                        },
-                        onDragCancel = { dragging = false; revealed = shouldRevealRecordingActions(draggedOffset, actionWidthPx) },
-                        onDragEnd = { dragging = false; revealed = shouldRevealRecordingActions(draggedOffset, actionWidthPx) },
-                    )
-                },
-        ) {
+    AudioSwipeActions(
+        identity = entry.id,
+        actions = listOf(
+            AudioSwipeAction("重命名", Icons.Outlined.Edit, onRename),
+            AudioSwipeAction("删除录音", Icons.Outlined.Delete, onDelete),
+            AudioSwipeAction("查看标记", Icons.Outlined.Flag, onViewMarkers),
+        ),
+        background = MaterialTheme.colorScheme.surface,
+        shape = CardDefaults.shape,
+    ) {
+        Card(Modifier.fillMaxWidth()) {
             Column(
                 Modifier.fillMaxWidth().padding(horizontal = if (compact) 9.dp else 11.dp, vertical = 7.dp),
                 verticalArrangement = Arrangement.spacedBy(4.dp),
@@ -616,12 +574,14 @@ private fun RecordingCard(
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Surface(
-                                modifier = Modifier.size(8.dp),
-                                shape = CircleShape,
-                                color = if (markers.isNotEmpty()) Color(0xFF35A857) else Color(0xFFB8B8B8),
-                            ) {}
-                            Spacer(Modifier.width(6.dp))
+                            if (markers.isNotEmpty()) {
+                                Surface(
+                                    modifier = Modifier.size(8.dp),
+                                    shape = CircleShape,
+                                    color = Color(0xFF35A857),
+                                ) {}
+                                Spacer(Modifier.width(6.dp))
+                            }
                             Text(entry.title.ifBlank { "录音" }, style = MaterialTheme.typography.titleSmall)
                         }
                         Text(detailLine, style = MaterialTheme.typography.bodySmall, maxLines = 1)
