@@ -27,6 +27,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.LayoutDirection
@@ -44,6 +45,11 @@ internal data class AudioTimeMarker(
     val positionMs: Long,
     val label: String,
 )
+
+internal data class AudioMarkerKey(val positionMs: Long, val occurrence: Int)
+
+internal fun audioMarkerIndex(markers: List<AudioTimeMarker>, key: AudioMarkerKey): Int? =
+    markers.indices.filter { markers[it].positionMs == key.positionMs }.getOrNull(key.occurrence)
 
 private fun decodeAudioMarkerLabel(value: String): String =
     runCatching { URLDecoder.decode(value, StandardCharsets.UTF_8.name()) }.getOrDefault(value)
@@ -191,11 +197,15 @@ internal fun AdvancedAudioPlayer(
     expanded: Boolean,
     onCollapse: () -> Unit,
     markers: List<AudioTimeMarker>,
-    onMarkersChange: (List<AudioTimeMarker>) -> Unit,
+    onAddMarker: (AudioTimeMarker) -> Unit,
+    onDeleteMarker: (AudioMarkerKey) -> Unit,
+    onRenameMarker: (AudioMarkerKey, String) -> Unit,
+    onNameEditStarted: () -> Unit,
     playRequest: Int = 0,
     onPlayingChange: (Boolean) -> Unit = {},
 ) {
     val context = LocalContext.current
+    val focusManager = LocalFocusManager.current
     // Inactive rows show a progress bar without opening a decoder for every recording.
     val player = remember(file.absolutePath, active) {
         if (active) runCatching { MediaPlayer.create(context, Uri.fromFile(file)) }.getOrNull() else null
@@ -218,8 +228,6 @@ internal fun AdvancedAudioPlayer(
     var markerDialogOpen by remember { mutableStateOf(false) }
     var pendingMarkerMs by remember { mutableLongStateOf(0L) }
     var markerLabel by remember { mutableStateOf("") }
-    var editingMarker by remember { mutableStateOf<AudioTimeMarker?>(null) }
-    var editingLabel by remember { mutableStateOf("") }
     var handledPlayRequest by rememberSaveable(file.absolutePath) { mutableIntStateOf(0) }
 
     DisposableEffect(player) {
@@ -452,11 +460,13 @@ internal fun AdvancedAudioPlayer(
             } else {
                 Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(0.dp)) {
                     markers.sortedBy { it.positionMs }.forEachIndexed { index, marker ->
-                        key(marker.positionMs, marker.label, index) {
+                        val markerKey = AudioMarkerKey(marker.positionMs, markers.take(index).count { it.positionMs == marker.positionMs })
+                        key(markerKey, markers.size) {
                             AudioSwipeActions(
-                                identity = marker,
+                                identity = markerKey,
                                 actions = listOf(AudioSwipeAction("删除标记", Icons.Rounded.Delete) {
-                                    onMarkersChange(markers.filterNot { it === marker })
+                                    focusManager.clearFocus()
+                                    onDeleteMarker(markerKey)
                                 }),
                                 background = MaterialTheme.colorScheme.surfaceContainerHighest,
                                 actionBackground = MaterialTheme.colorScheme.surfaceContainerHighest,
@@ -477,15 +487,14 @@ internal fun AdvancedAudioPlayer(
                                         fontWeight = FontWeight.Normal,
                                         color = Color(0xFF858585),
                                     )
-                                    Text(
-                                        marker.label,
-                                        textAlign = TextAlign.Center,
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = Color(0xFF686868),
-                                        modifier = Modifier.weight(1f).clickable(onClickLabel = "修改标记名称") {
-                                            editingMarker = marker
-                                            editingLabel = marker.label
-                                        }.padding(vertical = 6.dp),
+                                    InlineRecordingName(
+                                        value = marker.label,
+                                        onValueChange = { onRenameMarker(markerKey, it) },
+                                        onEditStarted = onNameEditStarted,
+                                        modifier = Modifier.weight(1f).padding(vertical = 6.dp),
+                                        textStyle = MaterialTheme.typography.bodySmall.copy(
+                                            textAlign = TextAlign.Center, color = Color(0xFF686868),
+                                        ),
                                     )
                                 }
                             }
@@ -516,7 +525,7 @@ internal fun AdvancedAudioPlayer(
             confirmButton = {
                 TextButton(onClick = {
                     val label = markerLabel.trim().ifBlank { "标记 ${markers.size + 1}" }
-                    onMarkersChange((markers + AudioTimeMarker(pendingMarkerMs, label)).sortedBy { it.positionMs })
+                    onAddMarker(AudioTimeMarker(pendingMarkerMs, label))
                     markerDialogOpen = false
                 }) { Text("保存") }
             },
@@ -524,37 +533,4 @@ internal fun AdvancedAudioPlayer(
         )
     }
 
-    editingMarker?.let { target ->
-        AlertDialog(
-            onDismissRequest = { editingMarker = null },
-            title = { Text("编辑标记") },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text("时间点：${formatAudioTime(target.positionMs)}")
-                    FlatTextField(
-                        value = editingLabel,
-                        onValueChange = { editingLabel = it },
-                        label = { Text("标签内容") },
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true,
-                    )
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = {
-                    val newLabel = editingLabel.trim().ifBlank { target.label }
-                    var replaced = false
-                    val updated = markers.map { marker ->
-                        if (!replaced && marker === target) {
-                            replaced = true
-                            marker.copy(label = newLabel)
-                        } else marker
-                    }
-                    onMarkersChange(updated)
-                    editingMarker = null
-                }) { Text("保存") }
-            },
-            dismissButton = { TextButton(onClick = { editingMarker = null }) { Text("取消") } },
-        )
-    }
 }

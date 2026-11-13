@@ -40,13 +40,19 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
+import androidx.room.withTransaction
 import com.menter.treatmentvault.TreatmentVaultApplication
 import com.menter.treatmentvault.data.CustomEntryEntity
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
 private const val PREF_AUDIO_GRID_MODE = "audio_grid_mode"
+private val recordingEditMutex = Mutex()
 
 internal enum class RecordingMarkerFilter(val label: String) {
     ALL("全部"), MARKED("标记"), UNMARKED("未标记")
@@ -101,17 +107,34 @@ fun FloatingAudioScreen(back: () -> Unit) {
     var playbackRequestSequence by rememberSaveable { mutableIntStateOf(0) }
     var playingRecordingId by remember { mutableStateOf<Long?>(null) }
     var gridMode by remember { mutableStateOf(prefs.getBoolean(PREF_AUDIO_GRID_MODE, false)) }
-    var pendingRenameId by remember { mutableStateOf<Long?>(null) }
-    var renameText by remember { mutableStateOf("") }
-    var renaming by remember { mutableStateOf(false) }
-    var renameError by remember { mutableStateOf("") }
     var pendingDelete by remember { mutableStateOf<CustomEntryEntity?>(null) }
     var query by rememberSaveable { mutableStateOf("") }
     var markerFilterName by rememberSaveable { mutableStateOf(RecordingMarkerFilter.ALL.name) }
     var showFloatingHelp by remember { mutableStateOf(false) }
     val markerFilter = runCatching { RecordingMarkerFilter.valueOf(markerFilterName) }.getOrDefault(RecordingMarkerFilter.ALL)
+    val retainedEditedIds = remember(query, markerFilter) { mutableStateMapOf<Long, Boolean>() }
     val allRecordings = remember(entries) { filterAudioRecordings(entries, "", RecordingMarkerFilter.ALL) }
-    val recordings = remember(entries, query, markerFilter) { filterAudioRecordings(entries, query, markerFilter) }
+    val recordings = remember(entries, query, markerFilter, retainedEditedIds.keys.toSet()) {
+        val matchingIds = filterAudioRecordings(entries, query, markerFilter).mapTo(hashSetOf()) { it.id }
+        // Keep a search result in place while its name changes. A new query or
+        // filter clears this session's retained rows.
+        filterAudioRecordings(entries, "", markerFilter).filter { it.id in matchingIds || it.id in retainedEditedIds }
+    }
+
+    fun saveRecordingChange(change: suspend () -> Unit) {
+        // Start the bounded database write immediately and finish already queued
+        // edits even when the user leaves the screen right after typing.
+        scope.launch(start = CoroutineStart.UNDISPATCHED) {
+            withContext(NonCancellable) {
+                try {
+                    recordingEditMutex.withLock { app.database.withTransaction { change() } }
+                } catch (error: Exception) {
+                    android.util.Log.e("RecordingName", "Unable to save recording edit", error)
+                    android.widget.Toast.makeText(context.applicationContext, "名称保存失败，请重新编辑重试", android.widget.Toast.LENGTH_LONG).show()
+                }
+            }
+        }
+    }
 
     fun setGridMode(value: Boolean) {
         gridMode = value
@@ -171,14 +194,13 @@ fun FloatingAudioScreen(back: () -> Unit) {
         message = "悬浮球已关闭。"
     }
 
-    fun updateMarkers(entry: CustomEntryEntity, nextMarkers: List<AudioTimeMarker>) {
-        scope.launch {
-            dao.updateCustomEntry(
-                entry.copy(
-                    content = contentWithAudioMarkers(entry.content, nextMarkers),
-                    updatedAt = System.currentTimeMillis(),
-                )
-            )
+    fun updateMarkers(id: Long, transform: (List<AudioTimeMarker>) -> List<AudioTimeMarker>) {
+        saveRecordingChange {
+            val latest = dao.customEntryById(id)
+            if (latest != null) {
+                val next = transform(audioMarkersFromContent(latest.content))
+                dao.updateCustomEntryContent(id, contentWithAudioMarkers(latest.content, next), System.currentTimeMillis())
+            }
         }
     }
 
@@ -262,13 +284,18 @@ fun FloatingAudioScreen(back: () -> Unit) {
                                 playbackRequestSequence++
                             },
                             onCollapse = { expandedRecordingId = null },
-                            onRename = {
-                                renameText = entry.title
-                                renameError = ""
-                                pendingRenameId = entry.id
-                            },
+                            onRename = { title -> saveRecordingChange { dao.renameCustomEntry(entry.id, title) } },
+                            onNameEditStarted = { retainedEditedIds[entry.id] = true },
                             onDelete = { pendingDelete = entry },
-                            onMarkersChange = { updateMarkers(entry, it) },
+                            onAddMarker = { marker -> updateMarkers(entry.id) { it + marker } },
+                            onDeleteMarker = { key -> updateMarkers(entry.id) { markers ->
+                                val target = audioMarkerIndex(markers, key)
+                                markers.filterIndexed { index, _ -> index != target }
+                            } },
+                            onRenameMarker = { key, label -> updateMarkers(entry.id) { markers ->
+                                val target = audioMarkerIndex(markers, key)
+                                markers.mapIndexed { index, marker -> if (index == target) marker.copy(label = label) else marker }
+                            } },
                             onPlayingChange = { playing -> playingRecordingId = if (playing) entry.id else playingRecordingId.takeUnless { it == entry.id } },
                         )
                     }
@@ -327,13 +354,18 @@ fun FloatingAudioScreen(back: () -> Unit) {
                                 playbackRequestSequence++
                             },
                             onCollapse = { expandedRecordingId = null },
-                            onRename = {
-                                renameText = entry.title
-                                renameError = ""
-                                pendingRenameId = entry.id
-                            },
+                            onRename = { title -> saveRecordingChange { dao.renameCustomEntry(entry.id, title) } },
+                            onNameEditStarted = { retainedEditedIds[entry.id] = true },
                             onDelete = { pendingDelete = entry },
-                            onMarkersChange = { updateMarkers(entry, it) },
+                            onAddMarker = { marker -> updateMarkers(entry.id) { it + marker } },
+                            onDeleteMarker = { key -> updateMarkers(entry.id) { markers ->
+                                val target = audioMarkerIndex(markers, key)
+                                markers.filterIndexed { index, _ -> index != target }
+                            } },
+                            onRenameMarker = { key, label -> updateMarkers(entry.id) { markers ->
+                                val target = audioMarkerIndex(markers, key)
+                                markers.mapIndexed { index, marker -> if (index == target) marker.copy(label = label) else marker }
+                            } },
                             onPlayingChange = { playing -> playingRecordingId = if (playing) entry.id else playingRecordingId.takeUnless { it == entry.id } },
                         )
                     }
@@ -350,45 +382,6 @@ fun FloatingAudioScreen(back: () -> Unit) {
                 Text("开启后可在桌面或其他 App 直接点球录音。待机时是半透明圆点，录音时变成圆角方块并可拖动；长按可添加时间标记。手机重启后需重新开启一次，Android 的麦克风和前台服务提示会保留。")
             },
             confirmButton = { TextButton(onClick = { showFloatingHelp = false }) { Text("知道了") } },
-        )
-    }
-
-    pendingRenameId?.let { id ->
-        AlertDialog(
-            onDismissRequest = { if (!renaming) pendingRenameId = null },
-            title = { Text("重命名录音") },
-            text = {
-                Column {
-                    FlatTextField(
-                        value = renameText,
-                        onValueChange = { renameText = it; renameError = "" },
-                        label = { Text("录音名称") },
-                        singleLine = true,
-                        enabled = !renaming,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                    if (renameError.isNotBlank()) Text(renameError, color = MaterialTheme.colorScheme.error)
-                }
-            },
-            confirmButton = {
-                TextButton(enabled = renameText.isNotBlank() && !renaming, onClick = {
-                    val title = renameText.trim()
-                    renaming = true
-                    scope.launch {
-                        try {
-                            dao.renameCustomEntry(id, title)
-                            pendingRenameId = null
-                        } catch (_: Exception) {
-                            renameError = "保存失败，请重试"
-                        } finally {
-                            renaming = false
-                        }
-                    }
-                }) { Text("保存") }
-            },
-            dismissButton = {
-                TextButton(enabled = !renaming, onClick = { pendingRenameId = null }) { Text("取消") }
-            },
         )
     }
 
@@ -418,15 +411,26 @@ private fun FloatingRecorderSettingsCard(
     onEnabledChange: (Boolean) -> Unit,
 ) {
     Card(Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
-                    Text("常驻悬浮球", style = MaterialTheme.typography.titleMedium)
-                    IconButton(onClick = onShowHelp, modifier = Modifier.size(36.dp)) {
-                        Icon(Icons.Default.Info, contentDescription = "查看常驻悬浮球说明", modifier = Modifier.size(19.dp))
+        Column(Modifier.padding(horizontal = 12.dp, vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Row(
+                Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                Row(Modifier.weight(1f, fill = false), verticalAlignment = Alignment.CenterVertically) {
+                    Text("常驻悬浮球", modifier = Modifier.weight(1f, fill = false), style = MaterialTheme.typography.titleMedium)
+                    IconButton(onClick = onShowHelp, modifier = Modifier.size(24.dp)) {
+                        Icon(Icons.Default.Info, contentDescription = "查看常驻悬浮球说明", modifier = Modifier.size(18.dp))
                     }
                 }
+                FlatButton(
+                    onClick = onResetPosition,
+                    enabled = enabled,
+                    modifier = Modifier.height(32.dp),
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
+                ) { Text("重置") }
                 Switch(
+                    modifier = Modifier.height(36.dp),
                     checked = enabled,
                     onCheckedChange = onEnabledChange,
                     colors = SwitchDefaults.colors(
@@ -434,13 +438,16 @@ private fun FloatingRecorderSettingsCard(
                         checkedTrackColor = Color(0xFF8A8A8A),
                         checkedBorderColor = Color.Transparent,
                         uncheckedThumbColor = Color.White,
-                        uncheckedTrackColor = Color(0xFFDADADA),
+                        uncheckedTrackColor = Color(0xFFD9D9D9),
                         uncheckedBorderColor = Color.Transparent,
                     ),
                 )
             }
-            FlatButton(onClick = onResetPosition, enabled = enabled, modifier = Modifier.fillMaxWidth()) { Text("重置悬浮球位置") }
-            if (message.isNotBlank()) Text(message, style = MaterialTheme.typography.bodySmall)
+            // Routine on/off/reset status is already represented by the controls.
+            // Keep actionable failures visible without reserving an empty status row.
+            if (message.startsWith("需要") || message.contains("失败")) {
+                Text(message, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+            }
         }
     }
 }
@@ -538,9 +545,12 @@ private fun RecordingCard(
     playRequest: Int,
     onPlay: () -> Unit,
     onCollapse: () -> Unit,
-    onRename: () -> Unit,
+    onRename: (String) -> Unit,
+    onNameEditStarted: () -> Unit,
     onDelete: () -> Unit,
-    onMarkersChange: (List<AudioTimeMarker>) -> Unit,
+    onAddMarker: (AudioTimeMarker) -> Unit,
+    onDeleteMarker: (AudioMarkerKey) -> Unit,
+    onRenameMarker: (AudioMarkerKey, String) -> Unit,
     onPlayingChange: (Boolean) -> Unit,
 ) {
     val fileName = remember(entry.content) { richBodyAudioNames(entry.content).firstOrNull() }
@@ -571,7 +581,7 @@ private fun RecordingCard(
             ) {
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     Row(
-                        Modifier.weight(1f).clickable(onClickLabel = "修改录音标题", onClick = onRename),
+                        Modifier.weight(1f),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         if (markers.isNotEmpty()) {
@@ -582,12 +592,15 @@ private fun RecordingCard(
                             ) {}
                             Spacer(Modifier.width(4.dp))
                         }
-                        Text(
-                            entry.title.ifBlank { "录音" },
-                            style = MaterialTheme.typography.titleMedium,
-                            fontSize = 16.sp,
-                            lineHeight = 20.sp,
-                            fontWeight = FontWeight.Bold,
+                        InlineRecordingName(
+                            value = entry.title.ifBlank { "录音" },
+                            onValueChange = onRename,
+                            onEditStarted = onNameEditStarted,
+                            modifier = Modifier.weight(1f),
+                            textStyle = MaterialTheme.typography.titleMedium.copy(
+                                fontSize = 16.sp, lineHeight = 20.sp,
+                                fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface,
+                            ),
                         )
                     }
                     IconButton(onClick = onPlay, modifier = Modifier.size(28.dp), enabled = file?.isFile == true) {
@@ -605,7 +618,10 @@ private fun RecordingCard(
                             expanded = expanded,
                             onCollapse = onCollapse,
                             markers = markers,
-                            onMarkersChange = onMarkersChange,
+                            onAddMarker = onAddMarker,
+                            onDeleteMarker = onDeleteMarker,
+                            onRenameMarker = onRenameMarker,
+                            onNameEditStarted = onNameEditStarted,
                             playRequest = playRequest,
                             onPlayingChange = onPlayingChange,
                         )

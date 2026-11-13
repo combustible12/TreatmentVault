@@ -13,8 +13,10 @@ import androidx.test.uiautomator.UiDevice
 import com.menter.treatmentvault.data.CustomEntryEntity
 import com.menter.treatmentvault.ui.screens.FloatingRecorderService
 import com.menter.treatmentvault.ui.screens.attachmentFile
+import com.menter.treatmentvault.ui.screens.audioMarkersFromContent
 import kotlinx.coroutines.runBlocking
 import org.junit.After
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -88,6 +90,110 @@ class RecordingAppearanceTest {
         rule.onNodeWithContentDescription("暂停").performClick()
         rule.onNodeWithText("添加标记").assertIsDisplayed()
         saveScreenshot("06-expanded-paused")
+    }
+
+    @Test fun namesEditInPlaceAfterOneTapAndPersistAcrossLayouts() {
+        seedRecordings()
+        openRecordings()
+        rule.onNode(listMatcher).performScrollToIndex(3)
+        val initial = readFirstRecording()
+
+        // The displayed name is already the editor: one click must focus it directly.
+        val originalTitle = rule.onNode(editableName("医生沟通"))
+        originalTitle.performClick()
+        originalTitle.assertIsFocused()
+        rule.onAllNodes(isDialog()).assertCountEquals(0)
+        originalTitle.performTextReplacement("医生沟通·已改名")
+        val renamedTitle = rule.onNode(editableName("医生沟通·已改名"))
+        renamedTitle.assertIsFocused()
+        waitForFirstRecording { it.title == "医生沟通·已改名" }
+        saveScreenshot("07-title-inline-edit")
+        device.pressBack()
+        rule.waitForIdle()
+
+        rule.onAllNodesWithContentDescription("播放")[0].performClick()
+        rule.waitUntil(10_000) { rule.onAllNodesWithContentDescription("暂停").fetchSemanticsNodes().isNotEmpty() }
+        rule.onNodeWithContentDescription("暂停").performClick()
+        rule.onNode(listMatcher).performScrollToIndex(3)
+        val originalMarker = rule.onNode(editableName("用药说明"))
+        originalMarker.performClick()
+        originalMarker.assertIsFocused()
+        rule.onAllNodes(isDialog()).assertCountEquals(0)
+        originalMarker.performTextReplacement("用药说明·更新")
+        val editedMarker = rule.onNode(editableName("用药说明·更新"))
+        editedMarker.assertIsFocused()
+        // A second edit while focused catches label-based keys that recreate the field.
+        editedMarker.performTextReplacement("用药说明·更新完成")
+        rule.onNode(editableName("用药说明·更新完成")).assertIsFocused()
+
+        // Switch focus and update the title before waiting for marker persistence.
+        // Saving either field must never overwrite the other field from a stale entry snapshot.
+        renamedTitle.performClick()
+        renamedTitle.assertIsFocused()
+        renamedTitle.performTextReplacement("医生沟通·最终")
+        waitForFirstRecording {
+            it.title == "医生沟通·最终" && audioMarkersFromContent(it.content).first().label == "用药说明·更新完成"
+        }
+        rule.onAllNodes(isDialog()).assertCountEquals(0)
+        val saved = readFirstRecording()
+        assertEquals(initial.date, saved.date)
+        assertEquals(initial.tags, saved.tags)
+        assertEquals(initial.createdAt, saved.createdAt)
+        assertTrue("Renaming must preserve the recording attachment", saved.content.contains("[[audio:${audioFiles.first().name}]]"))
+        assertEquals("复查时间", audioMarkersFromContent(saved.content)[1].label)
+        saveScreenshot("08-marker-and-title-saved")
+        device.pressBack()
+        rule.onNodeWithContentDescription("返回").performClick()
+
+        // Reopen from the actual home screen, then repeat one-tap editing in the grid.
+        openRecordings()
+        rule.onNode(listMatcher).performScrollToIndex(2)
+        rule.onNode(editableName("医生沟通·最终")).assertIsDisplayed()
+        rule.onNodeWithContentDescription("宫格显示").performClick()
+        rule.waitForIdle()
+        val gridTitle = rule.onNode(editableName("医生沟通·最终"))
+        gridTitle.performClick()
+        gridTitle.assertIsFocused()
+        rule.onAllNodes(isDialog()).assertCountEquals(0)
+        gridTitle.performTextReplacement("宫格改名")
+        waitForFirstRecording { it.title == "宫格改名" }
+        device.pressBack()
+        rule.onAllNodesWithContentDescription("播放")[0].performClick()
+        rule.waitUntil(10_000) { rule.onAllNodesWithContentDescription("暂停").fetchSemanticsNodes().isNotEmpty() }
+        rule.onNodeWithContentDescription("暂停").performClick()
+        rule.onNode(listMatcher).performScrollToIndex(3)
+        val gridMarker = rule.onNode(editableName("用药说明·更新完成"))
+        gridMarker.performClick()
+        gridMarker.assertIsFocused()
+        rule.onAllNodes(isDialog()).assertCountEquals(0)
+        gridMarker.performTextReplacement("宫格标记")
+        waitForFirstRecording { it.title == "宫格改名" && audioMarkersFromContent(it.content).first().label == "宫格标记" }
+        saveScreenshot("09-grid-inline-edit")
+        device.pressBack()
+        rule.onNodeWithContentDescription("返回").performClick()
+        openRecordings()
+        rule.onNode(listMatcher).performScrollToIndex(3)
+        rule.onNode(editableName("宫格改名")).assertIsDisplayed()
+        rule.onAllNodesWithContentDescription("播放")[0].performClick()
+        rule.waitUntil(10_000) { rule.onAllNodes(editableName("宫格标记")).fetchSemanticsNodes().isNotEmpty() }
+        rule.onNode(editableName("宫格标记")).assertIsDisplayed()
+        assertEquals("宫格改名", readFirstRecording().title)
+    }
+
+    private fun editableName(value: String) = hasSetTextAction() and hasText(value)
+
+    private fun openRecordings() {
+        rule.waitUntil(10_000) { rule.onAllNodesWithContentDescription("悬浮录音").fetchSemanticsNodes().isNotEmpty() }
+        rule.onNodeWithContentDescription("悬浮录音").performClick()
+        rule.waitUntil(10_000) { rule.onAllNodes(listMatcher).fetchSemanticsNodes().isNotEmpty() }
+    }
+
+    private fun readFirstRecording(): CustomEntryEntity = runBlocking {
+        requireNotNull(app.database.dao().customEntryById(entryIds.first()))
+    }
+
+    private fun waitForFirstRecording(predicate: (CustomEntryEntity) -> Boolean) {
+        rule.waitUntil(10_000) { predicate(readFirstRecording()) }
     }
 
     private fun firstSlider() = rule.onAllNodes(sliderMatcher)[0]

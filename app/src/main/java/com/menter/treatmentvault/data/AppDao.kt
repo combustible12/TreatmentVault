@@ -87,6 +87,9 @@ interface AppDao {
     @Query("UPDATE CustomEntryEntity SET title=:title WHERE id=:id")
     suspend fun renameCustomEntry(id: Long, title: String)
 
+    @Query("UPDATE CustomEntryEntity SET content=:content, updatedAt=:updatedAt WHERE id=:id")
+    suspend fun updateCustomEntryContent(id: Long, content: String, updatedAt: Long)
+
     @Update suspend fun updateCustomEntry(v:CustomEntryEntity)
     @Delete suspend fun deleteCustomEntry(v:CustomEntryEntity)
     @Query("DELETE FROM CustomEntryEntity WHERE id=:id") suspend fun deleteCustomEntryById(id:Long)
