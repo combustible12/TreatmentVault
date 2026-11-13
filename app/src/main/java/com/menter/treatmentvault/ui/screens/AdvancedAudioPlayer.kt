@@ -12,12 +12,14 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.rounded.Delete
+import androidx.compose.material.icons.rounded.ArrowDropUp
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
 import java.io.File
@@ -363,18 +365,33 @@ internal fun AdvancedAudioPlayer(
                 Text("这台设备暂时不支持自动跳过静音，普通播放不受影响。", style = MaterialTheme.typography.bodySmall)
             }
 
-            FilledTonalButton(
-                onClick = {
-                    pendingMarkerMs = runCatching { player?.currentPosition?.toLong() ?: positionMs }.getOrDefault(positionMs)
-                    markerLabel = ""
-                    markerDialogOpen = true
-                },
+            Row(
                 modifier = Modifier.fillMaxWidth(),
-                enabled = player != null,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                Icon(Icons.Default.BookmarkAdd, contentDescription = null)
-                Spacer(Modifier.width(6.dp))
-                Text("在 ${formatAudioTime(positionMs)} 添加标记")
+                FlatButton(
+                    onClick = {
+                        pendingMarkerMs = runCatching { player?.currentPosition?.toLong() ?: positionMs }.getOrDefault(positionMs)
+                        markerLabel = ""
+                        markerDialogOpen = true
+                    },
+                    modifier = Modifier.weight(5f).height(40.dp),
+                    enabled = player != null,
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                ) { Text("添加标记") }
+                FlatButton(
+                    onClick = onCollapse,
+                    modifier = Modifier.weight(1f).height(40.dp),
+                    contentPadding = PaddingValues(0.dp),
+                ) {
+                    Icon(
+                        Icons.Rounded.ArrowDropUp,
+                        contentDescription = "收起详情和标记",
+                        modifier = Modifier.size(32.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
 
             Text("标记列表 · ${markers.size}", style = MaterialTheme.typography.titleSmall)
@@ -409,6 +426,7 @@ internal fun AdvancedAudioPlayer(
                                     )
                                     Text(
                                         marker.label,
+                                        textAlign = TextAlign.Center,
                                         modifier = Modifier.weight(1f).clickable(onClickLabel = "修改标记名称") {
                                             editingMarker = marker
                                             editingLabel = marker.label
@@ -420,12 +438,6 @@ internal fun AdvancedAudioPlayer(
                     }
                 }
             }
-            TextButton(
-                onClick = onCollapse,
-                modifier = Modifier.fillMaxWidth(),
-                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
-                colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.onSurfaceVariant),
-            ) { Text("收起") }
         }
     }
 
