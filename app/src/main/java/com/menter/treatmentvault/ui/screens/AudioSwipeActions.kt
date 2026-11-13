@@ -80,7 +80,7 @@ internal fun AudioSwipeActions(
                         modifier = Modifier.size(actionCellSizeDp.dp),
                     ) {
                         Box(
-                            Modifier.size(actionCircleSizeDp.dp).background(Color(0xFF8A8A8A), CircleShape),
+                            Modifier.size(actionCircleSizeDp.dp).background(Color(0xFFD9D9D9), CircleShape),
                             contentAlignment = Alignment.Center,
                         ) {
                             Icon(action.icon, action.label, tint = Color.White, modifier = Modifier.size(actionIconSizeDp.dp))
