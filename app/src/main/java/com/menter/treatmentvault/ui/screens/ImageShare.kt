@@ -65,9 +65,11 @@ internal fun ImageShareSelectionDialog(
     val context = LocalContext.current
     val available = remember(files) { shareableImageFiles(files) }
     var selectedPaths by remember(available, initialFile.absolutePath) {
-        mutableStateOf(setOf(initialFile.absolutePath).filterTo(linkedSetOf()) { path ->
-            available.any { it.absolutePath == path }
-        })
+        mutableStateOf<Set<String>>(
+            setOf(initialFile.absolutePath).filterTo(linkedSetOf()) { path ->
+                available.any { it.absolutePath == path }
+            },
+        )
     }
     var error by remember { mutableStateOf<String?>(null) }
     val allSelected = available.isNotEmpty() && available.all { it.absolutePath in selectedPaths }
