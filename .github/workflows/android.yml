@@ -89,7 +89,7 @@ jobs:
               "versionName": os.environ["VERSION_NAME"],
               "apkUrl": "https://raw.githubusercontent.com/combustible12/TreatmentVault-Updates/main/TreatmentVault-latest.apk",
               "sha256": os.environ["SHA"],
-              "notes": "图片支持多选、全选分享；录音改为紧凑三行布局，进度条常驻；点击标题或标记名称修改，左滑删除；播放展开详情，收起不暂停，暂停和拖动进度不展开；添加标记与收起按钮独立排列。"
+              "notes": "按确认的预览修正录音界面：细灰进度条、圆形滑块，去掉默认粗轨道、竖条滑块和末端圆点；统一紧凑卡片、加粗标题、灰色日期及展开区按钮和标记间距。保持原有播放、拖动、收起和图片批量分享功能。"
           }
           with open("update-repo/update.json", "w", encoding="utf-8") as f:
               json.dump(data, f, ensure_ascii=False, indent=2)
