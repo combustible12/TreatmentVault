@@ -8,6 +8,7 @@ import android.net.Uri
 import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.lazy.LazyColumn
@@ -19,9 +20,6 @@ import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.grid.items as gridItems
 import androidx.compose.foundation.lazy.items as listItems
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.DeleteOutline
-import androidx.compose.material.icons.filled.ExpandLess
-import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.Info
@@ -30,9 +28,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ViewList
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Pause
-import androidx.compose.material.icons.filled.Flag
 import androidx.compose.material.icons.rounded.Delete
-import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -100,7 +96,7 @@ fun FloatingAudioScreen(back: () -> Unit) {
     var message by remember { mutableStateOf("") }
     var expandedRecordingId by remember { mutableStateOf<Long?>(null) }
     var playbackRequestRecordingId by remember { mutableStateOf<Long?>(null) }
-    var playbackRequestSequence by remember { mutableIntStateOf(0) }
+    var playbackRequestSequence by rememberSaveable { mutableIntStateOf(0) }
     var playingRecordingId by remember { mutableStateOf<Long?>(null) }
     var gridMode by remember { mutableStateOf(prefs.getBoolean(PREF_AUDIO_GRID_MODE, false)) }
     var pendingRenameId by remember { mutableStateOf<Long?>(null) }
@@ -255,14 +251,15 @@ fun FloatingAudioScreen(back: () -> Unit) {
                             entry = entry,
                             compact = expandedRecordingId != entry.id,
                             expanded = expandedRecordingId == entry.id,
+                            active = playbackRequestRecordingId == entry.id,
                             playing = playingRecordingId == entry.id,
                             playRequest = if (playbackRequestRecordingId == entry.id) playbackRequestSequence else 0,
                             onPlay = {
-                                expandedRecordingId = entry.id
+                                if (playingRecordingId != entry.id) expandedRecordingId = entry.id
                                 playbackRequestRecordingId = entry.id
                                 playbackRequestSequence++
                             },
-                            onCollapse = { expandedRecordingId = null; playbackRequestRecordingId = null },
+                            onCollapse = { expandedRecordingId = null },
                             onRename = {
                                 renameText = entry.title
                                 renameError = ""
@@ -319,14 +316,15 @@ fun FloatingAudioScreen(back: () -> Unit) {
                             entry = entry,
                             compact = false,
                             expanded = expandedRecordingId == entry.id,
+                            active = playbackRequestRecordingId == entry.id,
                             playing = playingRecordingId == entry.id,
                             playRequest = if (playbackRequestRecordingId == entry.id) playbackRequestSequence else 0,
                             onPlay = {
-                                expandedRecordingId = entry.id
+                                if (playingRecordingId != entry.id) expandedRecordingId = entry.id
                                 playbackRequestRecordingId = entry.id
                                 playbackRequestSequence++
                             },
-                            onCollapse = { expandedRecordingId = null; playbackRequestRecordingId = null },
+                            onCollapse = { expandedRecordingId = null },
                             onRename = {
                                 renameText = entry.title
                                 renameError = ""
@@ -533,6 +531,7 @@ private fun RecordingCard(
     entry: CustomEntryEntity,
     compact: Boolean,
     expanded: Boolean,
+    active: Boolean,
     playing: Boolean,
     playRequest: Int,
     onPlay: () -> Unit,
@@ -555,7 +554,6 @@ private fun RecordingCard(
     AudioSwipeActions(
         identity = entry.id,
         actions = listOf(
-            AudioSwipeAction("重命名", Icons.Rounded.Edit, onRename),
             AudioSwipeAction("删除录音", Icons.Rounded.Delete, onDelete),
         ),
         background = MaterialTheme.colorScheme.surface,
@@ -567,32 +565,34 @@ private fun RecordingCard(
                 verticalArrangement = Arrangement.spacedBy(4.dp),
             ) {
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            if (markers.isNotEmpty()) {
-                                Surface(
-                                    modifier = Modifier.size(8.dp),
-                                    shape = CircleShape,
-                                    color = Color(0xFF35A857),
-                                ) {}
-                                Spacer(Modifier.width(6.dp))
-                            }
-                            Text(entry.title.ifBlank { "录音" }, style = MaterialTheme.typography.titleSmall)
+                    Row(
+                        Modifier.weight(1f).clickable(onClickLabel = "修改录音标题", onClick = onRename),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        if (markers.isNotEmpty()) {
+                            Surface(
+                                modifier = Modifier.size(8.dp),
+                                shape = CircleShape,
+                                color = Color(0xFF35A857),
+                            ) {}
+                            Spacer(Modifier.width(6.dp))
                         }
-                        Text(detailLine, style = MaterialTheme.typography.bodySmall, maxLines = 1)
+                        Text(entry.title.ifBlank { "录音" }, style = MaterialTheme.typography.titleSmall)
                     }
                     IconButton(onClick = onPlay, modifier = Modifier.size(38.dp), enabled = file?.isFile == true) {
                         Icon(if (playing) Icons.Default.Pause else Icons.Default.PlayArrow, if (playing) "暂停" else "播放")
                     }
-                    if (expanded) IconButton(onClick = onCollapse, modifier = Modifier.size(34.dp)) {
-                        Icon(Icons.Default.ExpandLess, "收起播放和标记")
-                    }
                 }
+                Text(detailLine, style = MaterialTheme.typography.bodySmall)
 
-                if (expanded && file != null) {
+                if (file != null) {
                     if (file.isFile) {
                         AdvancedAudioPlayer(
                             file = file,
+                            durationHintMs = durationMs ?: 0L,
+                            active = active,
+                            expanded = expanded,
+                            onCollapse = onCollapse,
                             markers = markers,
                             onMarkersChange = onMarkersChange,
                             playRequest = playRequest,
