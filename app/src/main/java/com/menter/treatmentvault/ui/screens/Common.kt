@@ -490,7 +490,12 @@ fun RichNoteBodyEditor(
             }
         }
     }
-    previewFile?.let { file -> FullScreenImageViewer(file = file, onDismiss = { previewFile = null }) }
+    val galleryFiles = blocks.filterIsInstance<RichBlock.ImageBlock>()
+        .map { attachmentFile(context, it.fileName) }
+        .filter { it.isFile }
+    previewFile?.let { file ->
+        FullScreenImageViewer(files = galleryFiles, initialFile = file, onDismiss = { previewFile = null })
+    }
 }
 
 suspend fun reconcileRichAttachments(
@@ -526,7 +531,8 @@ private fun NoteImagePreview(file: File, onOpen: () -> Unit) {
 }
 
 @Composable
-private fun FullScreenImageViewer(file: File, onDismiss: () -> Unit) {
+private fun FullScreenImageViewer(files: List<File>, initialFile: File, onDismiss: () -> Unit) {
+    val file = initialFile
     val sourceSize = remember(file.absolutePath) {
         val options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
         BitmapFactory.decodeFile(file.absolutePath, options)
@@ -537,6 +543,7 @@ private fun FullScreenImageViewer(file: File, onDismiss: () -> Unit) {
     var quarterTurns by remember(file.absolutePath) { mutableIntStateOf(0) }
     var zoom by remember(file.absolutePath) { mutableFloatStateOf(1f) }
     var pan by remember(file.absolutePath) { mutableStateOf(Offset.Zero) }
+    var sharing by remember(file.absolutePath) { mutableStateOf(false) }
 
     fun resetView() {
         zoom = 1f
@@ -654,9 +661,15 @@ private fun FullScreenImageViewer(file: File, onDismiss: () -> Unit) {
                                 resetView()
                             },
                         ) { Text("重置", color = Color.White) }
+                        TextButton(
+                            modifier = Modifier.weight(1f),
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
+                            onClick = { sharing = true },
+                        ) { Text("批量分享", color = Color.White) }
                     }
                 }
             }
         }
     }
+    if (sharing) ImageShareSelectionDialog(files, file) { sharing = false }
 }

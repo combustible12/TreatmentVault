@@ -321,6 +321,7 @@ private fun GridFullScreenImageViewer(files: List<File>, initialIndex: Int, onDi
     var editing by remember(file.absolutePath) { mutableStateOf(false) }
     var editRevision by remember(file.absolutePath) { mutableIntStateOf(0) }
     var controlsVisible by remember(file.absolutePath) { mutableStateOf(false) }
+    var sharing by remember(files) { mutableStateOf(false) }
 
     fun resetView() {
         zoom = 1f
@@ -366,12 +367,17 @@ private fun GridFullScreenImageViewer(files: List<File>, initialIndex: Int, onDi
                 topBar = {
                     if (controlsVisible) {
                         Surface(Modifier.fillMaxWidth(), color = Color(0xFF222222), contentColor = Color.White) {
-                            Row(Modifier.fillMaxWidth().padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                                TextButton({ rotateBy(-1) }, Modifier.weight(1f)) { Text("左转", color = Color.White) }
-                                TextButton({ rotateBy(1) }, Modifier.weight(1f)) { Text("右转", color = Color.White) }
-                                TextButton({ resetView() }, Modifier.weight(1f)) { Text("适应", color = Color.White) }
-                                TextButton({ quarterTurns = 0; resetView() }, Modifier.weight(1f)) { Text("重置", color = Color.White) }
-                                TextButton({ editing = true }, Modifier.weight(1f)) { Text("编辑", color = Color.White) }
+                            Column(Modifier.fillMaxWidth().padding(horizontal = 4.dp)) {
+                                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                                    TextButton({ rotateBy(-1) }, Modifier.weight(1f)) { Text("左转", color = Color.White) }
+                                    TextButton({ rotateBy(1) }, Modifier.weight(1f)) { Text("右转", color = Color.White) }
+                                    TextButton({ resetView() }, Modifier.weight(1f)) { Text("适应", color = Color.White) }
+                                    TextButton({ quarterTurns = 0; resetView() }, Modifier.weight(1f)) { Text("重置", color = Color.White) }
+                                }
+                                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                                    TextButton({ editing = true }, Modifier.weight(1f)) { Text("编辑", color = Color.White) }
+                                    TextButton({ sharing = true }, Modifier.weight(1f)) { Text("批量分享", color = Color.White) }
+                                }
                             }
                         }
                     }
@@ -425,6 +431,7 @@ private fun GridFullScreenImageViewer(files: List<File>, initialIndex: Int, onDi
                     }
                 }
             }
+            if (sharing) ImageShareSelectionDialog(files, file) { sharing = false }
         }
     }
 }
