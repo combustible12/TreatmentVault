@@ -7,8 +7,11 @@ import android.net.Uri
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.rounded.Delete
@@ -18,9 +21,15 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
 import java.io.File
 import java.net.URLDecoder
@@ -171,6 +180,7 @@ private class SilenceSkipController(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun AdvancedAudioPlayer(
     file: File,
@@ -280,12 +290,12 @@ internal fun AdvancedAudioPlayer(
     }
 
     Column(
-        modifier = Modifier.fillMaxWidth().padding(top = 2.dp),
-        verticalArrangement = Arrangement.spacedBy(6.dp),
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         Column(Modifier.fillMaxWidth()) {
             Slider(
-                modifier = Modifier.fillMaxWidth().height(28.dp),
+                modifier = Modifier.fillMaxWidth().height(20.dp),
                 value = if (dragging) dragPositionMs else positionMs.toFloat(),
                 onValueChange = {
                     dragging = true
@@ -297,11 +307,35 @@ internal fun AdvancedAudioPlayer(
                 },
                 valueRange = 0f..durationMs.coerceAtLeast(1L).toFloat(),
                 enabled = durationMs > 0L,
+                // Keep Slider's seeking, touch handling and accessibility; replace
+                // the default thick track, vertical handle and terminal stop dot.
+                thumb = {
+                    Box(Modifier.size(10.dp).background(Color(0xFF8A8A8A), CircleShape))
+                },
+                track = { state ->
+                    Canvas(Modifier.fillMaxWidth().height(4.dp)) {
+                        val range = state.valueRange.endInclusive - state.valueRange.start
+                        val fraction = if (range > 0f) {
+                            ((state.value - state.valueRange.start) / range).coerceIn(0f, 1f)
+                        } else 0f
+                        val startX = if (layoutDirection == LayoutDirection.Rtl) size.width else 0f
+                        val endX = if (layoutDirection == LayoutDirection.Rtl) 0f else size.width
+                        val start = Offset(startX, center.y)
+                        drawLine(Color(0xFFD4D4D4), start, Offset(endX, center.y), size.height, StrokeCap.Round)
+                        if (fraction > 0f) {
+                            drawLine(
+                                Color(0xFF8A8A8A), start,
+                                Offset(startX + (endX - startX) * fraction, center.y),
+                                size.height, StrokeCap.Round,
+                            )
+                        }
+                    }
+                },
             )
             if (expanded) {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text(formatAudioTime(if (dragging) dragPositionMs.toLong() else positionMs), style = MaterialTheme.typography.labelSmall)
-                    Text(formatAudioTime(durationMs), style = MaterialTheme.typography.labelSmall)
+                    Text(formatAudioTime(if (dragging) dragPositionMs.toLong() else positionMs), style = MaterialTheme.typography.labelSmall, color = Color(0xFF858585))
+                    Text(formatAudioTime(durationMs), style = MaterialTheme.typography.labelSmall, color = Color(0xFF858585))
                 }
             }
         }
@@ -315,11 +349,12 @@ internal fun AdvancedAudioPlayer(
                 Box {
                     TextButton(
                         onClick = { speedMenuOpen = true },
+                        modifier = Modifier.height(32.dp),
                         enabled = player != null,
                         contentPadding = PaddingValues(horizontal = 0.dp, vertical = 0.dp),
                         colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.onSurfaceVariant),
                     ) {
-                        Text("${playbackSpeed}×")
+                        Text("${playbackSpeed}×", fontSize = 12.sp)
                     }
                     DropdownMenu(expanded = speedMenuOpen, onDismissRequest = { speedMenuOpen = false }) {
                         listOf(0.75f, 1f, 1.25f, 1.5f, 2f).forEach { speed ->
@@ -344,6 +379,7 @@ internal fun AdvancedAudioPlayer(
                 ) {
                     Text("跳过静音", style = MaterialTheme.typography.labelMedium)
                     Switch(
+                        modifier = Modifier.size(width = 44.dp, height = 32.dp).scale(0.75f),
                         checked = skipSilence,
                         onCheckedChange = { enabled ->
                             if (enabled) {
@@ -357,6 +393,14 @@ internal fun AdvancedAudioPlayer(
                             }
                         },
                         enabled = player != null,
+                        colors = SwitchDefaults.colors(
+                            uncheckedTrackColor = Color(0xFFD9D9D9),
+                            uncheckedThumbColor = Color.White,
+                            uncheckedBorderColor = Color.Transparent,
+                            checkedTrackColor = Color(0xFF8A8A8A),
+                            checkedThumbColor = Color.White,
+                            checkedBorderColor = Color.Transparent,
+                        ),
                     )
                 }
             }
@@ -376,19 +420,19 @@ internal fun AdvancedAudioPlayer(
                         markerLabel = ""
                         markerDialogOpen = true
                     },
-                    modifier = Modifier.weight(5f).height(40.dp),
+                    modifier = Modifier.weight(5f).height(32.dp),
                     enabled = player != null,
                     contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
-                ) { Text("添加标记") }
+                ) { Text("添加标记", fontSize = 12.sp, lineHeight = 16.sp, color = Color(0xFF858585)) }
                 FlatButton(
                     onClick = onCollapse,
-                    modifier = Modifier.weight(1f).height(40.dp),
+                    modifier = Modifier.weight(1f).height(32.dp),
                     contentPadding = PaddingValues(0.dp),
                 ) {
                     Icon(
                         Icons.Rounded.ArrowDropUp,
                         contentDescription = "收起详情和标记",
-                        modifier = Modifier.size(32.dp),
+                        modifier = Modifier.size(24.dp),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
@@ -408,29 +452,31 @@ internal fun AdvancedAudioPlayer(
                                 }),
                                 background = MaterialTheme.colorScheme.surfaceContainerHighest,
                                 actionBackground = MaterialTheme.colorScheme.surfaceContainerHighest,
-                                actionCellSizeDp = 40,
-                                actionCircleSizeDp = 34,
-                                actionIconSizeDp = 22,
+                                actionCellSizeDp = 32,
+                                actionCircleSizeDp = 28,
+                                actionIconSizeDp = 20,
                             ) {
                                 Row(
-                                    modifier = Modifier.fillMaxWidth().heightIn(min = 40.dp),
+                                    modifier = Modifier.fillMaxWidth().heightIn(min = 32.dp),
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                                 ) {
                                     Text(
                                         formatAudioTime(marker.positionMs),
                                         modifier = Modifier.clickable(onClickLabel = "跳到此时间") { seekTo(marker.positionMs) }
-                                            .padding(vertical = 10.dp),
+                                            .padding(vertical = 6.dp),
                                         style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        color = Color(0xFF858585),
                                     )
                                     Text(
                                         marker.label,
                                         textAlign = TextAlign.Center,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = Color(0xFF686868),
                                         modifier = Modifier.weight(1f).clickable(onClickLabel = "修改标记名称") {
                                             editingMarker = marker
                                             editingLabel = marker.label
-                                        }.padding(vertical = 8.dp),
+                                        }.padding(vertical = 6.dp),
                                     )
                                 }
                             }

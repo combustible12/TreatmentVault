@@ -36,7 +36,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import com.menter.treatmentvault.TreatmentVaultApplication
 import com.menter.treatmentvault.data.CustomEntryEntity
@@ -204,7 +206,7 @@ fun FloatingAudioScreen(back: () -> Unit) {
                 columns = GridCells.Fixed(2),
                 state = gridState,
                 modifier = Modifier.fillMaxSize(),
-                verticalArrangement = Arrangement.spacedBy(6.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
                 contentPadding = PaddingValues(bottom = 24.dp),
             ) {
@@ -276,7 +278,7 @@ fun FloatingAudioScreen(back: () -> Unit) {
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
                 state = listState,
-                verticalArrangement = Arrangement.spacedBy(6.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
                 contentPadding = PaddingValues(bottom = 24.dp),
             ) {
                 item {
@@ -548,7 +550,10 @@ private fun RecordingCard(
         value = withContext(Dispatchers.IO) { file?.let(::audioFileDurationMs)?.takeIf { it > 0L } }
     }
     val detailLine = buildList {
-        if (entry.date.isNotBlank()) add(entry.date)
+        if (entry.date.isNotBlank()) {
+            // Compact display only; preserve the stored recording timestamp.
+            add(if (entry.date.matches(Regex("\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}"))) entry.date.dropLast(3) else entry.date)
+        }
         add(durationMs?.let(::formatAudioTime) ?: "--:--")
     }.joinToString("  ·  ")
     AudioSwipeActions(
@@ -561,8 +566,8 @@ private fun RecordingCard(
     ) {
         Card(Modifier.fillMaxWidth()) {
             Column(
-                Modifier.fillMaxWidth().padding(horizontal = if (compact) 9.dp else 11.dp, vertical = 7.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp),
+                Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 6.dp),
+                verticalArrangement = Arrangement.spacedBy(2.dp),
             ) {
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     Row(
@@ -571,19 +576,25 @@ private fun RecordingCard(
                     ) {
                         if (markers.isNotEmpty()) {
                             Surface(
-                                modifier = Modifier.size(8.dp),
+                                modifier = Modifier.size(6.dp),
                                 shape = CircleShape,
                                 color = Color(0xFF35A857),
                             ) {}
-                            Spacer(Modifier.width(6.dp))
+                            Spacer(Modifier.width(4.dp))
                         }
-                        Text(entry.title.ifBlank { "录音" }, style = MaterialTheme.typography.titleSmall)
+                        Text(
+                            entry.title.ifBlank { "录音" },
+                            style = MaterialTheme.typography.titleMedium,
+                            fontSize = 16.sp,
+                            lineHeight = 20.sp,
+                            fontWeight = FontWeight.Bold,
+                        )
                     }
-                    IconButton(onClick = onPlay, modifier = Modifier.size(38.dp), enabled = file?.isFile == true) {
+                    IconButton(onClick = onPlay, modifier = Modifier.size(28.dp), enabled = file?.isFile == true) {
                         Icon(if (playing) Icons.Default.Pause else Icons.Default.PlayArrow, if (playing) "暂停" else "播放")
                     }
                 }
-                Text(detailLine, style = MaterialTheme.typography.bodySmall)
+                Text(detailLine, style = MaterialTheme.typography.bodySmall, lineHeight = 16.sp, color = Color(0xFF858585))
 
                 if (file != null) {
                     if (file.isFile) {
