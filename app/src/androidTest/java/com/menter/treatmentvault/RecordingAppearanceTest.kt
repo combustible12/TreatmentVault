@@ -193,7 +193,15 @@ class RecordingAppearanceTest {
     }
 
     private fun waitForFirstRecording(predicate: (CustomEntryEntity) -> Boolean) {
-        rule.waitUntil(10_000) { predicate(readFirstRecording()) }
+        try {
+            rule.waitUntil(10_000) { predicate(readFirstRecording()) }
+        } catch (error: Throwable) {
+            val rows = runBlocking { app.database.dao().allCustomEntries() }
+            android.util.Log.e("RecordingUITest", "Saved recording names: " + rows.map { "${it.id}:${it.title}:${audioMarkersFromContent(it.content)}" })
+            rule.onRoot(useUnmergedTree = true).printToLog("RecordingUITest")
+            saveScreenshot("failure-inline-save")
+            throw error
+        }
     }
 
     private fun firstSlider() = rule.onAllNodes(sliderMatcher)[0]
