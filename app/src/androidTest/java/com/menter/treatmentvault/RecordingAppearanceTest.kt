@@ -114,6 +114,18 @@ class RecordingAppearanceTest {
         val widePart = darkHeights.count { it > 6f * density }
         assertTrue("Thumb must be a small circle rather than a tall bar, actual=$thumbHeight px", thumbHeight in (8f * density).toInt()..(12f * density).toInt())
         assertTrue("Thumb must have visible round width, actual=$widePart px", widePart >= 6f * density && widePart <= 12f * density)
+        val thumbX = darkHeights.indices.maxBy { darkHeights[it] }
+        fun inkCenter(x: Int, shade: Int): Float {
+            val ys = (0 until bitmap.height).filter { y ->
+                val pixel = bitmap.getPixel(x, y)
+                abs(Color.red(pixel) - shade) <= 8 && abs(Color.green(pixel) - shade) <= 8 && abs(Color.blue(pixel) - shade) <= 8
+            }
+            return (ys.first() + ys.last()) / 2f
+        }
+        assertTrue(
+            "Circular thumb must be centered on the track",
+            abs(inkCenter(thumbX, 138) - inkCenter((bitmap.width * 0.75f).toInt(), 212)) <= 1f,
+        )
     }
 
     private fun seedRecordings() {

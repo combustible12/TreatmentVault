@@ -26,6 +26,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
@@ -310,7 +311,11 @@ internal fun AdvancedAudioPlayer(
                 // Keep Slider's seeking, touch handling and accessibility; replace
                 // the default thick track, vertical handle and terminal stop dot.
                 thumb = {
-                    Box(Modifier.size(10.dp).background(Color(0xFF8A8A8A), CircleShape))
+                    // The Slider's thumb slot has a minimum height. Center the
+                    // small circle within it instead of leaving it at the top.
+                    Box(Modifier.width(10.dp).fillMaxHeight(), contentAlignment = Alignment.Center) {
+                        Box(Modifier.size(10.dp).background(Color(0xFF8A8A8A), CircleShape))
+                    }
                 },
                 track = { state ->
                     Canvas(Modifier.fillMaxWidth().height(4.dp)) {
@@ -334,8 +339,8 @@ internal fun AdvancedAudioPlayer(
             )
             if (expanded) {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text(formatAudioTime(if (dragging) dragPositionMs.toLong() else positionMs), style = MaterialTheme.typography.labelSmall, color = Color(0xFF858585))
-                    Text(formatAudioTime(durationMs), style = MaterialTheme.typography.labelSmall, color = Color(0xFF858585))
+                    Text(formatAudioTime(if (dragging) dragPositionMs.toLong() else positionMs), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Normal, color = Color(0xFF858585))
+                    Text(formatAudioTime(durationMs), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Normal, color = Color(0xFF858585))
                 }
             }
         }
@@ -354,7 +359,7 @@ internal fun AdvancedAudioPlayer(
                         contentPadding = PaddingValues(horizontal = 0.dp, vertical = 0.dp),
                         colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.onSurfaceVariant),
                     ) {
-                        Text("${playbackSpeed}×", fontSize = 12.sp)
+                        Text("${playbackSpeed}×", fontSize = 12.sp, fontWeight = FontWeight.Normal)
                     }
                     DropdownMenu(expanded = speedMenuOpen, onDismissRequest = { speedMenuOpen = false }) {
                         listOf(0.75f, 1f, 1.25f, 1.5f, 2f).forEach { speed ->
@@ -377,7 +382,7 @@ internal fun AdvancedAudioPlayer(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.End,
                 ) {
-                    Text("跳过静音", style = MaterialTheme.typography.labelMedium)
+                    Text("跳过静音", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Normal)
                     Switch(
                         modifier = Modifier.size(width = 44.dp, height = 32.dp).scale(0.75f),
                         checked = skipSilence,
@@ -423,7 +428,7 @@ internal fun AdvancedAudioPlayer(
                     modifier = Modifier.weight(5f).height(32.dp),
                     enabled = player != null,
                     contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
-                ) { Text("添加标记", fontSize = 12.sp, lineHeight = 16.sp, color = Color(0xFF858585)) }
+                ) { Text("添加标记", fontSize = 12.sp, lineHeight = 16.sp, fontWeight = FontWeight.Normal, color = Color(0xFF858585)) }
                 FlatButton(
                     onClick = onCollapse,
                     modifier = Modifier.weight(1f).height(32.dp),
@@ -466,6 +471,7 @@ internal fun AdvancedAudioPlayer(
                                         modifier = Modifier.clickable(onClickLabel = "跳到此时间") { seekTo(marker.positionMs) }
                                             .padding(vertical = 6.dp),
                                         style = MaterialTheme.typography.labelSmall,
+                                        fontWeight = FontWeight.Normal,
                                         color = Color(0xFF858585),
                                     )
                                     Text(
