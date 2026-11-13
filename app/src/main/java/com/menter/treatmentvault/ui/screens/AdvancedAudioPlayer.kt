@@ -11,11 +11,13 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
-import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.material.icons.rounded.Delete
+import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
@@ -298,8 +300,6 @@ internal fun AdvancedAudioPlayer(
                         contentPadding = PaddingValues(horizontal = 0.dp, vertical = 0.dp),
                         colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.onSurfaceVariant),
                     ) {
-                        Icon(Icons.Default.Speed, contentDescription = null)
-                        Spacer(Modifier.width(5.dp))
                         Text("${playbackSpeed}×")
                     }
                     DropdownMenu(expanded = speedMenuOpen, onDismissRequest = { speedMenuOpen = false }) {
@@ -364,34 +364,40 @@ internal fun AdvancedAudioPlayer(
             if (markers.isEmpty()) {
                 Text("还没有标记。播放到需要记住的位置时，点“添加标记”。录音时也可以长按悬浮方块快速打标。", style = MaterialTheme.typography.bodySmall)
             } else {
-                markers.sortedBy { it.positionMs }.forEachIndexed { index, marker ->
-                    key(marker.positionMs, marker.label, index) {
-                        AudioSwipeActions(
-                            identity = marker,
-                            actions = listOf(AudioSwipeAction("删除标记", Icons.Outlined.Delete) {
-                                onMarkersChange(markers.filterNot { it === marker })
-                            }),
-                            background = MaterialTheme.colorScheme.surfaceContainerHighest,
-                        ) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).clickable { seekTo(marker.positionMs) },
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(0.dp)) {
+                    markers.sortedBy { it.positionMs }.forEachIndexed { index, marker ->
+                        key(marker.positionMs, marker.label, index) {
+                            AudioSwipeActions(
+                                identity = marker,
+                                actions = listOf(AudioSwipeAction("删除标记", Icons.Rounded.Delete) {
+                                    onMarkersChange(markers.filterNot { it === marker })
+                                }),
+                                background = MaterialTheme.colorScheme.surfaceContainerHighest,
+                                actionBackground = Color.White,
+                                actionCellSizeDp = 40,
+                                actionCircleSizeDp = 34,
+                                actionIconSizeDp = 22,
                             ) {
-                                Text(
-                                    formatAudioTime(marker.positionMs),
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                                Text(marker.label, modifier = Modifier.weight(1f))
-                                IconButton(
-                                    modifier = Modifier.size(34.dp),
-                                    onClick = {
-                                        editingMarker = marker
-                                        editingLabel = marker.label
-                                    },
+                                Row(
+                                    modifier = Modifier.fillMaxWidth().heightIn(min = 40.dp).clickable { seekTo(marker.positionMs) },
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
                                 ) {
-                                    Icon(Icons.Default.Edit, contentDescription = "编辑标记")
+                                    Text(
+                                        formatAudioTime(marker.positionMs),
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                    Text(marker.label, modifier = Modifier.weight(1f))
+                                    IconButton(
+                                        modifier = Modifier.size(32.dp),
+                                        onClick = {
+                                            editingMarker = marker
+                                            editingLabel = marker.label
+                                        },
+                                    ) {
+                                        Icon(Icons.Rounded.Edit, contentDescription = "编辑标记", modifier = Modifier.size(20.dp))
+                                    }
                                 }
                             }
                         }

@@ -34,10 +34,14 @@ internal fun AudioSwipeActions(
     identity: Any,
     actions: List<AudioSwipeAction>,
     background: Color,
+    actionBackground: Color = Color.White,
+    actionCellSizeDp: Int = 48,
+    actionCircleSizeDp: Int = 40,
+    actionIconSizeDp: Int = 25,
     shape: Shape = RectangleShape,
     content: @Composable () -> Unit,
 ) {
-    val actionWidth = (actions.size * 48 + 8).dp
+    val actionWidth = (actions.size * actionCellSizeDp + 8).dp
     val revealPx = with(LocalDensity.current) { actionWidth.toPx() }
     val offset = remember(identity) { Animatable(0f) }
     val scope = rememberCoroutineScope()
@@ -46,7 +50,7 @@ internal fun AudioSwipeActions(
     fun settle() { scope.launch { offset.animateTo(if (opened) -revealPx else 0f, tween(180)) } }
 
     Box(
-        Modifier.fillMaxWidth().clip(shape).pointerInput(identity, revealPx) {
+        Modifier.fillMaxWidth().clip(shape).background(actionBackground).pointerInput(identity, revealPx) {
             detectHorizontalDragGestures(
                 onDragStart = {
                     dragDistance = 0f
@@ -73,13 +77,13 @@ internal fun AudioSwipeActions(
                 actions.forEach { action ->
                     IconButton(
                         onClick = { opened = false; settle(); action.onClick() },
-                        modifier = Modifier.size(48.dp),
+                        modifier = Modifier.size(actionCellSizeDp.dp),
                     ) {
                         Box(
-                            Modifier.size(40.dp).background(Color(0xFF8A8A8A), CircleShape),
+                            Modifier.size(actionCircleSizeDp.dp).background(Color(0xFF8A8A8A), CircleShape),
                             contentAlignment = Alignment.Center,
                         ) {
-                            Icon(action.icon, action.label, tint = Color.White, modifier = Modifier.size(25.dp))
+                            Icon(action.icon, action.label, tint = Color.White, modifier = Modifier.size(actionIconSizeDp.dp))
                         }
                     }
                 }

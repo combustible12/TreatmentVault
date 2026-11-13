@@ -31,9 +31,9 @@ import androidx.compose.material.icons.filled.ViewList
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.Flag
-import androidx.compose.material.icons.outlined.Delete
-import androidx.compose.material.icons.outlined.Edit
-import androidx.compose.material.icons.outlined.Flag
+import androidx.compose.material.icons.rounded.Delete
+import androidx.compose.material.icons.rounded.Edit
+import androidx.compose.material.icons.rounded.Flag
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -559,9 +559,9 @@ private fun RecordingCard(
     AudioSwipeActions(
         identity = entry.id,
         actions = listOf(
-            AudioSwipeAction("重命名", Icons.Outlined.Edit, onRename),
-            AudioSwipeAction("删除录音", Icons.Outlined.Delete, onDelete),
-            AudioSwipeAction("查看标记", Icons.Outlined.Flag, onViewMarkers),
+            AudioSwipeAction("重命名", Icons.Rounded.Edit, onRename),
+            AudioSwipeAction("删除录音", Icons.Rounded.Delete, onDelete),
+            AudioSwipeAction("查看标记", Icons.Rounded.Flag, onViewMarkers),
         ),
         background = MaterialTheme.colorScheme.surface,
         shape = CardDefaults.shape,
