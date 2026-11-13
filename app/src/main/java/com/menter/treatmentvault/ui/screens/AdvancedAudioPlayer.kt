@@ -17,7 +17,6 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
@@ -373,7 +372,7 @@ internal fun AdvancedAudioPlayer(
                                     onMarkersChange(markers.filterNot { it === marker })
                                 }),
                                 background = MaterialTheme.colorScheme.surfaceContainerHighest,
-                                actionBackground = Color.White,
+                                actionBackground = MaterialTheme.colorScheme.surfaceContainerHighest,
                                 actionCellSizeDp = 40,
                                 actionCircleSizeDp = 34,
                                 actionIconSizeDp = 22,

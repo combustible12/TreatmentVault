@@ -33,7 +33,6 @@ import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.Flag
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.Edit
-import androidx.compose.material.icons.rounded.Flag
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -264,7 +263,6 @@ fun FloatingAudioScreen(back: () -> Unit) {
                                 playbackRequestSequence++
                             },
                             onCollapse = { expandedRecordingId = null; playbackRequestRecordingId = null },
-                            onViewMarkers = { playbackRequestRecordingId = null; expandedRecordingId = entry.id },
                             onRename = {
                                 renameText = entry.title
                                 renameError = ""
@@ -329,7 +327,6 @@ fun FloatingAudioScreen(back: () -> Unit) {
                                 playbackRequestSequence++
                             },
                             onCollapse = { expandedRecordingId = null; playbackRequestRecordingId = null },
-                            onViewMarkers = { playbackRequestRecordingId = null; expandedRecordingId = entry.id },
                             onRename = {
                                 renameText = entry.title
                                 renameError = ""
@@ -540,7 +537,6 @@ private fun RecordingCard(
     playRequest: Int,
     onPlay: () -> Unit,
     onCollapse: () -> Unit,
-    onViewMarkers: () -> Unit,
     onRename: () -> Unit,
     onDelete: () -> Unit,
     onMarkersChange: (List<AudioTimeMarker>) -> Unit,
@@ -561,7 +557,6 @@ private fun RecordingCard(
         actions = listOf(
             AudioSwipeAction("重命名", Icons.Rounded.Edit, onRename),
             AudioSwipeAction("删除录音", Icons.Rounded.Delete, onDelete),
-            AudioSwipeAction("查看标记", Icons.Rounded.Flag, onViewMarkers),
         ),
         background = MaterialTheme.colorScheme.surface,
         shape = CardDefaults.shape,
