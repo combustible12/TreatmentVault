@@ -10,6 +10,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -614,7 +615,15 @@ private fun RecordingCard(
             ) {
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
-                        Text(entry.title.ifBlank { "录音" }, style = MaterialTheme.typography.titleSmall)
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Surface(
+                                modifier = Modifier.size(8.dp),
+                                shape = CircleShape,
+                                color = if (markers.isNotEmpty()) Color(0xFF35A857) else Color(0xFFB8B8B8),
+                            ) {}
+                            Spacer(Modifier.width(6.dp))
+                            Text(entry.title.ifBlank { "录音" }, style = MaterialTheme.typography.titleSmall)
+                        }
                         Text(detailLine, style = MaterialTheme.typography.bodySmall, maxLines = 1)
                     }
                     IconButton(onClick = onPlay, modifier = Modifier.size(38.dp), enabled = file?.isFile == true) {
