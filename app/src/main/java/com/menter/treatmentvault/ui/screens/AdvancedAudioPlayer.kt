@@ -12,6 +12,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.rounded.Delete
@@ -352,14 +353,14 @@ internal fun AdvancedAudioPlayer(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 Box {
-                    TextButton(
-                        onClick = { speedMenuOpen = true },
-                        modifier = Modifier.height(32.dp),
-                        enabled = player != null,
-                        contentPadding = PaddingValues(horizontal = 0.dp, vertical = 0.dp),
-                        colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.onSurfaceVariant),
-                    ) {
-                        Text("${playbackSpeed}×", fontSize = 12.sp, fontWeight = FontWeight.Normal)
+                    Box(Modifier.height(32.dp), contentAlignment = Alignment.CenterStart) {
+                        Text(
+                            "${playbackSpeed}×",
+                            modifier = Modifier.clickable(enabled = player != null, onClickLabel = "播放速度") { speedMenuOpen = true },
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Normal,
+                            color = Color(0xFF858585),
+                        )
                     }
                     DropdownMenu(expanded = speedMenuOpen, onDismissRequest = { speedMenuOpen = false }) {
                         listOf(0.75f, 1f, 1.25f, 1.5f, 2f).forEach { speed ->
@@ -426,12 +427,14 @@ internal fun AdvancedAudioPlayer(
                         markerDialogOpen = true
                     },
                     modifier = Modifier.weight(5f).height(32.dp),
+                    shape = RoundedCornerShape(8.dp),
                     enabled = player != null,
                     contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
                 ) { Text("添加标记", fontSize = 12.sp, lineHeight = 16.sp, fontWeight = FontWeight.Normal, color = Color(0xFF858585)) }
                 FlatButton(
                     onClick = onCollapse,
                     modifier = Modifier.weight(1f).height(32.dp),
+                    shape = RoundedCornerShape(8.dp),
                     contentPadding = PaddingValues(0.dp),
                 ) {
                     Icon(
@@ -443,7 +446,7 @@ internal fun AdvancedAudioPlayer(
                 }
             }
 
-            Text("标记列表 · ${markers.size}", style = MaterialTheme.typography.titleSmall)
+            Text("标记列表 · ${markers.size}", style = MaterialTheme.typography.titleSmall, fontSize = 13.sp, color = Color(0xFF686868))
             if (markers.isEmpty()) {
                 Text("还没有标记。播放到需要记住的位置时，点“添加标记”。录音时也可以长按悬浮方块快速打标。", style = MaterialTheme.typography.bodySmall)
             } else {

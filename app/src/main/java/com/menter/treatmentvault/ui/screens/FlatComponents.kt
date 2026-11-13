@@ -91,13 +91,14 @@ fun FlatButton(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
     contentPadding: PaddingValues = ButtonDefaults.ContentPadding,
+    shape: Shape = RoundedCornerShape(14.dp),
     content: @Composable androidx.compose.foundation.layout.RowScope.() -> Unit,
 ) {
     Button(
         onClick = onClick,
         modifier = modifier,
         enabled = enabled,
-        shape = RoundedCornerShape(14.dp),
+        shape = shape,
         colors = ButtonDefaults.buttonColors(
             containerColor = Color.White,
             contentColor = MaterialTheme.colorScheme.onSurface,
